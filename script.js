@@ -450,8 +450,13 @@ function renderInventory(){
     // Badge joueur
   const badge = document.getElementById('player-badge');
   if(badge) badge.innerHTML = state.pseudo
-    ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
-      + '&nbsp;Aventurier :&nbsp;<strong>' + state.pseudo + '</strong>'
+    ? '<div style="display:flex; align-items:center; justify-content:space-between; width:100%;">'
+      + '<div style="display:flex; align-items:center; gap:8px;">'
+      + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
+      + 'Aventurier :&nbsp;<strong>' + state.pseudo + '</strong>'
+      + '</div>'
+      + '<button class="share-btn" style="padding:4px 10px; font-size:11px; margin:0;" onclick="toggleProfilePanel()">⚙️ Profil</button>'
+      + '</div>'
     : '';
   const search=document.getElementById('search-input').value.toLowerCase();
   const entries=Object.entries(state.inventory).filter(([,c])=>c>0);
@@ -1488,4 +1493,149 @@ function claimClickerFragments(cloudEarned) {
   if (k) document.getElementById('open-btn').disabled = false;
   showToast('✦ Clicker : +' + d + ' fragment(s)' + (k ? ' → +' + k + ' clé(s) !' : ''));
 }
-window.addEventListener('pageshow', e => { if (e.persisted) claimClickerFragments(); });
+
+// --- PROFIL UTILISATEUR & GESTION DU COMPTE ---
+let isProfileOpen = false;
+
+function toggleProfilePanel() {
+  isProfileOpen = !isProfileOpen;
+  const invView = document.getElementById('inventory-view');
+  const profPanel = document.getElementById('profile-panel');
+  const titleText = document.getElementById('sidebar-title-text');
+
+  if (isProfileOpen) {
+    if (invView) invView.style.display = 'none';
+    if (profPanel) profPanel.style.display = 'flex';
+    if (titleText) titleText.textContent = '✦ Profil du Mage';
+    const pseudoInput = document.getElementById('profile-pseudo-input');
+    if (pseudoInput) pseudoInput.value = state.pseudo || '';
+  } else {
+    if (invView) invView.style.display = 'flex';
+    if (profPanel) profPanel.style.display = 'none';
+    if (titleText) titleText.textContent = '✦ Inventaire';
+  }
+}
+
+async function saveProfilePseudo() {
+  const input = document.getElementById('profile-pseudo-input');
+  if (!input) return;
+  const newPseudo = input.value.trim();
+  if (!newPseudo) {
+    showToast('❌ Le pseudo ne peut pas être vide.');
+    return;
+  }
+  state.pseudo = newPseudo;
+  saveState();
+
+  if (window.firebaseAuth && window.firebaseAuth.auth && window.firebaseAuth.auth.currentUser) {
+    try {
+      const user = window.firebaseAuth.auth.currentUser;
+      const { db, doc, setDoc } = window.firebaseAuth;
+      await setDoc(doc(db, "players", user.uid), {
+        pseudo: newPseudo,
+        discovered: Object.keys(state.inventory).filter(k => (state.inventory[k]||0)>0).length,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    } catch (err) {
+      console.error("Erreur sync pseudo cloud:", err);
+    }
+  }
+
+  showToast('✨ Pseudo mis à jour avec succès !');
+  renderInventory();
+}
+
+function checkAppUpdate() {
+  showToast('🔄 Vérification des mises à jour en cours...');
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(registrations => {
+      for (let registration of registrations) {
+        registration.update();
+      }
+      setTimeout(() => {
+        showToast('✨ Cache mis à jour ! Rechargement...');
+        setTimeout(() => window.location.reload(), 1000);
+      }, 1200);
+    }).catch(() => {
+      window.location.reload();
+    });
+  } else {
+    window.location.reload();
+  }
+}
+
+function confirmLogout() {
+  const modal = document.getElementById('profile-action-modal');
+  const title = document.getElementById('profile-modal-title');
+  const body = document.getElementById('profile-modal-body');
+  const inputWrap = document.getElementById('profile-modal-input-wrap');
+  const confirmBtn = document.getElementById('profile-modal-confirm-btn');
+
+  if (modal && title && body && confirmBtn) {
+    title.textContent = '🚪 Déconnexion du Compte';
+    body.innerHTML = 'Êtes-vous sûr de vouloir vous déconnecter de votre session Google sur cet appareil ? Vos données Cloud restent sauvegardées.';
+    if (inputWrap) inputWrap.style.display = 'none';
+    confirmBtn.textContent = 'Se déconnecter';
+    confirmBtn.className = 'share-btn';
+    confirmBtn.style.background = 'rgba(244,63,94,0.15)';
+    confirmBtn.style.borderColor = 'rgba(244,63,94,0.4)';
+    confirmBtn.style.color = '#f43f5e';
+    confirmBtn.onclick = executeLogout;
+    modal.style.display = 'flex';
+  }
+}
+
+async function executeLogout() {
+  closeProfileActionModal();
+  if (window.auth) {
+    try {
+      await window.signOut(window.auth);
+      showToast('👋 Déconnexion réussie.');
+      setTimeout(() => window.location.reload(), 1000);
+    } catch (e) {
+      showToast('❌ Erreur lors de la déconnexion.');
+    }
+  } else {
+    window.location.reload();
+  }
+}
+
+function confirmWipeData() {
+  const modal = document.getElementById('profile-action-modal');
+  const title = document.getElementById('profile-modal-title');
+  const body = document.getElementById('profile-modal-body');
+  const inputWrap = document.getElementById('profile-modal-input-wrap');
+  const confirmInput = document.getElementById('profile-modal-confirm-input');
+  const confirmBtn = document.getElementById('profile-modal-confirm-btn');
+
+  if (modal && title && body && confirmBtn) {
+    title.textContent = '💥 Effacement Total des Données';
+    body.innerHTML = '<b>ATTENTION :</b> Cette action est irréversible. Toutes vos clés, fragments, objets et progression locale seront définitivement supprimés.<br><br>Tapez <b>SUPPRIMER</b> ci-dessous pour confirmer :';
+    if (inputWrap) inputWrap.style.display = 'block';
+    if (confirmInput) confirmInput.value = '';
+    confirmBtn.textContent = 'Effacer définitivement';
+    confirmBtn.className = 'share-btn share-btn-danger';
+    confirmBtn.style.background = '';
+    confirmBtn.style.borderColor = '';
+    confirmBtn.style.color = '';
+    confirmBtn.onclick = executeWipeData;
+    modal.style.display = 'flex';
+  }
+}
+
+function executeWipeData() {
+  const confirmInput = document.getElementById('profile-modal-confirm-input');
+  if (!confirmInput || confirmInput.value.trim() !== 'SUPPRIMER') {
+    showToast('❌ Veuillez taper SUPPRIMER pour confirmer.');
+    return;
+  }
+  closeProfileActionModal();
+  localStorage.clear();
+  showToast('💥 Données effacées. Réinitialisation...');
+  setTimeout(() => window.location.reload(), 1000);
+}
+
+function closeProfileActionModal() {
+  const modal = document.getElementById('profile-action-modal');
+  if (modal) modal.style.display = 'none';
+}
