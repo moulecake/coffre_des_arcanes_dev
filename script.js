@@ -7,7 +7,7 @@
 // VERSIONING — Modifiez le chiffre AVANT le point pour reset total,
 // le chiffre APRÈS pour reset des clés uniquement.
 // ============================================================
-const CURRENT_VERSION = "2.0.2";
+const CURRENT_VERSION = "2.a1.0";
 document.getElementById("app-version").textContent = CURRENT_VERSION;
 
 // DROP RATES — C:40 | PC:25 | R:20 | TR:8 | L:5 | A:2
@@ -182,6 +182,7 @@ async function loadState() {
       console.error("Erreur de chargement cloud :", e);
     }
   }
+  claimClickerFragments();
 }
 // ============================================================
 // REGEN
@@ -1281,6 +1282,7 @@ async function loadGameDataFromCloud(uid) {
       console.log("Aucune sauvegarde trouvée. Première connexion !");
       await saveGameDataToCloud();
     }
+    claimClickerFragments(docSnap.exists() ? docSnap.data().clicker?.earned : 0);inv-btn
   } catch (e) {
     console.error("Erreur lors du chargement des données Cloud :", e);
   }
@@ -1471,3 +1473,19 @@ function escapeLeaderboardHtml(str) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
 }
+
+// PONT CLICKER → FRAGMENTS (idempotent : earned − déjà réclamé)
+function claimClickerFragments(cloudEarned) {
+  let earned = cloudEarned || 0;
+  try { const c = JSON.parse(localStorage.getItem('coffre-clicker') || '{}'); earned = Math.max(earned, (c.fr && c.fr.earned) || 0); } catch (e) {}
+  const d = earned - (state.clickerClaimed || 0);
+  if (d <= 0) return;
+  state.clickerClaimed = earned;
+  state.fragments = (state.fragments || 0) + d;
+  let k = 0;
+  while (state.fragments >= FRAGS_PER_KEY) { state.fragments -= FRAGS_PER_KEY; state.keys++; k++; }
+  saveState(); updateTimer();
+  if (k) document.getElementById('open-btn').disabled = false;
+  showToast('✦ Clicker : +' + d + ' fragment(s)' + (k ? ' → +' + k + ' clé(s) !' : ''));
+}
+window.addEventListener('pageshow', e => { if (e.persisted) claimClickerFragments(); });

@@ -1,0 +1,171 @@
+:root{--bg:#0b0f19;--glass:rgba(13,17,28,.72);--bd:rgba(255,255,255,.08);--tx:#e2e8f0;--dim:#64748b;
+  --vio:#8b5cf6;--azu:#38bdf8;--or:#d4af37;--amb:#f59e0b;--rad:16px;--t:.25s cubic-bezier(.4,0,.2,1);color-scheme:dark}
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;padding:16px;color:var(--tx);font:14px Inter,sans-serif;
+  background:radial-gradient(ellipse 70% 50% at 20% -10%,rgba(139,92,246,.2),transparent),
+  radial-gradient(ellipse 70% 50% at 85% 110%,rgba(212,175,55,.13),transparent),var(--bg)}
+.top{max-width:1100px;margin:0 auto;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+.back{color:var(--dim);text-decoration:none;font-size:12px;letter-spacing:.5px;transition:var(--t)}.back:hover{color:var(--tx)}
+.res{display:flex;gap:10px}
+.chip{display:flex;flex-direction:column;padding:8px 14px;border-radius:12px;background:var(--glass);border:1px solid var(--bd);backdrop-filter:blur(16px);min-width:130px}
+.chip span{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim)}
+.chip b{font:600 17px Cinzel,serif}.chip small{font-size:11px;color:var(--dim)}
+.ether b{color:var(--azu)}.sage b{color:var(--or)}
+.duo{max-width:1100px;margin:16px auto;display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.pane{position:relative;display:flex;flex-direction:column;gap:14px;padding:18px;border-radius:var(--rad);background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--bd)}
+.voile{border-color:rgba(139,92,246,.28);box-shadow:inset 0 0 70px rgba(139,92,246,.07)}
+.grimoire{border-color:rgba(212,175,55,.28);box-shadow:inset 0 0 70px rgba(245,158,11,.06)}
+h2{font:900 15px Cinzel,serif;letter-spacing:2px;text-align:center}
+.voile h2{color:#c4b5fd}.grimoire h2{color:var(--or)}
+.orb,.tome{align-self:center;width:150px;height:150px;border-radius:50%;border:0;display:grid;place-items:center;transition:transform .08s;animation:breathe 3s ease-in-out infinite}
+.orb{background:radial-gradient(circle at 35% 30%,#c4b5fd,var(--vio) 45%,#1e1b4b 82%);box-shadow:0 0 50px rgba(139,92,246,.5);
+  cursor:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24'><circle cx='12' cy='12' r='6' fill='%238b5cf6' stroke='%2338bdf8' stroke-width='2'/></svg>") 12 12,pointer}
+.tome{background:radial-gradient(circle at 35% 30%,#f5d98a,var(--amb) 40%,#3b2a12 85%);box-shadow:0 0 50px rgba(245,158,11,.4);animation-name:breathe-g;
+  cursor:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24'><path d='M3 21L21 3l-5 11z' fill='%23d4af37' stroke='%23f59e0b'/></svg>") 3 21,pointer}
+.orb:active,.tome:active{transform:scale(.94)}
+@keyframes breathe{50%{box-shadow:0 0 85px rgba(56,189,248,.6)}}
+@keyframes breathe-g{50%{box-shadow:0 0 85px rgba(245,158,11,.6)}}
+.heat{height:6px;border-radius:9px;background:rgba(255,255,255,.07);overflow:hidden}
+.heat i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--vio),var(--azu));transition:width .1s}
+.heat.hot i{background:#e11d48}
+.hint{text-align:center;font-size:11px;color:var(--dim)}
+.buff{align-self:center;padding:6px 16px;border-radius:99px;border:1px solid var(--bd);font-size:12px;color:var(--dim);transition:var(--t)}
+.buff.gold{color:var(--or);border-color:var(--or);box-shadow:0 0 20px rgba(212,175,55,.4)}
+.buff.red{color:#fb7185;border-color:#e11d48;box-shadow:0 0 20px rgba(225,29,72,.4)}
+.bar{display:flex;gap:8px;justify-content:center}
+.slot{width:44px;height:44px;display:grid;place-items:center;border:1px dashed var(--bd);border-radius:12px;color:var(--dim);background:rgba(255,255,255,.02)}
+.blds{display:flex;flex-direction:column;gap:8px}
+.bld{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:center;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid var(--bd);cursor:pointer;opacity:.45;transition:var(--t);user-select:none}
+.bld[hidden]{display:none}.bld.can{opacity:1}
+.voile .bld.can:hover{border-color:var(--vio);background:rgba(139,92,246,.1)}
+.grimoire .bld.can:hover{border-color:var(--or);background:rgba(212,175,55,.08)}
+.bld i{font-style:normal;font-size:18px;text-align:center}.bld em{font-style:normal;font-size:11px;color:var(--dim)}
+.bld small{display:block;font-size:11px;color:var(--dim)}.bld .px{font:600 12px Cinzel,serif}
+.voile .px{color:var(--azu)}.grimoire .px{color:var(--or)}
+.fl{position:absolute;pointer-events:none;font:700 14px Cinzel,serif;animation:up .9s forwards;text-shadow:0 0 8px #000}
+@keyframes up{to{transform:translateY(-55px);opacity:0}}
+#toast{position:fixed;bottom:20px;left:50%;transform:translate(-50%,90px);padding:10px 20px;border-radius:10px;background:var(--glass);border:1px solid var(--bd);backdrop-filter:blur(20px);transition:transform .3s;z-index:9}
+#toast.show{transform:translate(-50%,0)}
+@media(max-width:800px){.duo{grid-template-columns:1fr}.res{width:100%}.chip{flex:1}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+/* ---- Étape 2 : sorts, Amphithéâtre, sélecteur ---- */
+.bar{align-items:center}.slots{display:flex;gap:8px;flex-wrap:wrap}
+.sl{position:relative;width:46px;height:46px;border-radius:12px;border:1px solid var(--bd);background:rgba(255,255,255,.04);display:grid;place-items:center;cursor:pointer;color:var(--dim);overflow:hidden;font-size:16px;transition:var(--t)}
+.sl.act{box-shadow:inset 0 0 14px currentColor}.sl.sel{border-color:var(--or)}
+.sl u{position:absolute;inset:0;background:conic-gradient(rgba(0,0,0,.72) var(--p,0deg),transparent 0)}
+.sl b{position:absolute;font:700 15px Cinzel,serif;color:#fff;text-shadow:0 0 6px #000}
+.sl.lk::after{content:"🔒";position:absolute;right:2px;top:0;font-size:9px}
+.gear,.phead button{width:32px;height:32px;border-radius:10px;border:1px solid var(--bd);background:rgba(255,255,255,.04);color:var(--dim);cursor:pointer;transition:var(--t)}
+.gear:hover,.phead button:hover{color:var(--tx)}
+.pane.wave::after{content:"";position:absolute;left:50%;top:40%;width:20px;height:20px;border-radius:50%;border:2px solid currentColor;transform:translate(-50%,-50%);animation:ring .7s ease-out forwards;pointer-events:none}
+.voile.wave::after{color:var(--azu)}.grimoire.wave::after{color:var(--or)}
+@keyframes ring{to{width:440px;height:440px;opacity:0}}
+.amphi{max-width:1100px;margin:0 auto 16px}.amphi h2{color:var(--tx)}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+.tb{display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:10px;border:1px solid var(--bd);background:rgba(255,255,255,.03);font:600 11px Inter,sans-serif;cursor:pointer;transition:var(--t)}
+.tb span{color:var(--tx)}.tb.on{border-color:currentColor;background:rgba(255,255,255,.08)}
+.les.can:hover{border-color:var(--or);background:rgba(212,175,55,.08)}.les .px{color:var(--or)}
+#pick{position:fixed;inset:0;z-index:20;display:grid;place-items:center;background:rgba(0,0,0,.7);backdrop-filter:blur(6px)}
+#pick[hidden]{display:none}
+.pbox{width:min(440px,92vw);max-height:80vh;overflow:auto;padding:18px;border-radius:var(--rad);background:var(--glass);border:1px solid var(--bd);backdrop-filter:blur(24px);display:flex;flex-direction:column;gap:12px}
+.phead{display:flex;justify-content:space-between;align-items:center}.phead b{font:900 14px Cinzel,serif;letter-spacing:2px}
+.ps{display:grid;grid-template-columns:26px 1fr;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--bd);border-radius:10px;background:rgba(255,255,255,.03);cursor:pointer}
+.ps:hover,.ps.eq{border-color:var(--or)}.ps i{font-style:normal;text-align:center}.ps em{font-style:normal;font-size:11px;color:var(--dim)}.ps small{display:block;font-size:11px;color:var(--dim)}
+/* ---- Étape 3 : decks & Gold Sink ---- */
+.gear.wide{width:auto;padding:0 12px;font:600 12px Inter,sans-serif}
+#dk,#gate{position:fixed;inset:0;z-index:21;display:grid;place-items:center;background:rgba(0,0,0,.7);backdrop-filter:blur(6px)}
+#gate{z-index:22}#dk[hidden],#gate[hidden]{display:none}
+.sl.pen{filter:grayscale(1) brightness(.55)}.ps.off{opacity:.4;cursor:not-allowed}
+.dkform{display:flex;gap:6px}
+.dkform input,.dkform select{flex:1;min-width:0;padding:8px 10px;border-radius:10px;border:1px solid var(--bd);background:rgba(255,255,255,.05);color:var(--tx);font:13px Inter,sans-serif}
+.dkb{padding:6px 10px;border-radius:9px;border:1px solid var(--bd);background:rgba(255,255,255,.04);color:var(--tx);font:12px Inter,sans-serif;cursor:pointer;transition:var(--t)}.dkb:hover{border-color:var(--or)}
+.dk{display:flex;flex-direction:column;gap:8px;padding:10px;border:1px solid var(--bd);border-radius:12px;background:rgba(255,255,255,.03)}
+.dkh{display:flex;justify-content:space-between;align-items:baseline}.dkh b{font:600 13px Cinzel,serif}.dkh em{font-style:normal;font-size:11px;color:var(--dim)}
+.dkp{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--dim)}.pv{display:flex;align-items:center;gap:4px}.pv i{display:inline-flex}
+.dka{display:flex;gap:6px;flex-wrap:wrap}
+/* ---- Pages = paliers de lecture ---- */
+.pgbar{height:8px;border-radius:9px;background:rgba(255,255,255,.07);overflow:hidden}
+.pgbar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#f5d98a,var(--or));transition:width .15s}
+.pgbar.red i{background:linear-gradient(90deg,#fb7185,#e11d48)}.pgbar.gold i{background:linear-gradient(90deg,#fde68a,#f59e0b);box-shadow:0 0 12px #f59e0b}
+.tome.flip svg{animation:flip .45s}@keyframes flip{50%{transform:rotateY(90deg) scale(.9)}}
+.frag b{color:#4ade80}
+/* le sélecteur de sorts doit passer AU-DESSUS de la fenêtre des decks (pré-construction) */
+#pick{z-index:22}#gate{z-index:23}
+/* ---- Sprint 3 · UI-A : Voile d'Éther (filet SVG) + curseur Orbe ---- */
+.veil{--v1:#8b5cf6;--v2:#38bdf8;position:relative;align-self:center;width:min(100%,380px);aspect-ratio:4/3;padding:0;border:1px solid rgba(139,92,246,.3);border-radius:18px;overflow:hidden;cursor:none;touch-action:manipulation;
+  background:radial-gradient(ellipse 80% 60% at 50% 0%,rgba(139,92,246,.22),transparent 70%),radial-gradient(ellipse 60% 50% at 50% 100%,rgba(56,189,248,.1),transparent),#080b14;
+  box-shadow:0 0 40px rgba(139,92,246,.2),inset 0 0 40px rgba(0,0,0,.55);transition:border-color .3s,box-shadow .3s}
+.veil.hot{--v1:#e11d48;--v2:#fb7185;border-color:rgba(225,29,72,.55);box-shadow:0 0 40px rgba(225,29,72,.28),inset 0 0 40px rgba(0,0,0,.55)}
+.veil svg{display:block;width:100%;height:100%}
+.vs{fill:#e0e7ff;animation:tw 3s ease-in-out infinite}@keyframes tw{50%{opacity:.12}}
+#orbCur{position:fixed;left:0;top:0;width:0;height:0;pointer-events:none;z-index:30;opacity:0;transition:opacity .15s}
+#orbCur.on{opacity:1}
+#orbCur::before{content:"";position:absolute;left:-17px;top:-17px;width:34px;height:34px;border-radius:50%;
+  background:radial-gradient(circle,#fff 0 14%,#c4b5fd 32%,rgba(139,92,246,.5) 56%,transparent 74%);box-shadow:0 0 22px rgba(139,92,246,.9);animation:orbPulse 1.1s ease-in-out infinite}
+body.hot #orbCur::before{background:radial-gradient(circle,#fff 0 14%,#fda4af 32%,rgba(225,29,72,.5) 56%,transparent 74%);box-shadow:0 0 22px rgba(225,29,72,.9)}
+@keyframes orbPulse{50%{transform:scale(1.35);opacity:.8}}
+/* ---- Sprint 3 · UI-B : Grimoire (double page 3D) + curseur Plume ---- */
+.book{--ink:#5b3a12;position:relative;align-self:center;width:min(100%,380px);aspect-ratio:4/3;padding:0;border:0;background:none;cursor:none;perspective:1000px;touch-action:manipulation}
+.book>span{display:block}
+.bk-cover{position:absolute;inset:6% 0 2%;border-radius:14px;background:linear-gradient(135deg,#3b2410,#1d1208);box-shadow:0 14px 40px rgba(0,0,0,.6),inset 0 0 0 2px #8a6a1d,0 0 30px rgba(212,175,55,.18);transition:box-shadow .4s}
+.pg,.lf{background:linear-gradient(90deg,#d9c08a,#ecd9a8 60%,#cdb07a);box-shadow:inset 0 0 22px rgba(90,58,18,.45);transition:background .4s}
+.pg{position:absolute;top:11%;height:78%;width:45.5%}
+.pl{left:3.5%;border-radius:10px 2px 2px 10px}.pr{right:3.5%;border-radius:2px 10px 10px 2px}
+.pg svg{display:block;width:100%;height:100%}
+.bk-spine{position:absolute;left:50%;top:9%;bottom:6%;width:3%;transform:translateX(-50%);background:linear-gradient(90deg,transparent,rgba(0,0,0,.5),transparent)}
+.gl{fill:none;stroke:var(--ink);stroke-width:1.3;stroke-linecap:round;opacity:0;transition:opacity .35s}
+.gl.on{opacity:.9;filter:drop-shadow(0 0 1.5px rgba(212,175,55,.7))}
+.sg{fill:none;stroke:#8a6a1d;stroke-width:1}
+.leaf{position:absolute;right:3.5%;top:11%;height:78%;width:45.5%;transform-origin:left center;transform-style:preserve-3d;pointer-events:none;visibility:hidden}
+.leaf.turn{visibility:visible;animation:turn .85s ease-in-out forwards}
+.lf{position:absolute;inset:0;backface-visibility:hidden;border-radius:2px 10px 10px 2px}
+.lback{transform:rotateY(180deg);border-radius:10px 2px 2px 10px}
+@keyframes turn{to{transform:rotateY(-180deg)}}
+/* Nécrotique : rouge sang, pulsations sombres */
+.book.red{--ink:#4a0a14;animation:blood 1.5s ease-in-out infinite}
+.book.red .pg,.book.red .lf{background:linear-gradient(90deg,#a98a72,#cfa58a 60%,#9b6e58)}
+.book.red .bk-cover{box-shadow:0 14px 40px rgba(0,0,0,.7),inset 0 0 0 2px #7f1d1d,0 0 60px rgba(225,29,72,.55)}
+.book.red .gl.on{filter:drop-shadow(0 0 3px rgba(225,29,72,.9))}
+@keyframes blood{50%{filter:drop-shadow(0 0 26px rgba(190,18,60,.85)) brightness(.8)}}
+/* Dorée : lueur brillante + particules flottantes */
+.book.gold{--ink:#7a5a10;animation:goldglow 2s ease-in-out infinite}
+.book.gold .pg,.book.gold .lf{background:linear-gradient(90deg,#f1d88a,#fff1c2 60%,#e6c25a)}
+.book.gold .bk-cover{box-shadow:0 14px 40px rgba(0,0,0,.6),inset 0 0 0 2px #f59e0b,0 0 60px rgba(245,190,50,.6)}
+.book.gold .gl.on{filter:drop-shadow(0 0 3px rgba(245,158,11,.9))}
+@keyframes goldglow{50%{filter:drop-shadow(0 0 24px rgba(245,190,50,.9)) brightness(1.1)}}
+.gp{position:absolute;bottom:22%;width:4px;height:4px;border-radius:50%;background:#fde68a;box-shadow:0 0 8px #f59e0b;opacity:0;pointer-events:none}
+.book.gold .gp{animation:gp 3s ease-in infinite}
+@keyframes gp{0%{opacity:0;transform:translateY(0)}20%{opacity:1}100%{opacity:0;transform:translate(var(--gx,10px),-130px)}}
+/* runes qui s'envolent du clic */
+.fr{position:absolute;pointer-events:none;animation:flyR 1.1s ease-out forwards}
+.fr path{fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round}
+@keyframes flyR{to{transform:translate(var(--dx),var(--dy)) rotate(var(--r));opacity:0}}
+/* curseur Plume d'Oie en lévitation */
+#quillCur{position:fixed;left:0;top:0;width:0;height:0;pointer-events:none;z-index:30;opacity:0;transition:opacity .15s}
+#quillCur.on{opacity:1}
+#quillCur svg{position:absolute;left:-4px;top:-33px;width:36px;height:36px;filter:drop-shadow(0 0 8px rgba(212,175,55,.8));transform-origin:4px 33px;animation:quill 1.7s ease-in-out infinite}
+@keyframes quill{50%{transform:translateY(-5px) rotate(6deg)}}
+/* ---- Sprint 3 · UI-C : glyphes d'écoles, effets de sorts, critiques ---- */
+.sfx{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;z-index:5;overflow:hidden;border-radius:inherit}
+.sfx-t{position:absolute;inset:0;background:radial-gradient(circle at 50% 45%,var(--c),transparent 65%);opacity:0;animation:tint .9s ease-out}
+@keyframes tint{30%{opacity:.32}to{opacity:0}}
+.sfx-g{display:block;color:var(--c);filter:drop-shadow(0 0 14px var(--c));opacity:0;animation:fxIn .9s ease-out}
+.sfx-g svg{display:block}
+@keyframes fxIn{0%{transform:scale(.4);opacity:0}30%{opacity:1;transform:scale(1.1)}100%{transform:scale(1.4);opacity:0}}
+.fx-evo{animation-name:fxEvo}@keyframes fxEvo{0%{transform:scale(.5) skewX(-20deg);opacity:0}15%{opacity:1;transform:scale(1.15) skewX(10deg)}30%{transform:translateX(-5px)}45%{transform:translateX(5px)}100%{transform:scale(1.5);opacity:0}}
+.fx-enc{animation-name:fxEnc}@keyframes fxEnc{0%{transform:scale(.3) rotate(-90deg);opacity:0}35%{opacity:1;transform:scale(1.1) rotate(0)}100%{transform:scale(1.6) rotate(90deg);opacity:0}}
+.fx-ill{animation-name:fxIll}@keyframes fxIll{0%{opacity:0;transform:scale(.8)}30%{opacity:1;filter:drop-shadow(18px 0 0 var(--c)) drop-shadow(-18px 0 0 var(--c))}100%{opacity:0;transform:scale(1.3)}}
+.fx-nec{animation-name:fxNec}@keyframes fxNec{0%{transform:translateY(30px) scale(.8);opacity:0}40%{opacity:1}100%{transform:translateY(-50px) scale(1.3);opacity:0}}
+.fx-abj{animation-name:fxAbj}@keyframes fxAbj{0%{transform:scale(1.8);opacity:0}30%{opacity:1;transform:scale(1)}100%{transform:scale(.9);opacity:0}}
+.fx-div{animation-name:fxDiv}@keyframes fxDiv{0%{transform:scaleY(.05);opacity:0}30%{transform:scaleY(1);opacity:1}100%{transform:scale(1.5);opacity:0;filter:blur(6px)}}
+.fx-tra{animation-name:fxTra}@keyframes fxTra{0%{transform:rotate(0) scale(.6);opacity:0}30%{opacity:1}100%{transform:rotate(540deg) scale(1.3);opacity:0}}
+.fx-con{animation-name:fxCon}@keyframes fxCon{0%{transform:rotate(720deg) scale(2);opacity:0}40%{opacity:1}100%{transform:rotate(0) scale(.4);opacity:0}}
+.bolt{position:absolute;inset:0;width:100%;height:100%}
+.bolt path{fill:none;stroke:var(--c);stroke-width:2.2;stroke-linejoin:round;filter:drop-shadow(0 0 6px var(--c));animation:boltF .45s ease-out forwards}
+@keyframes boltF{to{opacity:0}}
+.crit{position:absolute;z-index:6;pointer-events:none;text-align:center;animation:crit .9s ease-out forwards}
+.crit svg{display:block;margin:0 auto;filter:drop-shadow(0 0 10px currentColor)}
+.crit b{display:block;font:900 13px Cinzel,serif;letter-spacing:2px;text-shadow:0 0 8px #000}
+@keyframes crit{0%{transform:translate(-50%,-50%) scale(.3);opacity:0}25%{transform:translate(-50%,-70%) scale(1.25);opacity:1}100%{transform:translate(-50%,-150%) scale(1);opacity:0}}
+.sl.cast{animation:slotCast .45s ease-out}
+@keyframes slotCast{40%{box-shadow:0 0 18px 4px currentColor;transform:scale(1.12)}}

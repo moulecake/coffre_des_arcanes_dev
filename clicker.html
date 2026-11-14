@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Le Voile & le Grimoire — Coffre des arcanes</title>
+<meta name="theme-color" content="#0b0f19">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="clicker.css">
+<!-- Firebase (même projet que le Coffre : la session Google est partagée) -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-app.js";
+  import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-auth.js";
+  import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
+  const app = initializeApp({ apiKey: "AIzaSyBkwZIkmAAuYtZpoVokvhZd5MYlTfkLyww", authDomain: "coffre-des-arcanes.firebaseapp.com", projectId: "coffre-des-arcanes",
+    storageBucket: "coffre-des-arcanes.firebasestorage.app", messagingSenderId: "905578088250", appId: "1:905578088250:web:38f331566593c3b485f203" });
+  window.auth = getAuth(app); window.db = getFirestore(app);
+  window.onAuthStateChanged = onAuthStateChanged; window.doc = doc; window.setDoc = setDoc; window.getDoc = getDoc;
+</script>
+<!-- Ordre : spells (hooks) > passives (bâtiments) > core (state, boucle) -->
+<script src="clicker-spells.js" defer></script>
+<script src="clicker-passives.js" defer></script>
+<script src="clicker-core.js" defer></script>
+</head>
+<body>
+<header class="top">
+  <a class="back" href="../index.html">← Retour au Coffre</a>
+  <button class="gear wide" id="dkopen" title="Decks de sorts">🗂 Decks</button>
+  <div class="res">
+    <div class="chip ether"><span>Éther Pur</span><b id="eth">0 nL</b><small id="ethps"></small></div>
+    <div class="chip frag" title="5 fragments = 1 clé du Coffre. 5 min d'effort actif = 1 fragment."><span>Fragments de clé</span><b id="fr">0 / 9</b><small id="frs"></small></div>
+    <div class="chip sage"><span>Sagesse</span><b id="sg">0</b><small id="sgps"></small></div>
+  </div>
+</header>
+
+<main class="duo">
+  <section class="pane voile">
+    <h2>Le Voile d'Éther</h2>
+    <button id="orb" class="veil" aria-label="Frapper le Voile d'Éther">
+      <svg id="veilSvg" viewBox="0 0 320 240" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <linearGradient id="vg" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="320" y2="0"><stop offset="0" style="stop-color:var(--v1)"/><stop offset="1" style="stop-color:var(--v2)"/></linearGradient>
+          <radialGradient id="va"><stop offset="0" stop-color="#fff"/><stop offset=".5" stop-color="#c4b5fd"/><stop offset="1" stop-color="#8b5cf6" stop-opacity="0"/></radialGradient>
+          <filter id="vglow" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        </defs>
+        <g id="vStars"></g>
+        <path d="M8 22H312" stroke="#6d5bd0" stroke-width="2.5" stroke-linecap="round"/>
+        <g id="vNet" filter="url(#vglow)" fill="none" stroke="url(#vg)" stroke-width="1.1"></g>
+        <g id="vKnots" fill="#e0e7ff"></g>
+        <circle cx="14" cy="22" r="9" fill="url(#va)"/><circle cx="306" cy="22" r="9" fill="url(#va)"/>
+      </svg>
+    </button>
+    <div class="heat" id="heatBox"><i id="heat"></i></div>
+    <div class="hint" id="heatTxt">Canalisation stable</div>
+    <div class="bar"><div class="slots" id="barV"></div><button class="gear" data-p="V" aria-label="Équiper des sorts">⚙</button></div>
+    <div class="blds" id="bV"></div>
+  </section>
+
+  <section class="pane grimoire">
+    <h2>Le Grimoire aux Pages Infinies</h2>
+    <button id="tome" class="book" aria-label="Lire une page du Grimoire">
+      <span class="bk-cover"></span>
+      <span class="pg pl"><svg id="gL" viewBox="0 0 100 150"></svg></span>
+      <span class="pg pr"><svg id="gR" viewBox="0 0 100 150"></svg></span>
+      <span class="bk-spine"></span>
+      <span class="leaf" id="leaf"><span class="lf"></span><span class="lf lback"></span></span>
+    </button>
+    <div class="buff" id="buff">Page 1</div>
+    <div class="pgbar" id="pgbar"><i id="pgFill"></i></div>
+    <div class="hint" id="pgTxt"></div>
+    <div class="hint" id="hintG"></div>
+    <div class="bar"><div class="slots" id="barG"></div><button class="gear" data-p="G" aria-label="Équiper des sorts">⚙</button></div>
+    <div class="blds" id="bG"></div>
+  </section>
+</main>
+<section class="pane amphi">
+  <h2>L'Amphithéâtre</h2>
+  <div class="tabs" id="tabs"></div>
+  <div class="hint" id="course"></div>
+  <div class="blds" id="lessons"></div>
+</section>
+<div id="pick" hidden><div class="pbox">
+  <div class="phead"><b id="ptitle"></b><button id="pclose" aria-label="Fermer">✕</button></div>
+  <div class="slots" id="pslots"></div><div class="blds" id="plist"></div>
+</div></div>
+<!-- curseurs : enfants DIRECTS de <body> (un parent avec backdrop-filter casserait position:fixed) -->
+<div id="orbCur" aria-hidden="true"></div>
+<div id="quillCur" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21 2C13 3 7 9 6 17l-3 5 5-2c8-1 14-7 13-18z" fill="#f5d98a" stroke="#d4af37" stroke-width="1"/><path d="M5 19L17 6" stroke="#8a6a1d" stroke-width="1" fill="none"/></svg></div>
+<div id="dk" hidden><div class="pbox">
+  <div class="phead"><b>Decks de sorts</b><button id="dkclose" aria-label="Fermer">✕</button></div>
+  <div class="dkform"><input id="dkname" maxlength="20" placeholder="Nom du deck…"><select id="dkt"><option value="H">Hybride</option><option value="V">Voile</option><option value="G">Grimoire</option></select><button class="dkb" id="dkadd">+ Créer</button></div>
+  <div class="blds" id="dklist"></div>
+</div></div>
+<div id="gate" hidden><div class="pbox">
+  <div class="phead"><b>⚠ Adaptation en plein farm</b></div>
+  <div class="hint" id="gtxt"></div><div class="blds" id="gbtns"></div>
+</div></div>
+<div id="toast"></div>
+</body>
+</html>
