@@ -7,7 +7,7 @@
 // VERSIONING — Modifiez le chiffre AVANT le point pour reset total,
 // le chiffre APRÈS pour reset des clés uniquement.
 // ============================================================
-const CURRENT_VERSION = "2.a2.2";
+const CURRENT_VERSION = "2.a2.3";
 document.getElementById("app-version").textContent = CURRENT_VERSION;
 
 // DROP RATES — C:40 | PC:25 | R:20 | TR:8 | L:5 | A:2
@@ -886,10 +886,26 @@ async function openLeaderboardModal() {
     if (!window.db || !window.collection || !window.getDocs) {
       throw new Error("Firestore non disponible");
     }
+
+    // ==========================================
+    // LISTE DES COMPTES DE TEST À EXCLURE DU CLASSEMENT
+    // Ajoute ici les UIDs Firebase de tes comptes de test
+    // ==========================================
+    const EXCLUDED_UIDS = [
+      "e7olNUvRKaSdPPhzNMbyJgmAdUu1", // Exemple : Eliéta (compte test)
+      "ZjnCVWvL0rTVorvimZREv1v6mwC2", //Pubkiller (compte test)
+      // "AUTRE_UID_DE_TEST_ICI"
+    ];
+
     const querySnapshot = await window.getDocs(window.collection(window.db, 'players'));
     const players = [];
 
     querySnapshot.forEach((docSnap) => {
+      const uid = docSnap.id; // L'ID du document Firestore correspond à l'UID du joueur
+
+      // Si le joueur fait partie de la liste noire, on l'ignore complètement
+      if (EXCLUDED_UIDS.includes(uid)) return;
+
       const data = docSnap.data();
       const pState = data.state || {};
       const pseudo = pState.pseudo || data.pseudo || 'Mage Anonyme';
@@ -1036,9 +1052,9 @@ function closePromoCodeModal() {
   if (modal) modal.style.display = 'none';
 }
 
-//=============================================================
+// =============================================================
 // PROMO CODE VALIDATION
-//=============================================================
+// =============================================================
 async function validatePromoCode() {
   const input = document.getElementById('promo-code-input');
   const msgEl = document.getElementById('promo-msg');
@@ -1061,12 +1077,14 @@ async function validatePromoCode() {
     if (!db) {
       throw new Error("Base de données Cloud non connectée.");
     }
-    const docRef = window.doc(db, "promo_codes", code);
-    const currentUid = window.auth?.currentUser?.uid;
 
-    if (!currentUid) {
-      throw new Error("Vous devez être connecté pour utiliser un code.");
+    const currentUser = window.auth?.currentUser;
+    if (!currentUser || !currentUser.uid) {
+      throw new Error("Vous devez être connecté avec Google pour utiliser un code.");
     }
+    const currentUid = currentUser.uid;
+
+    const docRef = window.doc(db, "promo_codes", code);
 
     let keysToAdd = 1;
     await window.runTransaction(db, async (transaction) => {
@@ -1076,7 +1094,14 @@ async function validatePromoCode() {
       }
       const data = docSnap.data();
 
-      // Vérification de la date d'expiration commune
+      // DEBUG TOTAL DANS LA CONSOLE DU NAVIGATEUR (F12)
+      console.log("-----------------------------------------");
+      console.log("CODE TESTÉ :", code);
+      console.log("UID DU JOUEUR ACTUEL :", `"${currentUid}"`);
+      console.log("ASSIGNEDTO DANS FIRESTORE :", `"${data.assignedTo}"`);
+      console.log("-----------------------------------------");
+
+      // VÉRIFICATION DE LA DATE D'EXPIRATION (Commune à tous les codes périssables)
       if (data.expiresAt) {
         const expDate = data.expiresAt.toDate ? data.expiresAt.toDate() : new Date(data.expiresAt);
         if (expDate < new Date()) {
@@ -1085,44 +1110,50 @@ async function validatePromoCode() {
       }
 
       keysToAdd = data.keysReward || 1;
+      const nowIso = new Date().toISOString();
 
-      // CAS 1 : CODE INDIVIDUEL / DÉDOMMAGEMENT (Possède un assignedTo)
-      if (data.assignedTo) {
-        if (currentUid !== data.assignedTo) {
-          throw new Error("Ce code promotionnel est attribué à un autre compte.");
+      // 1. CAS DU CODE INDIVIDUEL (assignedTo)
+      if (data.assignedTo !== undefined && data.assignedTo !== null && String(data.assignedTo).trim() !== "") {
+        if (String(currentUid).trim() !== String(data.assignedTo).trim()) {
+          throw new Error("STOP : Ce code promotionnel est attribué à un autre compte !");
         }
         if (data.used === true) {
-          throw new Error("Ce code a déjà été utilisé.");
+          throw new Error("Ce code individuel a déjà été utilisé.");
         }
 
-        // On consomme le code uniquement pour lui
         transaction.update(docRef, {
           used: true,
           usedBy: currentUid,
-          usedAt: new Date().toISOString()
+          usedAt: nowIso
         });
-        return; // On sort de la transaction pour ce cas
+        return; // Quitte net pour les codes individuels
       }
 
-      // CAS 2 : CODE UNIVERSEL (Multi-joueurs via redeemedBy)
+      // 2. CAS DU CODE UNIVERSEL (redeemedBy / redeemedDetails)
       const redeemedByList = data.redeemedBy || [];
       if (redeemedByList.includes(currentUid)) {
         throw new Error("Vous avez déjà utilisé ce code promotionnel.");
       }
 
-      // Rétrocompatibilité anciens codes globaux used
       if (data.used === true) {
         throw new Error("Ce code a déjà été utilisé.");
       }
 
-      // On ajoute l'UID du joueur au tableau sans bloquer les autres
+      // On met à jour la liste des UIDs et on ajoute l'historique détaillé horodaté
       const updatedRedeemedBy = [...redeemedByList, currentUid];
+      const redeemedDetails = data.redeemedDetails || [];
+      redeemedDetails.push({
+        uid: currentUid,
+        usedAt: nowIso
+      });
+
       transaction.update(docRef, {
-        redeemedBy: updatedRedeemedBy
+        redeemedBy: updatedRedeemedBy,
+        redeemedDetails: redeemedDetails
       });
     });
 
-    state.keys = Math.min(MAX_KEYS, (state.keys || 0) + keysToAdd);
+    state.keys = (state.keys || 0) + keysToAdd;
     saveState();
     updateTimer();
     const openBtn = document.getElementById('open-btn');
@@ -1135,28 +1166,13 @@ async function validatePromoCode() {
   } catch (err) {
     console.error("Erreur promo code:", err);
     msgEl.textContent = err.message || "Code promotionnel invalide.";
-    msgEl.style.color = "#94a3b8";
+    msgEl.style.color = "#f87171";
     msgEl.style.fontWeight = "bold";
   }
 }
+// FIN PROMO CODE VALIDATION
+// =============================================================
 
-    state.keys = Math.min(MAX_KEYS, (state.keys || 0) + keysToAdd);
-    saveState();
-    updateTimer();
-    const openBtn = document.getElementById('open-btn');
-    if (openBtn) openBtn.disabled = false;
-
-    msgEl.textContent = `✨ Succès ! +${keysToAdd} clé(s) créditée(s) avec succès.`;
-    msgEl.style.color = "#4ade80";
-    msgEl.style.fontWeight = "bold";
-    showToast(`🎟️ Code validé : +${keysToAdd} clé(s) !`);
-  } catch (err) {
-    console.error("Erreur promo code:", err);
-    msgEl.textContent = err.message || "Code promotionnel invalide.";
-    msgEl.style.color = "#94a3b8";
-    msgEl.style.fontWeight = "bold";
-  }
-}
 
 async function saveProfilePseudo() {
   const input = document.getElementById('profile-pseudo-input');
