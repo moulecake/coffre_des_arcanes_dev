@@ -1069,15 +1069,24 @@ async function validatePromoCode() {
       }
       const data = docSnap.data();
 
-      // 1. Vérification du destinataire (Dédommagement / Code individuel)
+      // 1. Vérification du destinataire (Dédommagement / Code individuel strict)
       if (data.assignedTo) {
         if (!currentUid || currentUid !== data.assignedTo) {
           throw new Error("Ce code promotionnel est attribué à un autre compte.");
         }
+        if (data.used === true) {
+          throw new Error("Ce code individuel a déjà été utilisé.");
+        }
       }
 
-      // 2. Codes universels (Comportement classique)
-      if (data.used === true) {
+      // 2. Codes universels (Utilisable 1 fois par chaque joueur via un tableau 'redeemedBy')
+      const redeemedByList = data.redeemedBy || [];
+      if (currentUid && redeemedByList.includes(currentUid)) {
+        throw new Error("Vous avez déjà utilisé ce code promotionnel.");
+      }
+
+      // Rétrocompatibilité si un ancien code utilise un "used === true" global
+      if (!data.assignedTo && data.used === true) {
         throw new Error("Ce code a déjà été utilisé.");
       }
 
@@ -1089,11 +1098,22 @@ async function validatePromoCode() {
       }
 
       keysToAdd = data.keysReward || 1;
-      transaction.update(docRef, {
-        used: true,
-        usedBy: currentUid || 'anonymous',
-        usedAt: new Date().toISOString()
-      });
+
+      // Mise à jour selon le type de code
+      if (data.assignedTo) {
+        // Code individuel : on le désactive complètement
+        transaction.update(docRef, {
+          used: true,
+          usedBy: currentUid || 'anonymous',
+          usedAt: new Date().toISOString()
+        });
+      } else {
+        // Code universel : on ajoute l'UID du joueur dans le tableau redeemedBy
+        const updatedRedeemedBy = [...redeemedByList, currentUid || 'anonymous'];
+        transaction.update(docRef, {
+          redeemedBy: updatedRedeemedBy
+        });
+      }
     });
 
     state.keys = Math.min(MAX_KEYS, (state.keys || 0) + keysToAdd);
