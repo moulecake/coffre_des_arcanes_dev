@@ -15,7 +15,7 @@
     <script type="module">
       import { initializeApp } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-app.js";
       import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-auth.js";
-      import { getFirestore, doc, setDoc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
+      import { getFirestore, doc, setDoc, getDoc, collection, getDocs, runTransaction, updateDoc } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
 
       const firebaseConfig = {
         apiKey: "AIzaSyBkwZIkmAAuYtZpoVokvhZd5MYlTfkLyww",
@@ -39,6 +39,8 @@
       window.getDoc = getDoc;
       window.collection = collection;
       window.getDocs = getDocs;
+      window.runTransaction = runTransaction;
+      window.updateDoc = updateDoc;
     </script>
 
     <!-- Scripts de l'application -->
@@ -180,114 +182,95 @@
   <div class="sidebar-tabs" id="sidebar-tabs"></div>
   <div class="inv-list" id="inv-list"></div>
   <div class="inv-stats" id="inv-stats"></div>
-
-<!-- 🔮 PACTES & GRIMOIRES — Menu accordéon centralisé -->
-<div id="pactes-menu">
-  <button class="pactes-toggle" onclick="togglePactesMenu()">
-    <span>🔮 Pactes &amp; Grimoires</span>
-    <svg id="pactes-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-  </button>
-
-  <div id="pactes-body" class="pactes-body">
-
-    <!-- SOUS-SECTION A : Grimoire de Sauvegarde -->
-    <div class="pacte-item">
-      <button class="pacte-sub-toggle" onclick="togglePacteSection('grimoire')">
-        <span>📖 Grimoire de Sauvegarde</span>
-        <svg class="sub-chevron" id="chev-grimoire" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-      </button>
-      <div class="pacte-sub-body" id="body-grimoire">
-        <div class="share-section" style="border-top:none;padding-top:4px">
-          <button class="share-btn" style="background:rgba(168,85,247,0.15);border-color:rgba(168,85,247,0.4);color:#a855f7;margin-bottom:8px;" onclick="openSyncModal()">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 11-.57-8.38l5.66-5.66"/></svg>
-            ✨ Fenêtre de Synchronisation &amp; Fusion
-          </button>
-          <button class="share-btn" onclick="exportProfileCode()">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8M16 6l-4-4-4 4M12 2v13"/></svg>
-            Copier mon Code de Profil
-          </button>
-          <button class="share-btn share-btn-load" onclick="toggleLoadInput()">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-            Charger ma Sauvegarde
-          </button>
-          <div id="load-input-wrap" style="display:none;margin-top:8px;">
-            <div class="share-warning">⚠ Ceci écrasera ton inventaire, tes fragments et tes clés actuels. Action irréversible.</div>
-            <textarea id="load-code-input" class="inspect-textarea" placeholder="Colle ton code AV1-… ici…" rows="3"></textarea>
-            <button class="share-btn share-btn-danger" style="margin-top:6px;width:100%" onclick="runLoad()">💾 Restaurer ce Profil</button>
-          </div>
-          <button class="share-btn share-btn-inspect" onclick="toggleInspectInput()">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/><circle cx="11" cy="11" r="3"/></svg>
-            Inspecter un Aventurier
-          </button>
-          <div id="inspect-input-wrap" style="display:none;margin-top:8px;">
-            <textarea id="inspect-code-input" class="inspect-textarea" placeholder="Colle le code AV1-… d'un ami…" rows="3"></textarea>
-            <button class="share-btn share-btn-inspect" style="margin-top:6px;width:100%" onclick="runInspect()">👁 Lancer l'Inspection</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- SOUS-SECTION B : Pacte d'Échange -->
-    <div class="pacte-item">
-      <button class="pacte-sub-toggle" id="toggle-pacte" onclick="togglePacteSection('pacte')">
-        <span>⚔ Pacte d'Échange</span>
-        <svg class="sub-chevron" id="chev-pacte" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-      </button>
-      <div class="pacte-sub-body" id="body-pacte">
-        <div class="share-section" id="trade-section" style="border-top:none;padding-top:4px">
-          <div class="trade-label">Objet à proposer</div>
-          <select id="trade-give-select" class="trade-select">
-            <option value="">— Sélectionner —</option>
-          </select>
-          <div class="trade-label" style="margin-top:8px">Objet désiré en échange</div>
-          <input id="trade-want-input" class="search-input" type="text" placeholder="Nom exact de l'objet…" autocomplete="off">
-          <button class="share-btn share-btn-trade" style="margin-top:10px" onclick="forgeTradeContract()">
-            ⚔ Forger le Contrat Magique de Troc
-          </button>
-          <div id="trade-contract-wrap" style="display:none;margin-top:8px;">
-            <div class="share-warning" style="color:#fbbf24;border-color:rgba(251,191,36,.3);background:rgba(251,191,36,.06);">
-              🔒 L'objet est séquestré. Transmets ce code à ton partenaire.
-            </div>
-            <textarea id="trade-contract-out" class="inspect-textarea" rows="3" readonly></textarea>
-            <button class="share-btn" style="margin-top:6px;width:100%" onclick="copyTradeContract()">📋 Copier le Contrat</button>
-            <button class="share-btn share-btn-danger" style="margin-top:6px;width:100%" onclick="cancelActiveTrade()">↩ Annuler le Troc</button>
-          </div>
-          <div class="trade-label" style="margin-top:12px">Traiter une transaction reçue</div>
-          <textarea id="trade-incoming-input" class="inspect-textarea" placeholder="Colle ici le contrat AV-TRD-… reçu…" rows="3"></textarea>
-          <button class="share-btn share-btn-inspect" style="margin-top:6px;width:100%" onclick="processTradeContract()">📜 Traiter une Transaction</button>
-        </div>
-      </div>
-    </div>
-
-  </div><!-- fin pactes-body -->
-</div><!-- fin pactes-menu -->
   </div><!-- fin inventory-view -->
 
-  <!-- Vue Profil -->
+  <!-- Vue Profil & Grille 3x3 -->
   <div id="profile-panel" style="display:none; flex-direction:column; flex:1; padding:16px; gap:16px; overflow-y:auto;">
-    <div style="background:rgba(168,85,247,0.06); border:1px solid rgba(168,85,247,0.2); border-radius:12px; padding:12px;">
-      <h4 style="color:#a855f7; font-family:'Cinzel',serif; font-size:13px; margin-bottom:6px;">Modifier le Pseudonyme</h4>
-      <p style="font-size:11px; color:var(--text-dim); margin-bottom:8px;">Changez votre nom public dans l'Académie (synchro Cloud si connecté).</p>
-      <input id="profile-pseudo-input" class="search-input" type="text" maxlength="25" placeholder="Votre nouveau pseudo…" style="width:100%; margin-bottom:8px;" autocomplete="off">
-      <button class="share-btn" style="width:100%; justify-content:center;" onclick="saveProfilePseudo()">💾 Mettre à jour le Pseudo</button>
+    <!-- Grille 3x3 du Profil -->
+    <div id="profile-grid-view" style="display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; width:100%;">
+      <!-- Slot 1: Profil -->
+      <button class="profile-slot-btn" onclick="openProfileDetail()">
+        <span class="profile-slot-icon">👤</span>
+        <span class="profile-slot-label">Profil</span>
+      </button>
+
+      <!-- Slot 2: Code -->
+      <button class="profile-slot-btn" onclick="openPromoCodeModal()">
+        <span class="profile-slot-icon">🎟️</span>
+        <span class="profile-slot-label">Code</span>
+      </button>
+
+      <!-- Slot 3: Futur module -->
+      <button class="profile-slot-btn" disabled>
+        <span class="profile-slot-icon">🔒</span>
+        <span class="profile-slot-label">Slot 3</span>
+      </button>
+
+      <!-- Slot 4: Futur module -->
+      <button class="profile-slot-btn" disabled>
+        <span class="profile-slot-icon">🔒</span>
+        <span class="profile-slot-label">Slot 4</span>
+      </button>
+
+      <!-- Slot 5: Futur module -->
+      <button class="profile-slot-btn" disabled>
+        <span class="profile-slot-icon">🔒</span>
+        <span class="profile-slot-label">Slot 5</span>
+      </button>
+
+      <!-- Slot 6: Futur module -->
+      <button class="profile-slot-btn" disabled>
+        <span class="profile-slot-icon">🔒</span>
+        <span class="profile-slot-label">Slot 6</span>
+      </button>
+
+      <!-- Slot 7: Futur module -->
+      <button class="profile-slot-btn" disabled>
+        <span class="profile-slot-icon">🔒</span>
+        <span class="profile-slot-label">Slot 7</span>
+      </button>
+
+      <!-- Slot 8: Futur module -->
+      <button class="profile-slot-btn" disabled>
+        <span class="profile-slot-icon">🔒</span>
+        <span class="profile-slot-label">Slot 8</span>
+      </button>
+
+      <!-- Slot 9: Futur module -->
+      <button class="profile-slot-btn" disabled>
+        <span class="profile-slot-icon">🔒</span>
+        <span class="profile-slot-label">Slot 9</span>
+      </button>
     </div>
 
-    <div style="background:rgba(34,211,238,0.06); border:1px solid rgba(34,211,238,0.2); border-radius:12px; padding:12px;">
-      <h4 style="color:#22d3ee; font-family:'Cinzel',serif; font-size:13px; margin-bottom:6px;">Version de l'Application</h4>
-      <p style="font-size:11px; color:var(--text-dim); margin-bottom:8px;">Vérifiez les mises à jour et nettoyez le cache.</p>
-      <button class="share-btn share-btn-inspect" style="width:100%; justify-content:center;" onclick="checkAppUpdate()">🔄 Vérifier les mises à jour</button>
-    </div>
+    <!-- Vue Profil Complet (Masquée par défaut) -->
+    <div id="profile-detail-view" style="display:none; flex-direction:column; gap:16px;">
+      <button class="share-btn" style="width:100%; justify-content:center;" onclick="closeProfileDetail()">← Retour au menu</button>
 
-    <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:12px; padding:12px;">
-      <h4 style="color:var(--text); font-family:'Cinzel',serif; font-size:13px; margin-bottom:6px;">Session Google & Cloud</h4>
-      <p style="font-size:11px; color:var(--text-dim); margin-bottom:8px;">Déconnectez votre compte de cet appareil.</p>
-      <button class="share-btn" style="width:100%; justify-content:center; background:rgba(244,63,94,0.1); border-color:rgba(244,63,94,0.3); color:#f43f5e;" onclick="confirmLogout()">🚪 Se déconnecter</button>
-    </div>
+      <div style="background:rgba(168,85,247,0.06); border:1px solid rgba(168,85,247,0.2); border-radius:12px; padding:12px;">
+        <h4 style="color:#a855f7; font-family:'Cinzel',serif; font-size:13px; margin-bottom:6px;">Modifier le Pseudonyme</h4>
+        <p style="font-size:11px; color:var(--text-dim); margin-bottom:8px;">Changez votre nom public dans l'Académie (synchro Cloud si connecté).</p>
+        <input id="profile-pseudo-input" class="search-input" type="text" maxlength="25" placeholder="Votre nouveau pseudo…" style="width:100%; margin-bottom:8px;" autocomplete="off">
+        <button class="share-btn" style="width:100%; justify-content:center;" onclick="saveProfilePseudo()">💾 Mettre à jour le Pseudo</button>
+      </div>
 
-    <div style="background:rgba(244,63,94,0.05); border:1px solid rgba(244,63,94,0.2); border-radius:12px; padding:12px;">
-      <h4 style="color:#f43f5e; font-family:'Cinzel',serif; font-size:13px; margin-bottom:6px;">Zone Dangereuse</h4>
-      <p style="font-size:11px; color:var(--text-dim); margin-bottom:8px;">Effacez définitivement toutes vos données locales et réinitialisez l'application.</p>
-      <button class="share-btn share-btn-danger" style="width:100%; justify-content:center;" onclick="confirmWipeData()">💥 Effacer mes données</button>
+      <div style="background:rgba(34,211,238,0.06); border:1px solid rgba(34,211,238,0.2); border-radius:12px; padding:12px;">
+        <h4 style="color:#22d3ee; font-family:'Cinzel',serif; font-size:13px; margin-bottom:6px;">Version de l'Application</h4>
+        <p style="font-size:11px; color:var(--text-dim); margin-bottom:8px;">Vérifiez les mises à jour et nettoyez le cache.</p>
+        <button class="share-btn share-btn-inspect" style="width:100%; justify-content:center;" onclick="checkAppUpdate()">🔄 Vérifier les mises à jour</button>
+      </div>
+
+      <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:12px; padding:12px;">
+        <h4 style="color:var(--text); font-family:'Cinzel',serif; font-size:13px; margin-bottom:6px;">Session Google & Cloud</h4>
+        <p style="font-size:11px; color:var(--text-dim); margin-bottom:8px;">Déconnectez votre compte de cet appareil.</p>
+        <button class="share-btn" style="width:100%; justify-content:center; background:rgba(244,63,94,0.1); border-color:rgba(244,63,94,0.3); color:#f43f5e;" onclick="confirmLogout()">🚪 Se déconnecter</button>
+      </div>
+
+      <div style="background:rgba(244,63,94,0.05); border:1px solid rgba(244,63,94,0.2); border-radius:12px; padding:12px;">
+        <h4 style="color:#f43f5e; font-family:'Cinzel',serif; font-size:13px; margin-bottom:6px;">Zone Dangereuse</h4>
+        <p style="font-size:11px; color:var(--text-dim); margin-bottom:8px;">Effacez définitivement toutes vos données locales et réinitialisez l'application.</p>
+        <button class="share-btn share-btn-danger" style="width:100%; justify-content:center;" onclick="confirmWipeData()">💥 Effacer mes données</button>
+      </div>
     </div>
   </div>
 </div>
@@ -308,7 +291,7 @@
 
 <div id="mj-panel">
   <div class="mj-title">⚙ MODE MAÎTRE DU JEU</div>
-  <button class="mj-btn" onclick="mjResetKeys()">⚿ Recharger les 3 Clés</button>
+  <button class="mj-btn" onclick="mjResetKeys()">🔑 Recharger les 3 Clés</button>
    <button class="mj-btn" onclick="mjRenamePseudo()">✎ Modifier le Pseudo</button>
    <button class="mj-btn" onclick="mjAddItem()">⚙ Ajouter un Objet (Debug)</button>
    <button class="mj-btn mj-btn-close" onclick="closeMJPanel()">✕ Fermer le Mode MJ</button>
@@ -397,6 +380,18 @@
           <button class="share-btn share-btn-inspect" style="width:100%;justify-content:center;" onclick="runCloudOptimization()">✨ Lancer l'Optimisation</button>
         </div>
       </div>
+    </div>
+</div>
+
+<!-- MODALE CODE PROMO PERSISTANTE -->
+<div id="promo-modal" class="legal-modal" style="display:none;" onclick="event.stopPropagation()">
+    <div class="legal-modal-content" style="max-width:380px;" onclick="event.stopPropagation()">
+        <span class="legal-modal-close" onclick="closePromoCodeModal()">✕</span>
+        <h3 style="margin-top:0; color:#22d3ee; font-family:'Cinzel',serif;">🎟️ Code Promotionnel</h3>
+        <p style="font-size:12px; color:var(--text-dim); margin-bottom:16px;">Entrez votre code secret pour recevoir des clés pour l'Académie.</p>
+        <input id="promo-code-input" class="search-input" type="text" placeholder="Ex: ARCANE-2026…" style="width:100%; margin-bottom:12px; text-align:center; font-family:'Cinzel',serif; text-transform:uppercase;" autocomplete="off">
+        <div id="promo-msg" style="font-size:11px; color:#94a3b8; font-weight:bold; min-height:16px; margin-bottom:12px; text-align:center;"></div>
+        <button class="share-btn" style="width:100%; justify-content:center;" onclick="validatePromoCode()">Valider le Code</button>
     </div>
 </div>
 
