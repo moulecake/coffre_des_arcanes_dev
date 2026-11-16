@@ -1068,6 +1068,7 @@ async function validatePromoCode() {
         throw new Error("Code promotionnel inconnu ou invalide.");
       }
       const data = docSnap.data();
+      const currentUid = window.auth?.currentUser?.uid;
 
       // 1. Vérification du destinataire (Dédommagement / Code individuel strict)
       if (data.assignedTo) {
