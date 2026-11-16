@@ -1,7 +1,11 @@
 // Étape 2 : 8 écoles × 4 rangs = 32 sorts · Amphithéâtre (cours payés en Sg, timers réels) · barres de sorts · sélecteur.
 // Sorts ÉQUIPÉS : actifs = lancés au clic (CD), passifs = effet permanent. Ils alimentent M(clé, défaut) via Spells.mod.
 // Ops : "*" multiplie · "+" ajoute · "=" plancher (max). Clés : click ether passive pylon famil scribe pagesFlat sg rare redX
-//       ethCost sgCost buffDur offlineCap offlineSg cps cd study
+//       ethCost sgCost buffDur offlineCap offlineSg cps cd study frag fragOff (micro-fragments passifs ; fragOff = hors-ligne seulement)
+// ★ RÉGLAGE SURCHAUFFE — clics/s maximum avant surchauffe du Voile : [palier 1, palier 2, palier 3].
+//   Palier 1 = de base (sans sort) · Bouclier d'Éther équipé : palier 2 (rangs Abjuration 1-2), palier 3 (rangs 3-4).
+//   Chaque clic ajoute 10 de chaleur, la chaleur retombe de (cps × 10)/s : au-delà de ce nombre de clics/s, ça chauffe jusqu'à 100 → pause 3 s.
+const CPS_PALIERS = [5, 10, 15];
 const Spells = (() => {
   const SCH = [
     ["evo", "Évocation", 25, "<path d='M13 2L4 14h7l-1 8 9-12h-7z'/>"],
@@ -31,18 +35,18 @@ const Spells = (() => {
     ["nec2", "Invocation de Squelette Scribe", "P", "G", 0, "Un scribe spectral (0,5 page/s), actif hors-ligne."],
     ["nec3", "Transmutation Vitale", "A", "X", 300, "Convertit 10% de la Sagesse en Éther Pur."],
     ["nec4", "Drain d'Éther", "P", "G", 0, "Pages Nécrotiques ×6 au lieu de ×4."],
-    ["abj1", "Bouclier d'Éther", "P", "V", 0, "Limite de clics/s relevée : 12 / 15 / 20 / 30 selon le niveau d'Abjuration."],
+    ["abj1", "Bouclier d'Éther", "P", "V", 0, "Limite de clics/s relevée : 5 → 10 (Abjuration rang 1-2) → 15 (rang 3-4)."],
     ["abj2", "Glyphe de Warding", "P", "X", 0, "Farm hors-ligne plafonné à 10 h au lieu de 8 h."],
     ["abj3", "Disjonction de Mordenkainen", "A", "V", 60, "Nettoie instantanément la surchauffe."],
     ["abj4", "Sanctuaire Absolu", "P", "X", 0, "−15% de recharge des sorts actifs."],
     ["div1", "Augure", "P", "G", 0, "Aperçu de la rareté de la prochaine page."],
-    ["div2", "Vision du Passé", "P", "G", 0, "+20% de Sagesse hors-ligne."],
+    ["div2", "Vision du Passé", "P", "G", 0, "+20% de Sagesse et de micro-fragments hors-ligne."],
     ["div3", "Prescience", "A", "G", 150, "Les 5 prochaines pages sont rares."],
     ["div4", "Vision de l'Avenir", "P", "X", 0, "−25% de temps d'étude des cours."],
-    ["tra1", "Alchimie Mineure", "P", "X", 0, "20% de la Sagesse produite devient de l'Éther."],
+    ["tra1", "Alchimie Mineure", "P", "X", 0, "20% de la Sagesse produite devient de l'Éther. +15% de micro-fragments."],
     ["tra2", "Fonte des Runes", "A", "V", 90, "Pylônes ×3 pendant 30 s."],
     ["tra3", "Transmutation de Plomb en Or", "A", "V", 120, "Gains d'Éther ×5 pendant 15 s."],
-    ["tra4", "Philosophie de la Matière", "P", "X", 0, "+25% d'efficacité des bâtiments passifs."],
+    ["tra4", "Philosophie de la Matière", "P", "X", 0, "+25% d'efficacité des bâtiments passifs et de micro-fragments."],
     ["con1", "Portail Mineur", "P", "X", 0, "−5% de coût des bâtiments."],
     ["con2", "Invocation de Familier", "P", "V", 0, "Un familier clique 1×/s sur le Voile."],
     ["con3", "Cercle de Téléportation", "A", "X", 240, "Remet à zéro le sort actif au plus long CD équipé."],
@@ -63,8 +67,8 @@ const Spells = (() => {
   const PM = {
     enc1: P(["sgCost", "*", .9]), enc2: P(["scribe", "*", 1.15]), enc4: P(["sg", "*", 1.2]), ill1: P(["rare", "*", 1.05]),
     ill3: P(["buffDur", "+", 5]), nec1: P(["sg", "*", 1.03]), nec2: P(["pagesFlat", "+", .5]), nec4: P(["redX", "+", 2]),
-    abj1: () => [["cps", "=", [12, 15, 20, 30][Math.max(0, lvl("abj") - 1)]]], abj2: P(["offlineCap", "+", 2]), abj4: P(["cd", "*", .85]),
-    div2: P(["offlineSg", "*", 1.2]), div4: P(["study", "*", .75]), tra4: P(["ether", "*", 1.25], ["scribe", "*", 1.25]),
+    abj1: () => [["cps", "=", CPS_PALIERS[Math.min(2, Math.ceil(lvl("abj") / 2))]]], abj2: P(["offlineCap", "+", 2]), abj4: P(["cd", "*", .85]),
+    div2: P(["offlineSg", "*", 1.2], ["fragOff", "*", 1.2]), div4: P(["study", "*", .75]), tra1: P(["frag", "*", 1.15]), tra4: P(["ether", "*", 1.25], ["scribe", "*", 1.25], ["frag", "*", 1.25]),
     con1: P(["ethCost", "*", .95], ["sgCost", "*", .95]), con2: P(["famil", "+", 1])
   };
   let ml = [], dirty = 1, fxs = [], mirror = 0, presc = 0, clicks = 0, cur = 0, pp = "V", si = 0, lastAct = 0, ed = null;

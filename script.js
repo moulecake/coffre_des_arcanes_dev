@@ -4,10 +4,10 @@
 
 
 // ============================================================
-// VERSIONING — Modifiez le chiffre AVANT le point pour reset total,
-// le chiffre APRÈS pour reset des clés uniquement.
+// VERSIONING — Changer CURRENT_VERSION (avec CACHE_NAME de sw.js) offre MAX_KEYS clés une seule fois à chaque joueur.
+// Aucun reset d'inventaire, jamais (comptes Google/Firebase en production).
 // ============================================================
-const CURRENT_VERSION = "2.a2.3";
+const CURRENT_VERSION = "2.a2.7";
 document.getElementById("app-version").textContent = CURRENT_VERSION;
 
 // DROP RATES — C:40 | PC:25 | R:20 | TR:8 | L:5 | A:2
@@ -147,25 +147,8 @@ async function loadState() {
   const raw = localStorage.getItem(LSKEY);
   if (!raw) { saveState(); return; }
   try {
-    const saved = JSON.parse(raw);
-    const sv = saved.version || '0.0';
-    const [smaj, smin] = sv.split('.').map(Number);
-    const [cmaj, cmin] = CURRENT_VERSION.split('.').map(Number);
-    if (smaj !== cmaj) {
-      state.keys = MAX_KEYS; state.lastRegen = Date.now();
-      state.inventory = {}; state.fragments = 0;
-      state.version = CURRENT_VERSION; saveState();
-      setTimeout(() => showToast('🔄 Mise à jour majeure — inventaire réinitialisé'), 500);
-    } else {
-      state = Object.assign(state, saved);
-      if (state.activeTrade && !state.activeTrade.giveKey) state.activeTrade = null;
-      state.version = CURRENT_VERSION;
-      if (smin !== cmin) {
-        state.keys = MAX_KEYS; state.lastRegen = Date.now();
-        saveState();
-        setTimeout(() => showToast('🔑 Mise à jour — clés rechargées, inventaire conservé'), 500);
-      }
-    }
+    state = Object.assign(state, JSON.parse(raw));
+    if (state.activeTrade && !state.activeTrade.giveKey) state.activeTrade = null;
   } catch (e) { saveState(); }
 
   if (window.auth?.currentUser) {
@@ -182,7 +165,22 @@ async function loadState() {
       console.error("Erreur de chargement cloud :", e);
     }
   }
+  applyVersionUpdate();
   claimClickerFragments();
+}
+
+// MISE À JOUR : une seule fois par joueur, quel que soit le nombre de versions sautées → clés remises à MAX_KEYS (jamais réduites).
+// L'inventaire n'est JAMAIS touché. Appelée après chaque fusion local/cloud (le cloud écrase `version` et `keys`).
+function applyVersionUpdate() {
+  if (state.version === CURRENT_VERSION) return;
+  const first = !state.version;                         // sauvegarde sans version (très ancienne) : on aligne sans cadeau superflu
+  state.version = CURRENT_VERSION;
+  if (!first) {
+    state.keys = Math.max(state.keys || 0, MAX_KEYS); state.lastRegen = Date.now();
+    setTimeout(() => showToast('🔑 Mise à jour — ' + MAX_KEYS + ' clés offertes, inventaire conservé'), 500);
+  }
+  saveState();
+  if (typeof updateTimer === 'function') updateTimer();
 }
 // ============================================================
 // REGEN
@@ -632,7 +630,9 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeModal(); });
 // INIT
 // ============================================================
 window.onload = function() {
-  if ('serviceWorker' in navigator) {
+  // Pas de Service Worker en local (Live Server) : chemin /coffre_des_arcanes/ inexistant → erreur 404 et cache périmé en dev.
+  const isLocalDev = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+  if ('serviceWorker' in navigator && !isLocalDev) {
     navigator.serviceWorker.register('/coffre_des_arcanes/sw.js')
       .then(reg => {
         console.log('SW enregistré', reg);
@@ -853,7 +853,8 @@ async function loadGameDataFromCloud(uid) {
       console.log("Aucune sauvegarde trouvée. Première connexion !");
       await saveGameDataToCloud();
     }
-    claimClickerFragments(docSnap.exists() ? docSnap.data().clicker?.earned : 0);inv-btn
+    applyVersionUpdate();
+    claimClickerFragments(docSnap.exists() ? docSnap.data().clicker?.earned : 0);
   } catch (e) {
     console.error("Erreur lors du chargement des données Cloud :", e);
   }
