@@ -7,7 +7,7 @@
 // VERSIONING — Modifiez le chiffre AVANT le point pour reset total,
 // le chiffre APRÈS pour reset des clés uniquement.
 // ============================================================
-const CURRENT_VERSION = "2.a2.0";
+const CURRENT_VERSION = "2.a2.2";
 document.getElementById("app-version").textContent = CURRENT_VERSION;
 
 // DROP RATES — C:40 | PC:25 | R:20 | TR:8 | L:5 | A:2
@@ -1036,6 +1036,9 @@ function closePromoCodeModal() {
   if (modal) modal.style.display = 'none';
 }
 
+//=============================================================
+// PROMO CODE VALIDATION
+//=============================================================
 async function validatePromoCode() {
   const input = document.getElementById('promo-code-input');
   const msgEl = document.getElementById('promo-msg');
@@ -1061,6 +1064,10 @@ async function validatePromoCode() {
     const docRef = window.doc(db, "promo_codes", code);
     const currentUid = window.auth?.currentUser?.uid;
 
+    if (!currentUid) {
+      throw new Error("Vous devez être connecté pour utiliser un code.");
+    }
+
     let keysToAdd = 1;
     await window.runTransaction(db, async (transaction) => {
       const docSnap = await transaction.get(docRef);
@@ -1068,29 +1075,8 @@ async function validatePromoCode() {
         throw new Error("Code promotionnel inconnu ou invalide.");
       }
       const data = docSnap.data();
-      const currentUid = window.auth?.currentUser?.uid;
 
-      // 1. Vérification du destinataire (Dédommagement / Code individuel strict)
-      if (data.assignedTo) {
-        if (!currentUid || currentUid !== data.assignedTo) {
-          throw new Error("Ce code promotionnel est attribué à un autre compte.");
-        }
-        if (data.used === true) {
-          throw new Error("Ce code individuel a déjà été utilisé.");
-        }
-      }
-
-      // 2. Codes universels (Utilisable 1 fois par chaque joueur via un tableau 'redeemedBy')
-      const redeemedByList = data.redeemedBy || [];
-      if (currentUid && redeemedByList.includes(currentUid)) {
-        throw new Error("Vous avez déjà utilisé ce code promotionnel.");
-      }
-
-      // Rétrocompatibilité si un ancien code utilise un "used === true" global
-      if (!data.assignedTo && data.used === true) {
-        throw new Error("Ce code a déjà été utilisé.");
-      }
-
+      // Vérification de la date d'expiration commune
       if (data.expiresAt) {
         const expDate = data.expiresAt.toDate ? data.expiresAt.toDate() : new Date(data.expiresAt);
         if (expDate < new Date()) {
@@ -1100,22 +1086,59 @@ async function validatePromoCode() {
 
       keysToAdd = data.keysReward || 1;
 
-      // Mise à jour selon le type de code
+      // CAS 1 : CODE INDIVIDUEL / DÉDOMMAGEMENT (Possède un assignedTo)
       if (data.assignedTo) {
-        // Code individuel : on le désactive complètement
+        if (currentUid !== data.assignedTo) {
+          throw new Error("Ce code promotionnel est attribué à un autre compte.");
+        }
+        if (data.used === true) {
+          throw new Error("Ce code a déjà été utilisé.");
+        }
+
+        // On consomme le code uniquement pour lui
         transaction.update(docRef, {
           used: true,
-          usedBy: currentUid || 'anonymous',
+          usedBy: currentUid,
           usedAt: new Date().toISOString()
         });
-      } else {
-        // Code universel : on ajoute l'UID du joueur dans le tableau redeemedBy
-        const updatedRedeemedBy = [...redeemedByList, currentUid || 'anonymous'];
-        transaction.update(docRef, {
-          redeemedBy: updatedRedeemedBy
-        });
+        return; // On sort de la transaction pour ce cas
       }
+
+      // CAS 2 : CODE UNIVERSEL (Multi-joueurs via redeemedBy)
+      const redeemedByList = data.redeemedBy || [];
+      if (redeemedByList.includes(currentUid)) {
+        throw new Error("Vous avez déjà utilisé ce code promotionnel.");
+      }
+
+      // Rétrocompatibilité anciens codes globaux used
+      if (data.used === true) {
+        throw new Error("Ce code a déjà été utilisé.");
+      }
+
+      // On ajoute l'UID du joueur au tableau sans bloquer les autres
+      const updatedRedeemedBy = [...redeemedByList, currentUid];
+      transaction.update(docRef, {
+        redeemedBy: updatedRedeemedBy
+      });
     });
+
+    state.keys = Math.min(MAX_KEYS, (state.keys || 0) + keysToAdd);
+    saveState();
+    updateTimer();
+    const openBtn = document.getElementById('open-btn');
+    if (openBtn) openBtn.disabled = false;
+
+    msgEl.textContent = `✨ Succès ! +${keysToAdd} clé(s) créditée(s) avec succès.`;
+    msgEl.style.color = "#4ade80";
+    msgEl.style.fontWeight = "bold";
+    showToast(`🎟️ Code validé : +${keysToAdd} clé(s) !`);
+  } catch (err) {
+    console.error("Erreur promo code:", err);
+    msgEl.textContent = err.message || "Code promotionnel invalide.";
+    msgEl.style.color = "#94a3b8";
+    msgEl.style.fontWeight = "bold";
+  }
+}
 
     state.keys = Math.min(MAX_KEYS, (state.keys || 0) + keysToAdd);
     saveState();
