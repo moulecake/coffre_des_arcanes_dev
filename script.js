@@ -9,7 +9,7 @@
 // ============================================================
 // Adresse propre : on masque « index.html » dans la barre d'adresse (affichage seulement).
 if (/index\.html$/.test(location.pathname)) history.replaceState(null, "", location.pathname.replace(/index\.html$/, "") + location.search + location.hash);
-const CURRENT_VERSION = "2.a2.10";
+const CURRENT_VERSION = "2.a2.12";
 document.getElementById("app-version").textContent = CURRENT_VERSION;
 
 // DROP RATES — C:40 | PC:25 | R:20 | TR:8 | L:5 | A:2
@@ -24,6 +24,20 @@ const LSKEY = 'arcane-vault';
 
 
 // ============================================================
+// PRÉFÉRENCES (appareil) — partagées avec le Clicker : clé localStorage « coffre-prefs »
+// ============================================================
+const PREFS_KEY = 'coffre-prefs';
+function getPrefs(){ try{ return Object.assign({sound:true, vibe:true}, JSON.parse(localStorage.getItem(PREFS_KEY)||'{}')); }catch(e){ return {sound:true, vibe:true}; } }
+function setPref(k, v){ const p=getPrefs(); p[k]=!!v; try{ localStorage.setItem(PREFS_KEY, JSON.stringify(p)); }catch(e){} }
+const soundOn = () => getPrefs().sound !== false;
+function openOptionsModal(){
+  const p=getPrefs(); document.getElementById('opt-sound').checked=p.sound!==false; document.getElementById('opt-vibe').checked=p.vibe!==false;
+  document.getElementById('opt-push').checked=!!p.push && ('Notification' in window) && Notification.permission==='granted';
+  document.getElementById('options-modal').style.display='flex';
+}
+function closeOptionsModal(){ document.getElementById('options-modal').style.display='none'; }
+
+// ============================================================
 // WEB AUDIO API
 // ============================================================
 let audioCtx = null;
@@ -31,6 +45,7 @@ function getAudioCtx(){ if(!audioCtx) audioCtx = new (window.AudioContext||windo
 
 let shakeInterval = null;
 function playClickSound(){
+  if(!soundOn()) return;
   // Tension croissante : clics de plus en plus rapides
   try{
     const ctx = getAudioCtx();
@@ -49,6 +64,7 @@ function playClickSound(){
 }
 
 function playImpactSound(){
+  if(!soundOn()) return;
   try{
     const ctx = getAudioCtx();
     const t = ctx.currentTime;
@@ -74,6 +90,7 @@ function playImpactSound(){
 }
 
 function playRevealSound(rarity){
+  if(!soundOn()) return;
   try{
     const ctx = getAudioCtx();
     let t = ctx.currentTime + 0.05;
@@ -185,6 +202,63 @@ window.inventoryIdStats = () => ({ objetsDansDataJs: (typeof loots !== 'undefine
 // CLASSEMENT : mini-document public `leaderboard/{uid}` (pseudo + totaux) — le classement ne télécharge plus les documents joueurs complets.
 // Règles Firestore à ajouter : voir MEMOIRE.md « Règles Firestore ». Écriture seulement si une valeur a changé.
 // ============================================================
+// ============================================================
+// NOTIFICATIONS PUSH (Firebase Cloud Messaging) — mode d'emploi : NOTIFICATIONS.md
+// Le jeu enregistre dans Firestore `push/{uid}` : le(s) jeton(s) de l'appareil + les HEURES prévues (clés rechargées, clé du Clicker).
+// Un script GitHub Actions (scripts/send-push.js) envoie les notifications arrivées à échéance ; sw.js les affiche.
+// ============================================================
+const FCM_VAPID_KEY = 'BPkbzA8BIJAKUKVP4NTaGprmd8P445Ke39zEhMVofl1L7ix2HbIKM9pEFeIaf82qFqsCsoJwIw1U-b7QvwPGhEI';   // clé PUBLIQUE (Web Push), sans danger
+const FCM_CDN = 'https://www.gstatic.com/firebasejs/13.2.0/firebase-messaging.js';
+const pushDir = () => location.pathname.replace(/[^/]*$/, '');
+const pushOriginKey = () => (location.host + pushDir()).replace(/[^a-zA-Z0-9]/g, '_');     // un jeton par adresse (officiel / test)
+const pushBaseUrl = () => location.origin + pushDir();
+async function getFcmToken() {
+  const m = await import(FCM_CDN);
+  if (!(await m.isSupported())) throw new Error('unsupported');
+  const reg = await navigator.serviceWorker.ready;
+  return m.getToken(m.getMessaging(window.fbApp), { vapidKey: FCM_VAPID_KEY, serviceWorkerRegistration: reg });
+}
+async function savePushToken(token) {
+  const u = window.auth?.currentUser; if (!u) return;
+  await window.setDoc(window.doc(window.db, 'push', u.uid), { tokens: { [pushOriginKey()]: { t: token, url: pushBaseUrl(), ts: Date.now() } }, updatedAt: new Date().toISOString() }, { merge: true });
+}
+async function togglePush(cb) {
+  if (!cb.checked) { await disablePush(); return; }
+  try {
+    if (!window.auth?.currentUser) throw new Error('login');
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) throw new Error('unsupported');
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') throw new Error('denied');
+    const token = await getFcmToken();
+    await savePushToken(token); localStorage.setItem('arcane-push-token', token); setPref('push', true);
+    showToast('🔔 Notifications activées !', 4000); syncPushSchedule(true);
+  } catch (e) {
+    cb.checked = false; setPref('push', false);
+    const m = { login: 'Connecte-toi avec Google pour activer les notifications.', unsupported: "Notifications indisponibles ici. Sur iPhone : ajoute d'abord l'app à l'écran d'accueil (Partager → Sur l'écran d'accueil).", denied: 'Autorisation refusée : tu peux la modifier dans les réglages du navigateur.' };
+    showToast(m[e.message] || "Activation impossible pour le moment.", 6000); if (!m[e.message]) console.warn('push', e);
+  }
+}
+async function disablePush() {
+  setPref('push', false); localStorage.removeItem('arcane-push-token');
+  try { const u = window.auth?.currentUser; if (u) await window.setDoc(window.doc(window.db, 'push', u.uid), { tokens: { [pushOriginKey()]: null }, keysAt: null, clickerAt: null, updatedAt: new Date().toISOString() }, { merge: true }); } catch (e) {}
+  try { const m = await import(FCM_CDN); await m.deleteToken(m.getMessaging(window.fbApp)); } catch (e) {}
+  showToast('🔕 Notifications désactivées');
+}
+async function ensurePush() {                           // à chaque connexion : rafraîchit le jeton si besoin, ou désactive si l'autorisation a été retirée
+  if (!getPrefs().push) return;
+  if (!('Notification' in window) || Notification.permission !== 'granted') { setPref('push', false); return; }
+  try { const t = await getFcmToken(); if (t !== localStorage.getItem('arcane-push-token')) { await savePushToken(t); localStorage.setItem('arcane-push-token', t); } syncPushSchedule(true); }
+  catch (e) { console.warn('push', e); }
+}
+let _pushSig = '';
+async function syncPushSchedule(force) {                // heure à laquelle les clés seront toutes rechargées (null si déjà pleines)
+  const u = window.auth?.currentUser;
+  if (!u || !getPrefs().push || !('Notification' in window) || Notification.permission !== 'granted') return;
+  const keysAt = state.keys < MAX_KEYS ? state.lastRegen + (MAX_KEYS - state.keys) * REGEN_MS : null;
+  const sig = String(keysAt ? Math.round(keysAt / 6e4) : 0); if (!force && sig === _pushSig) return; _pushSig = sig;
+  try { await window.setDoc(window.doc(window.db, 'push', u.uid), { keysAt, updatedAt: new Date().toISOString() }, { merge: true }); } catch (e) { _pushSig = ''; }
+}
+
 let _lbSig = '';
 async function syncLeaderboardDoc() {
   const u = window.auth?.currentUser; if (!u || !window.db || !state.pseudo) return;
@@ -210,6 +284,7 @@ async function saveState() {
         lastUpdated: new Date().toISOString()
       }, { mergeFields: ['state', 'lastUpdated'] });
       syncLeaderboardDoc();
+      syncPushSchedule();
     } catch (e) {
       console.error("Erreur de sauvegarde cloud :", e);
     }
@@ -282,7 +357,7 @@ function updateTimer(){
   const displayMax = Math.max(MAX_KEYS, state.keys);
   for(let i=0;i<displayMax;i++){
     const d=document.createElement('div');
-    d.className='key-icon '+(i<state.keys?'active':'inactive');
+    d.className='key-icon '+(i<state.keys?'active':'inactive')+(i===_glowIdx?' glow':'');
     d.innerHTML=`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>`;
     keysEl.appendChild(d);
   }
@@ -391,6 +466,7 @@ function createParticles(card, rarity){
 // ============================================================
 let isAnimating=false;
 function openChest(){
+  if(_authPending){ showToast('⏳ Synchronisation avec ton compte…'); return; }
   if(isAnimating||state.keys<=0) return;
   playClickSound();
   isAnimating=true;
@@ -408,7 +484,7 @@ function openChest(){
   setTimeout(()=>{
     const flash=document.getElementById('flash');
     flash.style.opacity='1';
-    if(navigator.vibrate) navigator.vibrate([80,30,120]);
+    if(navigator.vibrate && getPrefs().vibe!==false) navigator.vibrate([80,30,120]);
     playImpactSound();
 
     setTimeout(()=>{
@@ -514,6 +590,7 @@ const RECYCLE_FRAGS = { C:1, PC:2, R:3, TR:4, L:5, A:5 };
 const recycleGain = lootKey => RECYCLE_FRAGS[lootKey.split('|')[3]] || 1;
 function recycleItem(lootKey, e){
   e.stopPropagation();
+  if(_authPending){ showToast('⏳ Synchronisation avec ton compte…'); return; }
   if((state.inventory[lootKey]||0) < 2) return;
   const gain = recycleGain(lootKey);
   state.inventory[lootKey]--;
@@ -540,7 +617,7 @@ function renderInventory(){
       + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
       + 'Aventurier :&nbsp;<strong>' + escapeLeaderboardHtml(state.pseudo) + '</strong>'
       + '</div>'
-      + '<button class="share-btn" style="padding:4px 10px; font-size:11px; margin:0;" onclick="toggleProfilePanel()">⚙️ Profil</button>'
+      + '<button class="share-btn" style="padding:4px 10px; font-size:11px; margin:0;" onclick="toggleProfilePanel()">🎛️ Menu</button>'
       + '</div>'
     : '';
   const search=document.getElementById('search-input').value.toLowerCase();
@@ -683,11 +760,11 @@ function updateForceLegendary(){ state.forceLegendary=document.getElementById('f
 // TOAST
 // ============================================================
 let toastTimer=null;
-function showToast(msg){
+function showToast(msg, ms){
   const t=document.getElementById('toast');
   t.textContent=msg; t.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer=setTimeout(()=>t.classList.remove('show'),2800);
+  toastTimer=setTimeout(()=>t.classList.remove('show'),ms||2800);
 }
 
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeModal(); });
@@ -698,10 +775,9 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeModal(); });
 // INIT
 // ============================================================
 window.onload = function() {
-  // Pas de Service Worker en local (Live Server) : chemin /coffre_des_arcanes/ inexistant → erreur 404 et cache périmé en dev.
-  const isLocalDev = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
-  if ('serviceWorker' in navigator && !isLocalDev) {
-    navigator.serviceWorker.register('/coffre_des_arcanes/sw.js')
+  // Chemin RELATIF : le même code marche sur /coffre_des_arcanes/ et /coffre_des_arcanes_dev/ (sw.js ne met rien en cache en local).
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js')
       .then(reg => {
         console.log('SW enregistré', reg);
         // Vérification automatique des mises à jour du Service Worker
@@ -725,9 +801,11 @@ window.onload = function() {
   const welcome = document.getElementById('welcome-screen');
   
   // On s'appuie sur le state utilisateur ou le pseudo Google validé
-  if (state.username && state.username.length >= 2) {
-    // Joueur connecté : bypass écran d'accueil
-    if (welcome) welcome.style.display = 'none';
+  if (state.pseudo && state.pseudo.length >= 2) {
+    // Joueur déjà connu sur cet appareil : l'écran d'accueil est masqué par la classe `fast` (posée dans <head>) ;
+    // le Cloud est fusionné dès que Firebase répond → pendant ce court délai on bloque ouverture/recyclage (évite d'être écrasé par le Cloud).
+    _authPending = true; setTimeout(() => { _authPending = false; }, 6000);   // hors-ligne : on débloque au bout de 6 s
+    const ob = document.getElementById('open-btn'); if (ob) ob.disabled = true;
     bootApp();
   } else {
     // Nouveau joueur / Non connecté : afficher l'écran d'accueil, masquer #app
@@ -739,10 +817,14 @@ window.onload = function() {
   }
 };
 
+let _booted = false, _authPending = false;
 function bootApp(){
+  if (_booted) { updateTimer(); document.getElementById('open-btn').disabled = state.keys <= 0; runPendingKeyFx(); return; }
+  _booted = true;
   updateTimer();
   setInterval(updateTimer, 1000);
   document.getElementById('open-btn').disabled = state.keys <= 0;
+  runPendingKeyFx();
   document.getElementById('card-area').style.display = 'none';
   document.getElementById('chest-wrap').style.display = 'flex';
 }
@@ -790,7 +872,7 @@ const LEGAL_TEXTS = {
     },
     confidentialite: {
         title: "Confidentialité & Cookies",
-        body: "<p>Conformément au RGPD, nous veillons à la protection de vos données. L'application n'utilise <strong>aucun traceur publicitaire tiers</strong>.</p><p><strong>Données collectées :</strong> L'utilisation de Firebase Auth implique la gestion de votre identifiant de connexion. Votre progression et vos clés sont synchronisées via votre compte. Si vous activez les notifications push, un jeton technique est stocké pour l'envoi des alertes.</p><p><strong>Vos droits :</strong> Vous pouvez à tout moment effacer l'intégralité de vos données et réinitialiser votre profil directement depuis les paramètres de l'application.</p>"
+        body: "<p>Conformément au RGPD, nous veillons à la protection de vos données. L'application n'utilise <strong>aucun traceur publicitaire tiers</strong>.</p><p><strong>Données collectées :</strong> L'utilisation de Firebase Auth implique la gestion de votre identifiant de connexion. Votre progression et vos clés sont synchronisées via votre compte. Si vous activez les notifications (Options), un jeton technique de votre appareil et les heures prévues de vos rappels (clés rechargées, clé du Clicker) sont enregistrés dans votre compte et utilisés uniquement pour vous envoyer ces notifications, via le service Google Firebase Cloud Messaging. Vous pouvez les désactiver à tout moment dans Options (le jeton est alors supprimé).</p><p><strong>Vos droits :</strong> Vous pouvez à tout moment effacer l'intégralité de vos données et réinitialiser votre profil directement depuis les paramètres de l'application.</p>"
     },
     accessibilite: {
         title: "Accessibilité",
@@ -836,6 +918,8 @@ if (typeof window.onAuthStateChanged === 'function') {
         userDisplay.style.display = "inline";
       }
       await loadGameDataFromCloud(user.uid);
+      _authPending = false;
+      ensurePush();
 
       // Vérifier si le pseudo est déjà défini dans le state ou Firestore
       if (state.pseudo && state.pseudo.length >= 2) {
@@ -850,10 +934,12 @@ if (typeof window.onAuthStateChanged === 'function') {
         bootApp();
       } else {
         // Pas de pseudo défini : afficher la modale de saisie de pseudo bloquante
+        document.documentElement.classList.remove('fast');
         if (pseudoContainer) pseudoContainer.style.display = "flex";
       }
     } else {
       console.log("Mode Invité / Non connecté");
+      _authPending = false; document.documentElement.classList.remove('fast');   // pas connecté : on affiche l'écran d'accueil
       if (loginBtn) loginBtn.style.display = "block";
       if (loginBtn) loginBtn.innerText = "Se connecter avec Google";
       if (userDisplay) userDisplay.style.display = "none";
@@ -1062,7 +1148,54 @@ function claimClickerFragments(cloudEarned) {
   while (state.fragments >= FRAGS_PER_KEY) { state.fragments -= FRAGS_PER_KEY; state.keys++; k++; }
   saveState(); updateTimer();
   if (k) document.getElementById('open-btn').disabled = false;
-  showToast('✦ Clicker : +' + d + ' fragment(s)' + (k ? ' → +' + k + ' clé(s) !' : ''));
+  showToast('✦ Clicker : +' + d + ' fragment(s)' + (k ? ' → +' + k + ' clé(s) !' : ''), k ? 7000 : 5000);
+  if (k) { _pendingKeyFx += k; if (_booted) setTimeout(runPendingKeyFx, 400); }
+}
+
+// ============================================================
+// ARRIVÉE D'UNE CLÉ GAGNÉE AU CLICKER : la clé d'or (5 éclats collés, joyau rouge) apparaît, puis vole se loger dans l'icône de clé
+// ============================================================
+let _pendingKeyFx = 0, _glowIdx = -1;
+function goldKeySvg(){
+  let sd = 7; const rnd = () => (sd = sd * 16807 % 2147483647) / 2147483647, f1 = n => n.toFixed(1);   // mêmes cassures que dans le Clicker
+  const P = a => a.map((p, i) => (i ? 'L' : 'M') + f1(p[0]) + ' ' + f1(p[1])).join('');
+  const zig = B => Array.from({ length: 9 }, (_, i) => [-2 + (i + (i > 0 && i < 8 ? (rnd() - .5) * .6 : 0)) * 5.5, B + (rnd() - .5) * 8]);
+  const cr = [70, 52, 36, 20].map(zig).map(z => '<path d="' + P(z) + '" fill="none" stroke="#241702" stroke-width="1"/><path d="' + P(z) + '" transform="translate(0 1)" fill="none" stroke="rgba(255,236,170,.7)" stroke-width=".5"/>').join('');
+  return '<svg viewBox="0 0 40 112" width="100%" height="100%"><defs><linearGradient id="kfg" gradientUnits="userSpaceOnUse" x1="2" y1="0" x2="38" y2="0"><stop offset="0" stop-color="#8a6a1d"/><stop offset=".3" stop-color="#fff1b0"/><stop offset=".55" stop-color="#e8c04a"/><stop offset="1" stop-color="#7a5a14"/></linearGradient>'
+    + '<radialGradient id="kfm" cx=".4" cy=".35" r=".75"><stop offset="0" stop-color="#fda4af"/><stop offset=".45" stop-color="#e11d48"/><stop offset="1" stop-color="#7f1030"/></radialGradient>'
+    + '<clipPath id="kfc"><circle cx="20" cy="92" r="19"/><rect x="15" y="6" width="10" height="78" rx="3"/><rect x="24" y="4" width="14" height="10" rx="1.5"/><rect x="24" y="22" width="10" height="8" rx="1.5"/><rect x="24" y="40" width="8" height="7" rx="1.5"/></clipPath></defs>'
+    + '<g fill="url(#kfg)" stroke="#fde68a" stroke-width=".9"><circle cx="20" cy="92" r="19"/><rect x="15" y="6" width="10" height="78" rx="3"/><rect x="24" y="4" width="14" height="10" rx="1.5"/><rect x="24" y="22" width="10" height="8" rx="1.5"/><rect x="24" y="40" width="8" height="7" rx="1.5"/></g>'
+    + '<g clip-path="url(#kfc)">' + cr + '</g><circle cx="20" cy="92" r="13.5" fill="none" stroke="#5b3f0c" stroke-width=".9" opacity=".85"/>'
+    + '<g transform="translate(20 92)"><circle r="9.4" fill="none" stroke="#5b3f0c" stroke-width="1.2"/><circle r="7.4" fill="url(#kfm)" stroke="#6b1020" stroke-width=".8"/><path d="M-7.4 0L0-7.4L7.4 0L0 7.4Z M-3.7-3.7L3.7 3.7M3.7-3.7L-3.7 3.7" fill="none" stroke="rgba(255,255,255,.32)" stroke-width=".5"/><ellipse cx="-2.4" cy="-3.1" rx="2" ry="1.1" fill="rgba(255,255,255,.8)" transform="rotate(-35 -2.4 -3.1)"/></g></svg>';
+}
+function runPendingKeyFx(){
+  const n = Math.min(_pendingKeyFx, 3); _pendingKeyFx = 0; if (!n) return;
+  const rm = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const icons = () => [...document.querySelectorAll('#keys-icons .key-icon')];
+  const run = i => {
+    const idx = Math.max(0, state.keys - n + i), target = icons()[idx]; if (!target) return;
+    const t = target.getBoundingClientRect(), cx = t.left + t.width / 2, cy = t.top + t.height / 2;
+    const glow = () => { _glowIdx = idx; updateTimer(); setTimeout(() => { if (_glowIdx === idx) { _glowIdx = -1; updateTimer(); } }, 2200); };
+    if (rm || !document.body.animate) { glow(); return; }
+    const H = 112 / 40 * 54, sx = innerWidth / 2 - 27, sy = Math.max(70, innerHeight * .32) - H / 2;   // taille de départ : 54 × 151 px
+    const k = document.createElement('div'); k.className = 'kfx'; k.style.cssText = 'width:54px;height:' + H + 'px'; k.innerHTML = goldKeySvg(); document.body.append(k);
+    const endS = 30 / H;
+    const appear = k.animate([{ transform: 'translate(' + sx + 'px,' + (sy + 40) + 'px) scale(.2) rotate(-25deg)', opacity: 0 }, { transform: 'translate(' + sx + 'px,' + sy + 'px) scale(1.15) rotate(6deg)', opacity: 1, offset: .55 }, { transform: 'translate(' + sx + 'px,' + sy + 'px) scale(1) rotate(0)', opacity: 1 }], { duration: 900, easing: 'cubic-bezier(.2,.9,.3,1.2)', fill: 'forwards' });
+    appear.onfinish = () => {
+      for (let g = 3; g >= 0; g--) {                     // traînée : 3 fantômes + la clé
+        const el = g ? k.cloneNode(true) : k; if (g) { el.style.opacity = ''; document.body.append(el); }
+        const fly = el.animate([{ transform: 'translate(' + sx + 'px,' + sy + 'px) scale(1) rotate(0)', opacity: g ? .5 - g * .12 : 1 },
+          { transform: 'translate(' + (sx + (cx - 27 - sx) * .35) + 'px,' + (sy - 50) + 'px) scale(.8) rotate(-14deg)', opacity: g ? .4 - g * .1 : 1, offset: .4 },
+          { transform: 'translate(' + (cx - 27) + 'px,' + (cy - H / 2) + 'px) scale(' + endS + ') rotate(0)', opacity: g ? 0 : 1 }], { duration: 850, delay: g * 70, easing: 'cubic-bezier(.55,0,.75,.35)', fill: 'forwards' });
+        fly.onfinish = () => { el.remove(); if (!g) {
+          const ring = document.createElement('div'); ring.className = 'kfx-ring'; ring.style.transform = 'translate(' + cx + 'px,' + cy + 'px)'; document.body.append(ring);
+          ring.animate([{ transform: 'translate(' + cx + 'px,' + cy + 'px) scale(.4)', opacity: 1 }, { transform: 'translate(' + cx + 'px,' + cy + 'px) scale(3)', opacity: 0 }], { duration: 700, easing: 'ease-out' }).onfinish = () => ring.remove();
+          glow(); if (i + 1 < n) setTimeout(() => run(i + 1), 250);
+        } };
+      }
+    };
+  };
+  run(0);
 }
 
 // --- PROFIL UTILISATEUR & GESTION DU COMPTE ---

@@ -7,6 +7,8 @@
 <!-- LIEN DE L'APPLICATION PWA -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a1a2e">
+    <!-- Démarrage rapide : joueur déjà connu sur cet appareil → pas d'écran de connexion au premier affichage (retiré si Firebase dit « non connecté ») -->
+    <script>try{if(JSON.parse(localStorage.getItem('arcane-vault')||'{}').pseudo)document.documentElement.classList.add('fast')}catch(e){}</script>
 
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;900&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
@@ -28,6 +30,7 @@
       };
 
       const app = initializeApp(firebaseConfig);
+      window.fbApp = app;                                   // pour Firebase Messaging (import dynamique dans script.js)
       window.auth = getAuth(app);
       window.db = getFirestore(app);
       window.GoogleAuthProvider = GoogleAuthProvider;
@@ -206,10 +209,10 @@
         <span class="profile-slot-label">Soutien</span>
       </button>
 
-      <!-- Slot 4: Futur module -->
-      <button class="profile-slot-btn" disabled>
-        <span class="profile-slot-icon"></span>
-        <span class="profile-slot-label"></span>
+      <!-- Slot 4: Options (sons, vibrations) -->
+      <button class="profile-slot-btn" onclick="openOptionsModal()" title="Options">
+        <span class="profile-slot-icon"><svg class="gear-ic" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="color:#a78bfa; display:block;"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+        <span class="profile-slot-label">Options</span>
       </button>
 
       <!-- Slot 5: Futur module -->
@@ -384,6 +387,27 @@
     </div>
 </div>
 -->
+
+<!-- MODALE OPTIONS -->
+<div id="options-modal" class="legal-modal" style="display:none;" onclick="if(event.target===this)closeOptionsModal()">
+    <div class="legal-modal-content" style="max-width:380px;">
+        <span class="legal-modal-close" onclick="closeOptionsModal()">✕</span>
+        <h3 style="margin-top:0; color:#a78bfa; font-family:'Cinzel',serif;">⚙️ Options</h3>
+        <p style="font-size:12px; color:var(--text-dim); margin-bottom:14px;">Ces réglages sont enregistrés sur cet appareil (Coffre et Grimoire).</p>
+        <div class="opt-row">
+          <div class="opt-txt"><b>Sons</b><small>Clics, ouverture des coffres, jeu du Grimoire</small></div>
+          <label class="toggle-switch"><input type="checkbox" id="opt-sound" onchange="setPref('sound', this.checked)"><span class="toggle-slider"></span></label>
+        </div>
+        <div class="opt-row">
+          <div class="opt-txt"><b>Vibrations</b><small>Retour haptique sur smartphone</small></div>
+          <label class="toggle-switch"><input type="checkbox" id="opt-vibe" onchange="setPref('vibe', this.checked)"><span class="toggle-slider"></span></label>
+        </div>
+        <div class="opt-row">
+          <div class="opt-txt"><b>Notifications</b><small>Un rappel quand tes clés sont rechargées ou qu'une clé est prête dans le Clicker. <strong style="color:#fbbf24;">Conseillé sur smartphone</strong> pour ne pas rater tes clés (sur iPhone : ajoute d'abord l'app à l'écran d'accueil). Nécessite d'être connecté.</small></div>
+          <label class="toggle-switch"><input type="checkbox" id="opt-push" onchange="togglePush(this)"><span class="toggle-slider"></span></label>
+        </div>
+    </div>
+</div>
 
 <!-- MODALE CODE PROMO PERSISTANTE -->
 <div id="promo-modal" class="legal-modal" style="display:none;" onclick="event.stopPropagation()">

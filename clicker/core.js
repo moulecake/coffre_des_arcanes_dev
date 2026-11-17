@@ -1,6 +1,8 @@
 "use strict";
 if (/index\.html$/.test(location.pathname)) history.replaceState(null, "", location.pathname.replace(/index\.html$/, "") + location.search + location.hash);   // adresse propre : /clicker/ sans index.html
 // Core : state, formats, boucle, Voile (surchauffe), Grimoire (gacha), hors-ligne, sauvegarde locale.
+const PREFS_KEY = "coffre-prefs", readPrefs = () => { try { return Object.assign({ sound: true, vibe: true }, JSON.parse(localStorage.getItem(PREFS_KEY) || "{}")); } catch (e) { return { sound: true, vibe: true }; } };
+let SOUND = readPrefs().sound !== false;               // son activé ? (réglable ici et dans Options du Coffre)
 const KEY = "coffre-clicker", $ = id => document.getElementById(id), M = (k, d) => Spells.mod(k, d);
 const U = ["nL","µL","mL","L","kL","ML","GL","TL","PL","EL"], SF = ["","K","M","B","T","Qa","Qi"];
 const fE = v => { if (v < 1e3) return v.toFixed(v < 10 ? 2 : 1) + " nL"; const i = Math.min(Math.floor(Math.log10(v) / 3), 9), x = v / 1e3 ** i; return x.toFixed(x < 10 ? 2 : x < 100 ? 1 : 0) + " " + U[i]; };
@@ -132,8 +134,25 @@ function fragTick(dt, c) {
 // ---- Cloud (Firebase injecté par clicker/index.html) : champ `clicker` du doc players/{uid}, écriture différée ≥ 30 s, jamais par tick.
 const mergeFr = (a, b) => { const t = (b.day || "") > (a.day || "") || ((b.day || "") === (a.day || "") && (b.today || 0) > (a.today || 0)) ? b : a;
   return { earned: Math.max(a.earned || 0, b.earned || 0), eff: t.eff || 0, day: t.day || "", today: t.today || 0, micro: t.micro || 0, pday: t.pday || 0 }; };
+// ---- Notification push « une clé est prête » : estimation de l'heure où le flux PASSIF (hors-ligne, plafonné par offlineCap) aura formé la prochaine clé.
+// Écrite dans Firestore push/{uid}.clickerAt (le jeton est enregistré par le Coffre) ; envoyée par scripts/send-push.js. 0 = pas de clé avant la limite d'absence.
+let pushSig = "";
+function clickerKeyETA() {
+  const f = getFr(), c = Passives.calc(), rate = fragRate(c.ethPS) * M("fragOff", 1);        // micro-fragments par seconde, hors-ligne
+  if (!(rate > 0)) return 0;
+  const need = 5 - (keyTotal(f) % 5);                                                       // fragments avant la prochaine clé (1 à 5)
+  if (f.pday + need > FR_PCAP) return 0;                                                    // plafond passif du jour atteint avant la clé
+  const sec = (need * 100 - f.micro) / rate;
+  return sec > M("offlineCap", 8) * 3600 ? 0 : Date.now() + sec * 1e3;
+}
+async function pushSchedule(force) {
+  const u = window.auth && window.auth.currentUser; if (!u || !readPrefs().push || !window.setDoc) return;
+  const at = clickerKeyETA(), sig = at ? Math.round(at / 6e4) : 0; if (!force && sig === pushSig) return; pushSig = sig;
+  try { await window.setDoc(window.doc(window.db, "push", u.uid), { clickerAt: at || null, updatedAt: new Date().toISOString() }, { merge: true }); } catch (e) { pushSig = ""; }
+}
 let cloudT = 0;
 async function cloudSave(force) {
+  pushSchedule(force);
   const u = window.auth && window.auth.currentUser, n = Date.now(); if (!u || (!force && n - cloudT < 3e4)) return; cloudT = n;
   try { await window.setDoc(window.doc(window.db, "players", u.uid), { clicker: { json: JSON.stringify(S), earned: (S.fr && S.fr.earned) || 0, ts: n } }, { merge: true }); }
   catch (e) { console.warn("cloudSave", e); }
@@ -186,7 +205,7 @@ const choir = (c, n, fs, v, d, lp) => fs.forEach(f => [-6, 6].forEach(dt => {   
   g.gain.setValueAtTime(.0001, n); g.gain.linearRampToValueAtTime(v, n + d * .3); g.gain.exponentialRampToValueAtTime(.0005, n + d);
   o.connect(l); l.connect(g); g.connect(c.destination); o.start(n); o.stop(n + d);
 }));
-const sfx = (t, m = 1) => { try {
+const sfx = (t, m = 1) => { if (!SOUND) return; try {
   ac = ac || new (window.AudioContext || window.webkitAudioContext)();
   const T0 = ac.currentTime;
   if (t === "zap") return zap(ac, T0); if (t === "rumble") return rumble(ac, T0, .12, .6);
@@ -335,10 +354,56 @@ function critFx(e, k, txt) {
   el.innerHTML = Spells.glyph(k, 54) + "<b>" + txt + "</b>"; pt.p.append(el); setTimeout(() => el.remove(), 900);
 }
 
+let heatG = 0, hotG = 0, hotGMs = 10000, lastDenyG = 0;
 function clickG(e) {
+  const nG = Date.now();
+  if (nG < hotG) { if (nG - lastDenyG > 500) { lastDenyG = nG; sfx("deny"); } return; }       // Grimoire verrouillé pendant le chaos
+  heatG += 10;
+  if (heatG >= 100) { hotGMs = CPS_GRIMOIRE * 1000; hotG = nG + hotGMs; startChaos(); }       // trop de clics/s : chaos (pause = limite en secondes)
   const c = Passives.calc(), pt = S.g.t, g = c.pageClick * pageX() * M("sg", 1);
   Spells.touch(); clkPt = paneXY(e); gainSg(g, true); sfx("paper"); fl(e, "+" + fN(g) + " Sg", pt === "gold" ? "#d4af37" : pt === "red" ? "#e11d48" : "#f5d98a");
 }
+
+// ---- Chaos du Grimoire (anti-autoclic) : le livre noircit, des tentacules sortent des bords ; SVG recalculé à chaque image PENDANT la pause seulement ----
+const TENT = [];
+function initTent() {
+  const g = $("tentG"); if (!g) return;
+  // [x, y (repère 400×300), angle de départ (rad), longueur, épaisseur à la base, courbure, vitesse, phase]
+  [[46, 172, 3.5, 125, 12, -1.1, 1.3, 0], [58, 74, -2.5, 135, 12, 1.0, 1.1, 1.7], [205, 46, -1.62, 120, 11, .8, 1.5, 3.1], [318, 60, -.75, 140, 12, -.9, 1.2, 4.4], [356, 158, -.12, 125, 12, 1.1, 1.4, 2.2],
+   [334, 264, .85, 130, 12, -1.0, 1.0, 5.3], [78, 264, 2.3, 128, 11, 1.1, 1.25, .9], [170, 258, -1.95, 80, 8, 2.6, 1.8, 3.9], [236, 256, -1.2, 84, 8, -2.5, 1.6, .4]].forEach(([x, y, a, L, w, cu, sp, ph]) => {
+    const el = document.createElementNS(NS, "g"), p = document.createElementNS(NS, "path"), b = document.createElementNS(NS, "ellipse"), sk = [];
+    b.setAttribute("class", "tb"); b.setAttribute("cx", x); b.setAttribute("cy", y); b.setAttribute("rx", w * 1.35); b.setAttribute("ry", w * .85); b.setAttribute("transform", "rotate(" + (a * 180 / Math.PI + 90).toFixed(0) + " " + x + " " + y + ")"); el.append(b);   // racine : fissure sombre sur le bord du livre
+    p.setAttribute("class", "tn"); el.append(p);
+    for (let i = 0; i < 7; i++) { const c = document.createElementNS(NS, "circle"); c.setAttribute("class", "ts"); el.append(c); sk.push(c); }
+    const tip = document.createElementNS(NS, "circle"); tip.setAttribute("class", "tt"); el.append(tip); g.append(el); TENT.push({ x, y, a, L, w, cu, sp, ph, p, b, sk, tip });
+  });
+}
+let tentRaf = 0, lastCor = -1;
+const easeO = t => 1 - (1 - Math.max(0, Math.min(1, t))) ** 3;
+function tentFrame() {
+  const n = Date.now(), age = (n - (hotG - hotGMs)) / 1e3, left = (hotG - n) / 1e3, t = performance.now() / 1e3, f1 = v => v.toFixed(1);
+  const gr = n >= hotG ? 0 : Math.min(easeO(age / .9), easeO(left / .8));                  // pousse en 0,9 s, se rétracte les 0,8 dernières secondes
+  TENT.forEach(T => {
+    T.b.setAttribute("opacity", gr > 0 ? 1 : 0);
+    if (gr <= 0) { T.p.setAttribute("d", ""); T.sk.forEach(c => c.setAttribute("r", 0)); T.tip.setAttribute("r", 0); return; }
+    const N = 26, ds = T.L * gr / N, pts = []; let x = T.x, y = T.y;
+    for (let i = 0; i <= N; i++) { pts.push([x, y]); const u = i / N, th = T.a + T.cu * u * 1.3 + (RM ? 0 : Math.sin(t * T.sp * 2.2 - i * .38 + T.ph) * .55 * u); x += Math.cos(th) * ds; y += Math.sin(th) * ds; }
+    const Lp = [], Rp = [];
+    pts.forEach((p, i) => {
+      const q = pts[Math.min(N, i + 1)], r = pts[Math.max(0, i - 1)], dx = q[0] - r[0], dy = q[1] - r[1], d = Math.hypot(dx, dy) || 1, nx = -dy / d, ny = dx / d, w = T.w * (1 - i / N) ** .8 * Math.min(1, gr * 1.4) + .7;
+      Lp.push(f1(p[0] + nx * w) + " " + f1(p[1] + ny * w)); Rp.push(f1(p[0] - nx * w) + " " + f1(p[1] - ny * w));
+    });
+    T.p.setAttribute("d", "M" + Lp.join("L") + "L" + Rp.reverse().join("L") + "Z");
+    T.sk.forEach((c, k) => { const i = 4 + k * 3, p = pts[i]; c.setAttribute("cx", f1(p[0])); c.setAttribute("cy", f1(p[1])); c.setAttribute("r", f1(Math.max(.5, T.w * (1 - i / N) ** .8 * .3))); });
+    const e = pts[N]; T.tip.setAttribute("cx", f1(e[0])); T.tip.setAttribute("cy", f1(e[1])); T.tip.setAttribute("r", f1(1.2 + gr * (RM ? .6 : .6 + .6 * Math.sin(t * 9 + T.ph))));
+  });
+  tentRaf = (n < hotG || gr > 0) ? requestAnimationFrame(tentFrame) : 0;
+}
+function startChaos() {
+  $("tome").classList.add("chaos"); document.querySelector(".grimoire").classList.add("chaos"); sfx("red");
+  cancelAnimationFrame(tentRaf); tentRaf = requestAnimationFrame(tentFrame);
+}
+function endChaos() { $("tome").classList.remove("chaos"); document.querySelector(".grimoire").classList.remove("chaos"); }
 
 function away(sec) {                                   // hors-ligne : timestamps, plafond 8 h (extensible via sorts)
   sec = Math.min(sec, M("offlineCap", 8) * 3600);
@@ -354,6 +419,8 @@ function tick() {
   const c = Passives.calc(); S.eth += c.ethPS * dt;
   if (c.sgPS > 0) gainSg(c.sgPS * dt * pageX(), false);             // lecture automatique : silencieuse
   fragTick(dt, c);
+  if (n < hotG) heatG = (hotG - n) / hotGMs * 100; else { if (hotG) { hotG = 0; heatG = 0; endChaos(); } heatG = Math.max(0, heatG - CPS_GRIMOIRE * 10 * dt); }
+  const ccr = Math.round((n < hotG ? 1 : Math.max(0, (heatG - 35) / 65)) * 20) / 20; if (ccr !== lastCor) { lastCor = ccr; $("tome").style.setProperty("--cor", ccr); }   // encre d'avertissement
   if (n < hot) heat = (hot - n) / hotMs * 100; else { if (hot) { hot = 0; heat = 0; } heat = Math.max(0, heat - M("cps", CPS_PALIERS[0]) * 10 * dt); }
 
   $("eth").textContent = fE(S.eth); $("sg").textContent = fN(S.sg);
@@ -364,6 +431,8 @@ function tick() {
   const G = S.g, pt = G.t;
   $("buff").textContent = "Page " + (G.n + 1) + (pt === "norm" ? "" : " · " + PG[pt].n + " ×" + px(pt));
   $("buff").className = "buff" + (pt === "norm" ? "" : " " + pt);
+  if (n < hotG) { $("buff").textContent = "Le Grimoire se débat — " + Math.ceil((hotG - n) / 1e3) + " s"; $("buff").className = "buff red"; }
+  else if (heatG >= 70) { $("buff").textContent = "Encre instable…"; $("buff").className = "buff red"; }
   $("pgFill").style.width = Math.min(100, G.got / G.need * 100) + "%"; $("pgbar").className = "pgbar " + pt;
   $("pgTxt").textContent = fN(G.got) + " / " + fN(G.need) + " Runes décryptées";
   const tm = $("tome"); tm.classList.toggle("red", pt === "red"); tm.classList.toggle("gold", pt === "gold"); reveal(Math.min(1, G.got / G.need));
@@ -376,7 +445,15 @@ addEventListener("DOMContentLoaded", () => {
   const e = (Date.now() - S.seen) / 1e3; if (e > 10) away(e);
   Passives.build($("bV"), "V"); Passives.build($("bG"), "G"); Spells.init();
   S.g = S.g || { n: 0, t: "norm", need: 0, got: 0 }; if (!(S.g.need > 0)) nextPage(false);
-  $("orb").onclick = clickV; $("tome").onclick = clickG; initVeil(); initCursor(); initBook(); initKey(); initStars();
+  $("orb").onclick = clickV; $("tome").onclick = clickG; initVeil(); initCursor(); initBook(); initKey(); initStars(); initTent();
+  const snd = $("snd"), updSnd = () => { snd.classList.toggle("off", !SOUND); snd.title = "Sons : " + (SOUND ? "activés" : "coupés"); snd.setAttribute("aria-pressed", String(SOUND)); };
+  updSnd(); snd.onclick = () => { const p = readPrefs(); p.sound = !SOUND; try { localStorage.setItem(PREFS_KEY, JSON.stringify(p)); } catch (e) {} SOUND = p.sound; updSnd(); if (SOUND) sfx("chime"); };
+  addEventListener("storage", ev => { if (ev.key === PREFS_KEY) { SOUND = readPrefs().sound !== false; updSnd(); } });
+  // Fenêtre d'accueil : s'affiche tant que « Ne plus afficher » n'est pas coché (S.introSeen, synchronisé avec le compte) ; bouton « ? » pour la relire
+  const showIntro = () => { $("introNo").checked = !!S.introSeen; $("intro").hidden = false; $("introGo").focus(); };
+  const closeIntro = () => { S.introSeen = $("introNo").checked; save(); cloudSave(true); $("intro").hidden = true; };
+  $("introGo").onclick = closeIntro; $("help").onclick = showIntro; addEventListener("keydown", ev => { if (ev.key === "Escape" && !$("intro").hidden) closeIntro(); });
+  if (!S.introSeen) setTimeout(showIntro, 500);
   setInterval(tick, 100); setInterval(save, 5000); setInterval(() => !document.hidden && cloudSave(), 6e4);
   if (window.auth && window.onAuthStateChanged) window.onAuthStateChanged(window.auth, u => u && cloudLoad(u));
   addEventListener("pagehide", () => { save(); cloudSave(true); }); document.addEventListener("visibilitychange", () => { if (document.hidden) { save(); cloudSave(true); } });

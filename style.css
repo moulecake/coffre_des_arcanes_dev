@@ -313,7 +313,7 @@ header{display:flex;align-items:center;justify-content:space-between;width:100%;
 /* TOAST */
 #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(80px);
   background:var(--glass);border:1px solid var(--border);border-radius:10px;padding:10px 20px;
-  font-size:13px;z-index:600;transition:transform .3s cubic-bezier(.4,0,.2,1);backdrop-filter:blur(20px);white-space:nowrap;}
+  font-size:13px;z-index:600;transition:transform .3s cubic-bezier(.4,0,.2,1);backdrop-filter:blur(20px);max-width:92vw;text-align:center;}
 #toast.show{transform:translateX(-50%) translateY(0);}
 
 /* FOOTER */
@@ -676,3 +676,19 @@ header{display:flex;align-items:center;justify-content:space-between;width:100%;
   width: 50px;
   text-align: right;
 }
+/* ---- Démarrage rapide : pas d'écran de connexion si le joueur est déjà connu (classe posée dans <head>) ---- */
+html.fast #welcome-screen{display:none!important}
+html.fast #app{visibility:visible!important;opacity:1!important}
+
+/* ---- Options ---- */
+.opt-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 0;border-top:1px solid rgba(255,255,255,.07)}
+.opt-txt{display:flex;flex-direction:column;gap:2px}.opt-txt b{font-size:13px;color:var(--text)}.opt-txt small{font-size:11px;color:var(--text-dim)}
+.gear-ic{transition:transform .6s cubic-bezier(.3,1.4,.5,1)}.profile-slot-btn:hover .gear-ic{transform:rotate(90deg)}
+#options-modal .toggle-switch{flex:none}
+
+/* ---- Arrivée d'une clé gagnée dans le Clicker : la clé d'or (5 éclats collés) vole jusqu'à son icône ---- */
+.kfx{position:fixed;left:0;top:0;pointer-events:none;z-index:900;overflow:visible;filter:drop-shadow(0 0 14px rgba(245,190,50,.85))}
+.kfx-ring{position:fixed;left:0;top:0;width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:50%;border:2px solid #f5d98a;pointer-events:none;z-index:900;box-shadow:0 0 18px rgba(245,190,50,.8)}
+.key-icon.glow{background:rgba(245,190,50,.22)!important;border-color:#f5d98a!important;color:#fde68a!important;box-shadow:0 0 16px rgba(245,190,50,.7);animation:keyGlow 1.6s ease-out}
+@keyframes keyGlow{0%{transform:scale(1.5)}30%{transform:scale(1.15)}100%{transform:scale(1)}}
+@media(prefers-reduced-motion:reduce){.gear-ic{transition:none}.key-icon.glow{animation:none}}
