@@ -406,6 +406,10 @@
           <div class="opt-txt"><b>Notifications</b><small>Un rappel quand tes clés sont rechargées ou qu'une clé est prête dans le Clicker. <strong style="color:#fbbf24;">Conseillé sur smartphone</strong> pour ne pas rater tes clés (sur iPhone : ajoute d'abord l'app à l'écran d'accueil). Nécessite d'être connecté.</small></div>
           <label class="toggle-switch"><input type="checkbox" id="opt-push" onchange="togglePush(this)"><span class="toggle-slider"></span></label>
         </div>
+        <div class="opt-row">
+          <div class="opt-txt"><b>Sauvegarde</b><small>Télécharge une copie de ta progression (inventaire, clés). Ta progression est déjà synchronisée avec ton compte Google.</small></div>
+          <button class="share-btn" style="margin:0;flex:none;" onclick="exportBackup()">💾 Exporter</button>
+        </div>
     </div>
 </div>
 

@@ -9,7 +9,7 @@
 // ============================================================
 // Adresse propre : on masque « index.html » dans la barre d'adresse (affichage seulement).
 if (/index\.html$/.test(location.pathname)) history.replaceState(null, "", location.pathname.replace(/index\.html$/, "") + location.search + location.hash);
-const CURRENT_VERSION = "2.a2.12";
+const CURRENT_VERSION = "2.a2.15";
 document.getElementById("app-version").textContent = CURRENT_VERSION;
 
 // DROP RATES — C:40 | PC:25 | R:20 | TR:8 | L:5 | A:2
@@ -163,7 +163,11 @@ const slugOfLine = l => { try { return new URL(l.split('|')[1]).searchParams.get
 })();
 function packInventory(inv) {
   const out = {}, ok = Object.keys(LOOT_BY_ID).length > 0;
-  for (const k in (inv || {})) { const c = inv[k]; if (!(c > 0)) continue; const key = (ok && LOOT_ID[k]) || k; out[key] = Math.max(out[key] || 0, c); }
+  for (const k in (inv || {})) {
+    const c = inv[k]; if (!(c > 0)) continue;
+    const ph = k.match(/^([a-z0-9-]+)\|#\|Objet inconnu\|C$/i);                     // repère créé quand data.js ne connaissait pas l'identifiant : on remet l'identifiant d'origine
+    const key = ph ? ph[1] : ((ok && LOOT_ID[k]) || k); out[key] = Math.max(out[key] || 0, c);
+  }
   return out;
 }
 // ⚠ TEMPORAIRE — À SUPPRIMER APRÈS LE 2026-11-24 (rappel : MEMOIRE.md « RAPPELS » + mémoire Claude).
@@ -190,11 +194,128 @@ function unpackInventory(inv) {
   if (legacy.length) console.info('[Correctif raretés] ' + legacy.length + ' objet(s) ré-étiqueté(s) vers la ligne actuelle de data.js');
   return out;
 }
-// Vrai si l'inventaire chargé contient des clés longues convertibles (ancien format / ancienne rareté) → on réenregistre aussitôt pour nettoyer le Firestore.
-let _repack = false;
+// ============================================================
+// SYNCHRONISATION SÛRE (v2.a2.15) — règle d'or : un objet d'inventaire ne doit JAMAIS disparaître.
+//  • Révision `rev` + transaction : on n'écrase jamais un cloud modifié ailleurs ; en cas de conflit, FUSION À 3 VOIES (base = dernière synchro de CET appareil) :
+//    cloud + (ce que cet appareil a changé) → les gains hors-ligne et ceux d'un autre appareil s'additionnent, les recyclages aussi.
+//  • Garde-fou : le résultat contient toujours AU MOINS tous les objets uniques du cloud ET du local (un objet n'est jamais retiré, seul son compteur varie).
+//  • `state.uid` : l'état local d'un AUTRE compte est ignoré (jamais mélangé) ; copie de sécurité locale avant.
+//  • Sauvegardes de secours dans le document du joueur (`backups.preMigration`, `.daily`, `.conflict`).
+//  • Aucune écriture cloud avant la 1re synchro réussie, ni si data.js n'est pas chargé.
+// Rien d'autre ne doit écrire `players/{uid}.state` : tout passe par syncState().
+// ============================================================
+const SCHEMA = 2, BASE_KEY = 'arcane-base', LOCALBK_KEY = 'arcane-localbackup';
+let _cloudLoaded = false, _syncing = false, _syncAgain = false, _dirty = false, _syncT = 0, _mut = 0, _base = null, _lastSync = null;
+// Vrai si l'inventaire contient des clés longues convertibles (ancien format / ancienne rareté).
 const needsRepack = inv => Object.keys(LOOT_BY_ID).length > 0 && Object.keys(inv || {}).some(k => k.includes('|') && (LOOT_ID[k] || (TEMP_RARITY_FIX && LOOT_BY_ID[slugOfLine(k)])));
-const serializeState = () => Object.assign({}, state, { inventory: packInventory(state.inventory) });
-const mergeCloudState = cs => { if (needsRepack(cs.inventory)) _repack = true; state = Object.assign(state, cs, { inventory: unpackInventory(cs.inventory) }); };
+const dataOk = () => Object.keys(LOOT_BY_ID).length > 0;
+const copyInv = inv => Object.assign({}, inv);
+const serializeStateOf = st => Object.assign({}, st, { inventory: packInventory(st.inventory) });
+const serializeState = () => serializeStateOf(state);
+const unpackState = cs => Object.assign({}, cs, { inventory: unpackInventory(cs.inventory) });
+const snapLocal = () => Object.assign({}, state, { inventory: copyInv(state.inventory), mjAdded: (state.mjAdded || []).slice() });
+const freshState = () => ({ version: CURRENT_VERSION, keys: MAX_KEYS, lastRegen: Date.now(), inventory: {}, chestsOpened: 0, fragments: 0, forceLegendary: false, mjActive: false, pseudo: '' });
+const snapBase = st => ({ uid: st.uid || '', rev: st.rev || 0, inv: copyInv(st.inventory), keys: st.keys || 0, fragments: st.fragments || 0, clickerClaimed: st.clickerClaimed || 0, chestsOpened: st.chestsOpened || 0 });
+function loadBase() { try { const b = JSON.parse(localStorage.getItem(BASE_KEY) || 'null'); if (b) b.inv = unpackInventory(b.inv); return b; } catch (e) { return null; } }
+function storeBase(b) { _base = b; try { localStorage.setItem(BASE_KEY, JSON.stringify(Object.assign({}, b, { inv: packInventory(b.inv) }))); } catch (e) {} }
+function ensureSuperset(inv, ref) { for (const k in (ref || {})) if (ref[k] > 0 && !(inv[k] > 0)) inv[k] = ref[k]; return inv; }
+
+// Fusion d'inventaires (clés longues). base = inventaire à la dernière synchro de cet appareil (ou null).
+function mergeInventories(base, local, cloud) {
+  const out = {}, keys = new Set([...Object.keys(local || {}), ...Object.keys(cloud || {})]);
+  keys.forEach(k => {
+    const l = local && local[k] > 0 ? local[k] : 0, c = cloud && cloud[k] > 0 ? cloud[k] : 0;
+    let m;
+    if (!l || !c) m = Math.max(l, c);                                       // présent d'un seul côté : on le garde (jamais de perte)
+    else if (base) { const b = base[k] > 0 ? base[k] : 0; m = Math.max(c + (l - b), 1); }                            // 3 voies (plancher 1 : un objet possédé d'un côté n'est jamais retiré)
+    else m = Math.max(l, c);                                                // pas de base connue : le plus grand
+    if (m > 0) out[k] = m;
+  });
+  return out;
+}
+// Fusion d'états complets (inventaire en clés longues). L = local, C = cloud.
+function mergeStates(base, L, C) {
+  const M = Object.assign({}, C);
+  M.inventory = mergeInventories(base && base.inv, L.inventory, C.inventory);
+  const delta = f => Math.max(0, (C[f] || 0) + ((L[f] || 0) - (base[f] || 0)));
+  M.chestsOpened = base ? delta('chestsOpened') : Math.max(L.chestsOpened || 0, C.chestsOpened || 0);
+  let keys = base ? delta('keys') : (C.keys || 0), frag = base ? delta('fragments') : (C.fragments || 0);   // sans base : le cloud fait foi (pas de clés gratuites sur appareil neuf)
+  if (base && keys > MAX_KEYS && Math.max(L.keys || 0, C.keys || 0) <= MAX_KEYS) keys = MAX_KEYS;          // double régénération
+  while (frag >= FRAGS_PER_KEY) { frag -= FRAGS_PER_KEY; keys++; }
+  M.keys = keys; M.fragments = frag;
+  M.clickerClaimed = Math.max(L.clickerClaimed || 0, C.clickerClaimed || 0);
+  M.lastRegen = keys >= MAX_KEYS ? Date.now() : (base ? Math.min(L.lastRegen || Date.now(), C.lastRegen || Date.now()) : (C.lastRegen || Date.now()));
+  M.pseudo = C.pseudo || L.pseudo || '';
+  const seen = new Set(), adds = []; [].concat(C.mjAdded || [], L.mjAdded || []).forEach(a => { const id = (a && a.name) + '@' + (a && a.ts); if (!seen.has(id)) { seen.add(id); adds.push(a); } });
+  if (adds.length) M.mjAdded = adds;
+  M.forceLegendary = !!L.forceLegendary; M.mjActive = !!L.mjActive;
+  return M;
+}
+
+// ---- Moteur : lecture + fusion + écriture en UNE transaction ----
+async function syncState(reason) {
+  const u = window.auth?.currentUser;
+  if (!u || !window.runTransaction || !window.db) return false;
+  if (!dataOk()) { console.warn('[synchro] data.js non chargé : aucune écriture cloud'); return false; }
+  if (_syncing) { _syncAgain = true; return false; }
+  _syncing = true; clearTimeout(_syncT);
+  const mut0 = _mut, L0 = snapLocal();
+  try {
+    const ref = window.doc(window.db, 'players', u.uid); let res = null;
+    await window.runTransaction(window.db, async tx => {
+      const snap = await tx.get(ref), data = snap.exists() ? snap.data() : {}, now = Date.now();
+      const cs = data.state ? unpackState(data.state) : null;
+      const base = _base && _base.uid === u.uid ? _base : null, foreign = !!(L0.uid && L0.uid !== u.uid);
+      let merged, mode;
+      if (!cs) { merged = foreign ? freshState() : Object.assign({}, L0); mode = 'create'; }
+      else if (foreign) { merged = Object.assign({}, cs); mode = 'adopt'; }                       // état local d'un autre compte : ignoré
+      else if (base && (cs.rev || 0) === base.rev) { merged = Object.assign({}, cs, L0); mode = 'push'; }   // cloud inchangé depuis notre dernière synchro
+      else { merged = mergeStates(base, L0, cs); mode = 'merge'; }
+      if (data.pseudo) merged.pseudo = data.pseudo;
+      merged.inventory = Object.assign({}, merged.inventory);
+      if (cs) ensureSuperset(merged.inventory, cs.inventory);                                     // garde-fou : jamais moins d'objets uniques que le cloud
+      if (mode !== 'adopt' && !foreign) ensureSuperset(merged.inventory, L0.inventory);           // … ni que le local
+      merged.uid = u.uid; merged.rev = ((cs && cs.rev) || 0) + 1; merged.savedAt = now; merged.schema = SCHEMA;
+      const bk = {}, prev = data.backups || {};
+      if (cs && !prev.preMigration && (cs.schema !== SCHEMA || needsRepack(data.state.inventory))) bk.preMigration = { ts: now, state: data.state };   // copie BRUTE avant la 1re conversion
+      if (cs && (!prev.daily || now - (prev.daily.ts || 0) > 864e5)) bk.daily = { ts: now, state: data.state };                                   // instantané quotidien
+      if (mode === 'merge' && base) bk.conflict = { ts: now, cloud: data.state, local: serializeStateOf(L0) };                                      // dernier conflit
+      const body = { state: serializeStateOf(merged), lastUpdated: new Date().toISOString() }, fields = ['state', 'lastUpdated'];
+      if (merged.pseudo) { body.pseudo = merged.pseudo; fields.push('pseudo'); }
+      Object.keys(bk).forEach(k => fields.push('backups.' + k)); if (Object.keys(bk).length) body.backups = bk;
+      tx.set(ref, body, { mergeFields: fields });
+      res = { merged, mode, hadBase: !!base, foreign, clickerEarned: data.clicker && data.clicker.earned, backups: Object.keys(bk) };
+    });
+    if (res.foreign) { try {                                                                     // copie de sécurité locale de l'état de l'autre compte (3 max)
+      localStorage.setItem(LOCALBK_KEY + '-' + Date.now(), JSON.stringify(serializeStateOf(L0)));
+      Object.keys(localStorage).filter(k => k.startsWith(LOCALBK_KEY + '-')).sort().slice(0, -3).forEach(k => localStorage.removeItem(k)); } catch (e) {} }
+    let final = res.merged;
+    if (_mut !== mut0) final = mergeStates(snapBase(L0), snapLocal(), res.merged);               // le joueur a agi pendant la synchro : on rejoue ses actions
+    state = Object.assign({}, final);
+    storeBase(snapBase(res.merged)); _cloudLoaded = true; _dirty = (_mut !== mut0); _lastSync = { mode: res.mode, rev: res.merged.rev, backups: res.backups, at: Date.now() };
+    try { localStorage.setItem(LSKEY, JSON.stringify(serializeState())); } catch (e) {}
+    if (res.mode !== 'push') { if (typeof renderInventory === 'function') renderInventory(); if (typeof updateTimer === 'function') updateTimer(); }
+    if (res.mode === 'merge' && res.hadBase) showToast('☁ Progression fusionnée avec ton autre appareil', 4000);
+    syncLeaderboardDoc(); syncPushSchedule();
+    if (_dirty) scheduleSync();
+    return res;
+  } catch (e) { console.warn('[synchro] échec (hors-ligne ?) — la sauvegarde locale est conservée', e && (e.code || e.message)); _dirty = true; return false; }
+  finally { _syncing = false; if (_syncAgain) { _syncAgain = false; setTimeout(() => syncState('again'), 300); } }
+}
+function scheduleSync() { if (!window.auth?.currentUser || !_cloudLoaded) return; clearTimeout(_syncT); _syncT = setTimeout(() => syncState('save'), 1200); }
+// Reprise après hors-ligne / retour sur l'onglet / fermeture : on resynchronise dès qu'il y a du travail non envoyé
+window.addEventListener('online', () => { if (_dirty) syncState('online'); });
+document.addEventListener('visibilitychange', () => { if (_dirty && window.auth?.currentUser) syncState('visibility'); });
+window.addEventListener('pagehide', () => { if (_dirty && window.auth?.currentUser) syncState('pagehide'); });
+setInterval(() => { if (_dirty && window.auth?.currentUser && !_syncing) syncState('retry'); }, 60000);
+// Export manuel (filet de sécurité) : télécharge un fichier JSON de la sauvegarde actuelle (Options → « Exporter ma sauvegarde »).
+function exportBackup() {
+  const data = { exportedAt: new Date().toISOString(), appVersion: CURRENT_VERSION, state: serializeState() };
+  const a = document.createElement('a'), url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' }));
+  a.href = url; a.download = 'coffre-des-arcanes-sauvegarde-' + new Date().toISOString().slice(0, 10) + '.json'; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+  showToast('💾 Sauvegarde exportée', 3000);
+}
+window.syncInfo = () => ({ dirty: _dirty, cloudLoaded: _cloudLoaded, rev: state.rev || 0, baseRev: _base ? _base.rev : null, uid: (state.uid || '').slice(0, 6), last: _lastSync });
 // Diagnostic à lancer dans la console (F12) : inventoryIdStats()
 window.inventoryIdStats = () => ({ objetsDansDataJs: (typeof loots !== 'undefined' ? loots.length : 0), identifiantsCompacts: Object.keys(LOOT_BY_ID).length, nonCompactes: (typeof loots !== 'undefined' ? loots.length : 0) - Object.keys(LOOT_BY_ID).length });
 
@@ -272,49 +393,18 @@ async function syncLeaderboardDoc() {
   } catch (e) { _lbSig = ''; console.warn('Classement : écriture impossible (règles Firestore ?)', e.code || e); }
 }
 
-async function saveState() { 
-  localStorage.setItem(LSKEY, JSON.stringify(serializeState()));
-
-  if (window.auth?.currentUser) {
-    try {
-      const userDocRef = window.doc(window.db, "players", window.auth.currentUser.uid);
-      // mergeFields : le champ `state` est REMPLACÉ en entier (sinon les anciennes clés longues resteraient dans le document)
-      await window.setDoc(userDocRef, {
-        state: serializeState(),
-        lastUpdated: new Date().toISOString()
-      }, { mergeFields: ['state', 'lastUpdated'] });
-      syncLeaderboardDoc();
-      syncPushSchedule();
-    } catch (e) {
-      console.error("Erreur de sauvegarde cloud :", e);
-    }
-  }
+function saveState() {
+  _mut++; state.savedAt = Date.now();
+  try { localStorage.setItem(LSKEY, JSON.stringify(serializeState())); } catch (e) { console.warn('localStorage plein ou indisponible', e); }
+  _dirty = true; scheduleSync();                           // envoi au cloud différé (1,2 s) et fusionné : voir syncState()
 }
 
-async function loadState() {
+async function loadState() {                                // lecture LOCALE seulement ; le cloud est fusionné par loadGameDataFromCloud() dès que Firebase répond
+  _base = loadBase();
   const raw = localStorage.getItem(LSKEY);
   if (!raw) { saveState(); return; }
-  try {
-    const loc = JSON.parse(raw); if (needsRepack(loc.inventory)) _repack = true; loc.inventory = unpackInventory(loc.inventory); state = Object.assign(state, loc);
-  } catch (e) { saveState(); }
-
-  if (window.auth?.currentUser) {
-    try {
-      const userDocRef = window.doc(window.db, "players", window.auth.currentUser.uid);
-      const docSnap = await window.getDoc(userDocRef);
-      if (docSnap.exists() && docSnap.data().state) {
-        mergeCloudState(docSnap.data().state);
-        if (typeof renderInventory === 'function') renderInventory();
-        if (typeof updateTimer === 'function') updateTimer();
-        console.log("Données chargées depuis le Cloud des Arcanes !");
-      }
-    } catch (e) {
-      console.error("Erreur de chargement cloud :", e);
-    }
-  }
-  applyVersionUpdate();
-  claimClickerFragments();
-  if (_repack) { _repack = false; saveState(); }
+  try { const loc = JSON.parse(raw); loc.inventory = unpackInventory(loc.inventory); state = Object.assign(state, loc); }
+  catch (e) { try { localStorage.setItem(LSKEY + '-corrompu', raw); } catch (x) {} console.error('Sauvegarde locale illisible : copie conservée', e); }   // on n'écrase pas une sauvegarde illisible
 }
 
 // MISE À JOUR : une seule fois par joueur, quel que soit le nombre de versions sautées → clés remises à MAX_KEYS (jamais réduites).
@@ -971,46 +1061,14 @@ document.getElementById("google-login-btn")?.addEventListener("click", () => {
   }
 });
 
-async function saveGameDataToCloud() {
-  if (!window.auth?.currentUser) return;
-  try {
-    const userDocRef = window.doc(window.db, "players", window.auth.currentUser.uid);
-    await window.setDoc(userDocRef, {
-      pseudo: state.pseudo || "",
-      state: serializeState(),
-      lastUpdated: new Date().toISOString()
-    }, { mergeFields: ['pseudo', 'state', 'lastUpdated'] });
-    console.log("Données sauvegardées dans les Arcanes du Cloud !");
-  } catch (e) {
-    console.error("Erreur lors de la sauvegarde Cloud :", e);
-  }
-}
+async function saveGameDataToCloud() { return syncState('manual'); }      // ancien nom conservé : tout passe par syncState()
 
 async function loadGameDataFromCloud(uid) {
   try {
-    const userDocRef = window.doc(window.db, "players", uid);
-    const docSnap = await window.getDoc(userDocRef);
-
-    if (docSnap.exists()) {
-      const data = docSnap.data();
-      console.log("Sauvegarde trouvée dans le Cloud :", data);
-      if (data.pseudo) {
-        state.pseudo = data.pseudo;
-      }
-      if (data.state) {
-        mergeCloudState(data.state);
-        if (data.pseudo && !state.pseudo) state.pseudo = data.pseudo;
-        if (typeof renderInventory === "function") renderInventory();
-        if (typeof updateTimer === "function") updateTimer();
-      }
-    } else {
-      console.log("Aucune sauvegarde trouvée. Première connexion !");
-      await saveGameDataToCloud();
-    }
+    const res = await syncState('login');                   // lit le cloud, fusionne avec le local (jamais d'écrasement), écrit le résultat
     applyVersionUpdate();
-    if (_repack) { _repack = false; saveState(); }
     syncLeaderboardDoc();
-    claimClickerFragments(docSnap.exists() ? docSnap.data().clicker?.earned : 0);
+    claimClickerFragments(res ? res.clickerEarned : 0);
   } catch (e) {
     console.error("Erreur lors du chargement des données Cloud :", e);
   }
@@ -1457,6 +1515,7 @@ async function executeLogout() {
   closeProfileActionModal();
   if (window.auth) {
     try {
+      if (_dirty) await syncState('logout');                  // rien ne doit rester non synchronisé avant de quitter le compte
       await window.signOut(window.auth);
       showToast('👋 Déconnexion réussie.');
       setTimeout(() => window.location.reload(), 1000);

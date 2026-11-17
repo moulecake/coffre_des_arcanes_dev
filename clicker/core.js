@@ -150,24 +150,49 @@ async function pushSchedule(force) {
   const at = clickerKeyETA(), sig = at ? Math.round(at / 6e4) : 0; if (!force && sig === pushSig) return; pushSig = sig;
   try { await window.setDoc(window.doc(window.db, "push", u.uid), { clickerAt: at || null, updatedAt: new Date().toISOString() }, { merge: true }); } catch (e) { pushSig = ""; }
 }
-let cloudT = 0;
+// ---- SYNCHRO CLOUD : règles de protection de la progression (v2.a2.14) ----
+//  • Score d'avancement `progScore` (bâtiments + sorts appris + pages lues + fragments : tout ne fait que CROÎTRE) : on garde TOUJOURS l'état le plus avancé.
+//    (Avant : le plus « récent » gagnait — or un état vide neuf est « récent » → il écrasait le cloud à la reconnexion.)
+//  • `S.uid` : l'état local appartient à un compte ; s'il est différent du compte connecté, il est ignoré (jamais mélangé).
+//  • Aucune écriture cloud tant que le chargement du cloud n'a pas réussi (`cloudReady`) ; chaque écriture est une TRANSACTION qui refuse de
+//    remplacer un cloud plus avancé (autre appareil) : on recharge alors le cloud au lieu de l'écraser.
+const progScore = X => {
+  if (!X) return 0;
+  const b = Object.values(X.b || {}).reduce((a, v) => a + (v || 0), 0), sp = X.sp && X.sp.learned ? Object.keys(X.sp.learned).length : 0;
+  return b * 1000 + sp * 100000 + ((X.g && X.g.n) || 0) * 10 + ((X.fr && X.fr.earned) || 0) * 1000;
+};
+let cloudT = 0, cloudReady = false, cloudUid = "";
 async function cloudSave(force) {
   pushSchedule(force);
-  const u = window.auth && window.auth.currentUser, n = Date.now(); if (!u || (!force && n - cloudT < 3e4)) return; cloudT = n;
-  try { await window.setDoc(window.doc(window.db, "players", u.uid), { clicker: { json: JSON.stringify(S), earned: (S.fr && S.fr.earned) || 0, ts: n } }, { merge: true }); }
-  catch (e) { console.warn("cloudSave", e); }
+  const u = window.auth && window.auth.currentUser, n = Date.now(); if (!u || !cloudReady || cloudUid !== u.uid || (!force && n - cloudT < 3e4)) return; cloudT = n;
+  const ref = window.doc(window.db, "players", u.uid), body = () => ({ clicker: { json: JSON.stringify(S), earned: (S.fr && S.fr.earned) || 0, ts: n } });
+  try {
+    if (!window.runTransaction) return void await window.setDoc(ref, body(), { merge: true });
+    await window.runTransaction(window.db, async tx => {
+      const cur = await tx.get(ref), C = cur.exists() && cur.data().clicker; let R = null;
+      if (C && C.json) { try { R = JSON.parse(C.json); } catch (e) {} }
+      if (R && progScore(R) > progScore(S)) throw new Error("STALE");                  // le cloud est plus avancé : on ne l'écrase pas
+      tx.set(ref, body(), { merge: true });
+    });
+  } catch (e) {
+    if (e && e.message === "STALE") { cloudReady = false; cloudLoad(u); }                // autre appareil plus avancé → on le récupère
+    else console.warn("cloudSave", e);
+  }
 }
 async function cloudLoad(u) {
   try {
     const snap = await window.getDoc(window.doc(window.db, "players", u.uid)), c = snap.exists() ? snap.data().clicker : null, st = snap.exists() ? snap.data().state : null;
     if (st) { CK = { fr: st.fragments || 0, claimed: st.clickerClaimed || 0 }; lastT = lastE = -1; }   // lecture seule : segments de la clé
-    if (c && c.json) {
-      const R = JSON.parse(c.json), fr = mergeFr(S.fr || {}, R.fr || {});
-      if ((R.seen || 0) > (S.seen || 0)) { Object.keys(S).forEach(k => delete S[k]); Object.assign(S, R); Spells.init(); }
-      S.fr = fr; if (!(S.g && S.g.need > 0)) { S.g = { n: 0, t: "norm", need: 0, got: 0 }; nextPage(false); }
-      lastT = lastE = -1; save(); toast("☁ Progression synchronisée");
-    }
-    cloudSave(true);
+    let R = null; if (c && c.json) { try { R = JSON.parse(c.json); } catch (e) {} }
+    const foreign = !!(S.uid && S.uid !== u.uid), lp = foreign ? -1 : progScore(S), cp = R ? progScore(R) : -1;
+    if (R && (cp > lp || (cp === lp && (R.seen || 0) > (S.seen || 0)))) {                // le cloud est plus avancé (ou égal et plus récent)
+      const fr = mergeFr(foreign ? {} : S.fr || {}, R.fr || {});
+      Object.keys(S).forEach(k => delete S[k]); Object.assign(S, R); S.fr = fr; Spells.init(); toast("☁ Progression synchronisée");
+    } else if (foreign) {                                                                // compte sans sauvegarde, état local d'un AUTRE compte : on repart à zéro
+      Object.keys(S).forEach(k => delete S[k]); Object.assign(S, { eth: 0, sg: 0, b: {}, seen: Date.now() }); Spells.init();
+    } else if (R) S.fr = mergeFr(S.fr || {}, R.fr || {});
+    S.uid = u.uid; if (!(S.g && S.g.need > 0)) { S.g = { n: 0, t: "norm", need: 0, got: 0 }; nextPage(false); }
+    lastT = lastE = -1; save(); cloudReady = true; cloudUid = u.uid; cloudSave(true);
   } catch (e) { console.warn("cloudLoad", e); }
 }
 
@@ -222,9 +247,14 @@ const sfx = (t, m = 1) => { if (!SOUND) return; try {
 } catch (e) {} };
 
 const toast = m => { const t = $("toast"); t.textContent = m; t.classList.add("show"); clearTimeout(tt); tt = setTimeout(() => t.classList.remove("show"), 3500); };
+const ptIn = (e, p) => {                               // point d'un clic dans le panneau p ; au clavier (Espace/Entrée : pas de coordonnées) → centre de l'élément activé
+  const r = p.getBoundingClientRect();
+  if (e.detail === 0 || (!e.clientX && !e.clientY)) { const t = e.currentTarget && e.currentTarget.getBoundingClientRect ? e.currentTarget.getBoundingClientRect() : r; return { x: t.left + t.width / 2 - r.left, y: t.top + t.height / 2 - r.top }; }
+  return { x: e.clientX - r.left, y: e.clientY - r.top };
+};
 const fl = (e, txt, col) => {
-  const p = e.currentTarget.closest(".pane"), r = p.getBoundingClientRect(), s = document.createElement("span");
-  s.className = "fl"; s.textContent = txt; s.style.cssText = "left:" + (e.clientX - r.left || r.width / 2) + "px;top:" + (e.clientY - r.top || 150) + "px;color:" + col;
+  const p = e.currentTarget.closest(".pane"), q = ptIn(e, p), s = document.createElement("span");
+  s.className = "fl"; s.textContent = txt; s.style.cssText = "left:" + q.x + "px;top:" + q.y + "px;color:" + col;
   p.append(s); setTimeout(() => s.remove(), 900);
 };
 
@@ -301,7 +331,7 @@ function clickV(e) {
 const GL = [], PTS = [[1, 3], [9, 3], [1, 8], [9, 8], [1, 13], [9, 13], [5, 1], [5, 15]];
 let turning = 0, clkPt = null, lastN = -1;
 const runeD = () => { let d = "M5 1V15"; for (let k = 0, n = 2 + (Math.random() * 2 | 0); k < n; k++) { const a = PTS[Math.random() * 8 | 0], b = PTS[Math.random() * 8 | 0]; if (a !== b) d += "M" + a + "L" + b; } return d; };
-const paneXY = e => { const p = e.currentTarget.closest(".pane"), r = p.getBoundingClientRect(); return { p, x: e.clientX - r.left || r.width / 2, y: e.clientY - r.top || 150 }; };
+const paneXY = e => { const p = e.currentTarget.closest(".pane"), q = ptIn(e, p); return { p, x: q.x, y: q.y }; };
 function buildGlyphs() {                               // 2 pages × 7 lignes × 5 pseudo-runes, nouvelle page = nouvelles runes
   GL.length = 0;
   ["gL", "gR"].forEach(id => {

@@ -11,11 +11,11 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-app.js";
   import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-auth.js";
-  import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
+  import { getFirestore, doc, setDoc, getDoc, runTransaction } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
   const app = initializeApp({ apiKey: "AIzaSyBkwZIkmAAuYtZpoVokvhZd5MYlTfkLyww", authDomain: "coffre-des-arcanes.firebaseapp.com", projectId: "coffre-des-arcanes",
     storageBucket: "coffre-des-arcanes.firebasestorage.app", messagingSenderId: "905578088250", appId: "1:905578088250:web:38f331566593c3b485f203" });
   window.auth = getAuth(app); window.db = getFirestore(app);
-  window.onAuthStateChanged = onAuthStateChanged; window.doc = doc; window.setDoc = setDoc; window.getDoc = getDoc;
+  window.onAuthStateChanged = onAuthStateChanged; window.doc = doc; window.setDoc = setDoc; window.getDoc = getDoc; window.runTransaction = runTransaction;
 </script>
 <!-- Ordre : spells (hooks) > passives (bâtiments) > core (state, boucle) -->
 <script src="spells.js" defer></script>
