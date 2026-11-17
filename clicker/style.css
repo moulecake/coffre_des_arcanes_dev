@@ -254,7 +254,7 @@ body.hot #orbCur::before{background:radial-gradient(circle,#fff 0 14%,#fda4af 32
 /* ---- Grimoire : sécurité anti-autoclic (encre qui monte, puis CHAOS : livre noir + tentacules) ---- */
 .book{--cor:0}
 .ink{position:absolute;inset:6% 0 2%;border-radius:14px;pointer-events:none;opacity:var(--cor);background:radial-gradient(ellipse at 50% 50%,transparent 28%,rgba(14,3,26,.55) 62%,rgba(5,1,10,.92) 100%);transition:opacity .3s}
-.tent{position:absolute;left:-12%;top:-14%;width:124%;height:128%;overflow:visible;pointer-events:none;z-index:6}
+.tent{position:absolute;left:-12%;top:-14%;width:124%;height:128%;overflow:visible;pointer-events:none;z-index:6;visibility:hidden}.book.chaos .tent{visibility:visible}   /* invisible tant que le Grimoire n'est pas en chaos */
 .tb{fill:#0a0314;stroke:rgba(167,139,250,.7);stroke-width:.9}.tn{fill:url(#tg);stroke:rgba(139,92,246,.75);stroke-width:.9;stroke-linejoin:round}.ts{fill:#2a0d4d;stroke:rgba(196,181,253,.55);stroke-width:.5}.tt{fill:#e11d48}
 .book.chaos{animation:chaosShake .13s linear infinite!important}
 .book.chaos .pg,.book.chaos .lf{filter:brightness(.16) saturate(.3) contrast(1.4);transition:filter .5s}

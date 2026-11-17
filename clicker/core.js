@@ -372,7 +372,7 @@ function initTent() {
   [[46, 172, 3.5, 125, 12, -1.1, 1.3, 0], [58, 74, -2.5, 135, 12, 1.0, 1.1, 1.7], [205, 46, -1.62, 120, 11, .8, 1.5, 3.1], [318, 60, -.75, 140, 12, -.9, 1.2, 4.4], [356, 158, -.12, 125, 12, 1.1, 1.4, 2.2],
    [334, 264, .85, 130, 12, -1.0, 1.0, 5.3], [78, 264, 2.3, 128, 11, 1.1, 1.25, .9], [170, 258, -1.95, 80, 8, 2.6, 1.8, 3.9], [236, 256, -1.2, 84, 8, -2.5, 1.6, .4]].forEach(([x, y, a, L, w, cu, sp, ph]) => {
     const el = document.createElementNS(NS, "g"), p = document.createElementNS(NS, "path"), b = document.createElementNS(NS, "ellipse"), sk = [];
-    b.setAttribute("class", "tb"); b.setAttribute("cx", x); b.setAttribute("cy", y); b.setAttribute("rx", w * 1.35); b.setAttribute("ry", w * .85); b.setAttribute("transform", "rotate(" + (a * 180 / Math.PI + 90).toFixed(0) + " " + x + " " + y + ")"); el.append(b);   // racine : fissure sombre sur le bord du livre
+    b.setAttribute("class", "tb"); b.setAttribute("opacity", 0); b.setAttribute("cx", x); b.setAttribute("cy", y); b.setAttribute("rx", w * 1.35); b.setAttribute("ry", w * .85); b.setAttribute("transform", "rotate(" + (a * 180 / Math.PI + 90).toFixed(0) + " " + x + " " + y + ")"); el.append(b);   // racine : fissure sombre sur le bord du livre
     p.setAttribute("class", "tn"); el.append(p);
     for (let i = 0; i < 7; i++) { const c = document.createElementNS(NS, "circle"); c.setAttribute("class", "ts"); el.append(c); sk.push(c); }
     const tip = document.createElementNS(NS, "circle"); tip.setAttribute("class", "tt"); el.append(tip); g.append(el); TENT.push({ x, y, a, L, w, cu, sp, ph, p, b, sk, tip });
