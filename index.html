@@ -97,7 +97,7 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
         INVENTAIRE
       </button>
-      <button class="inv-btn" onclick="window.location.href='clicker.html'" title="Accéder au Grimoire">⚡ GRIMOIRE</button>
+      <button class="inv-btn" onclick="window.location.href='clicker/'" title="Accéder au Grimoire">⚡ GRIMOIRE</button>
       <button class="inv-btn" onclick="showToast('⚔️ Quêtes de l’Académie : Bientôt disponible !')" title="Quêtes">⚔️ Quête</button>
     </div>
   </header>
@@ -200,10 +200,10 @@
         <span class="profile-slot-label">Code</span>
       </button>
 
-      <!-- Slot 3: Futur module -->
-      <button class="profile-slot-btn" disabled>
-        <span class="profile-slot-icon"></span>
-        <span class="profile-slot-label"></span>
+      <!-- Slot 3: Soutenir le projet (même icône et même lien que le footer) -->
+      <button class="profile-slot-btn" onclick="window.open('https://ko-fi.com/moulecake','_blank','noopener,noreferrer')" title="Soutenir le projet">
+        <span class="profile-slot-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #29abe0; display:block;"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg></span>
+        <span class="profile-slot-label">Soutien</span>
       </button>
 
       <!-- Slot 4: Futur module -->
@@ -351,7 +351,8 @@
     </div>
 </div>
 
-<!-- FENÊTRE DE SYNCHRONISATION & FUSION (MODAL) -->
+<!-- [DÉSACTIVÉ 2026-11-17] Ancienne fenêtre de synchronisation/fusion localStorage⇄Cloud + import AV1 : aucun bouton ne l'ouvre et ses fonctions (closeSyncModal, runLocalStorageCloudMerge, runAV1SyncImport, runCloudOptimization) n'existent plus dans script.js. À supprimer après validation.
+
 <div id="sync-modal" class="legal-modal" style="display:none;">
     <div class="legal-modal-content">
       <span class="legal-modal-close" onclick="closeSyncModal()">✕</span>
@@ -382,6 +383,7 @@
       </div>
     </div>
 </div>
+-->
 
 <!-- MODALE CODE PROMO PERSISTANTE -->
 <div id="promo-modal" class="legal-modal" style="display:none;" onclick="event.stopPropagation()">
