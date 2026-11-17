@@ -9,7 +9,7 @@
 // ============================================================
 // Adresse propre : on masque « index.html » dans la barre d'adresse (affichage seulement).
 if (/index\.html$/.test(location.pathname)) history.replaceState(null, "", location.pathname.replace(/index\.html$/, "") + location.search + location.hash);
-const CURRENT_VERSION = "2.a2.15";
+const CURRENT_VERSION = "2.a2.17";
 document.getElementById("app-version").textContent = CURRENT_VERSION;
 
 // DROP RATES — C:40 | PC:25 | R:20 | TR:8 | L:5 | A:2
@@ -32,7 +32,7 @@ function setPref(k, v){ const p=getPrefs(); p[k]=!!v; try{ localStorage.setItem(
 const soundOn = () => getPrefs().sound !== false;
 function openOptionsModal(){
   const p=getPrefs(); document.getElementById('opt-sound').checked=p.sound!==false; document.getElementById('opt-vibe').checked=p.vibe!==false;
-  document.getElementById('opt-push').checked=!!p.push && ('Notification' in window) && Notification.permission==='granted';
+  document.getElementById('opt-push').checked=p.push!==false && ('Notification' in window) && Notification.permission==='granted';
   document.getElementById('options-modal').style.display='flex';
 }
 function closeOptionsModal(){ document.getElementById('options-modal').style.display='none'; }
@@ -308,13 +308,6 @@ window.addEventListener('online', () => { if (_dirty) syncState('online'); });
 document.addEventListener('visibilitychange', () => { if (_dirty && window.auth?.currentUser) syncState('visibility'); });
 window.addEventListener('pagehide', () => { if (_dirty && window.auth?.currentUser) syncState('pagehide'); });
 setInterval(() => { if (_dirty && window.auth?.currentUser && !_syncing) syncState('retry'); }, 60000);
-// Export manuel (filet de sécurité) : télécharge un fichier JSON de la sauvegarde actuelle (Options → « Exporter ma sauvegarde »).
-function exportBackup() {
-  const data = { exportedAt: new Date().toISOString(), appVersion: CURRENT_VERSION, state: serializeState() };
-  const a = document.createElement('a'), url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' }));
-  a.href = url; a.download = 'coffre-des-arcanes-sauvegarde-' + new Date().toISOString().slice(0, 10) + '.json'; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
-  showToast('💾 Sauvegarde exportée', 3000);
-}
 window.syncInfo = () => ({ dirty: _dirty, cloudLoaded: _cloudLoaded, rev: state.rev || 0, baseRev: _base ? _base.rev : null, uid: (state.uid || '').slice(0, 6), last: _lastSync });
 // Diagnostic à lancer dans la console (F12) : inventoryIdStats()
 window.inventoryIdStats = () => ({ objetsDansDataJs: (typeof loots !== 'undefined' ? loots.length : 0), identifiantsCompacts: Object.keys(LOOT_BY_ID).length, nonCompactes: (typeof loots !== 'undefined' ? loots.length : 0) - Object.keys(LOOT_BY_ID).length });
@@ -343,8 +336,7 @@ async function savePushToken(token) {
   const u = window.auth?.currentUser; if (!u) return;
   await window.setDoc(window.doc(window.db, 'push', u.uid), { tokens: { [pushOriginKey()]: { t: token, url: pushBaseUrl(), ts: Date.now() } }, updatedAt: new Date().toISOString() }, { merge: true });
 }
-async function togglePush(cb) {
-  if (!cb.checked) { await disablePush(); return; }
+async function enablePush() {                           // à appeler depuis un CLIC (Options ou fenêtre d'invitation) ; renvoie true si activé
   try {
     if (!window.auth?.currentUser) throw new Error('login');
     if (!('Notification' in window) || !('serviceWorker' in navigator)) throw new Error('unsupported');
@@ -353,28 +345,46 @@ async function togglePush(cb) {
     const token = await getFcmToken();
     await savePushToken(token); localStorage.setItem('arcane-push-token', token); setPref('push', true);
     showToast('🔔 Notifications activées !', 4000); syncPushSchedule(true);
+    return true;
   } catch (e) {
-    cb.checked = false; setPref('push', false);
+    if (e.message === 'denied') setPref('push', false);
     const m = { login: 'Connecte-toi avec Google pour activer les notifications.', unsupported: "Notifications indisponibles ici. Sur iPhone : ajoute d'abord l'app à l'écran d'accueil (Partager → Sur l'écran d'accueil).", denied: 'Autorisation refusée : tu peux la modifier dans les réglages du navigateur.' };
     showToast(m[e.message] || "Activation impossible pour le moment.", 6000); if (!m[e.message]) console.warn('push', e);
+    return false;
   }
 }
+async function togglePush(cb) { if (!cb.checked) { await disablePush(); return; } if (!(await enablePush())) cb.checked = false; }
 async function disablePush() {
   setPref('push', false); localStorage.removeItem('arcane-push-token');
   try { const u = window.auth?.currentUser; if (u) await window.setDoc(window.doc(window.db, 'push', u.uid), { tokens: { [pushOriginKey()]: null }, keysAt: null, clickerAt: null, updatedAt: new Date().toISOString() }, { merge: true }); } catch (e) {}
   try { const m = await import(FCM_CDN); await m.deleteToken(m.getMessaging(window.fbApp)); } catch (e) {}
   showToast('🔕 Notifications désactivées');
 }
-async function ensurePush() {                           // à chaque connexion : rafraîchit le jeton si besoin, ou désactive si l'autorisation a été retirée
-  if (!getPrefs().push) return;
-  if (!('Notification' in window) || Notification.permission !== 'granted') { setPref('push', false); return; }
-  try { const t = await getFcmToken(); if (t !== localStorage.getItem('arcane-push-token')) { await savePushToken(t); localStorage.setItem('arcane-push-token', t); } syncPushSchedule(true); }
-  catch (e) { console.warn('push', e); }
+// ACTIVÉES PAR DÉFAUT : à chaque connexion, si l'autorisation est déjà accordée on rafraîchit le jeton ; sinon on PROPOSE une fois (fenêtre d'invitation,
+// puis rappel après 7 jours). Le navigateur exige un clic du joueur pour demander l'autorisation : on ne peut pas l'accorder à sa place.
+// Tant que le joueur n'a pas désactivé lui-même (`push:false`), tout reste actif.
+const PUSH_ASK_KEY = 'arcane-push-asked';
+async function ensurePush() {
+  if (!('Notification' in window) || !('serviceWorker' in navigator) || getPrefs().push === false) return;
+  if (Notification.permission === 'granted') {
+    try { const t = await getFcmToken(); if (t !== localStorage.getItem('arcane-push-token')) { await savePushToken(t); localStorage.setItem('arcane-push-token', t); } syncPushSchedule(true); }
+    catch (e) { console.warn('push', e); }
+  } else if (Notification.permission === 'default') maybeAskPush();
 }
+function maybeAskPush() {
+  const asked = +localStorage.getItem(PUSH_ASK_KEY) || 0; if (asked && Date.now() - asked < 7 * 864e5) return;
+  setTimeout(async () => {
+    try { const m = await import(FCM_CDN); if (!(await m.isSupported())) return; } catch (e) { return; }        // ex. iPhone sans installation : on ne harcèle pas
+    if (Notification.permission !== 'default' || document.hidden || !window.auth?.currentUser) return;
+    document.getElementById('push-modal').style.display = 'flex';
+  }, 4000);
+}
+function pushPromptYes() { document.getElementById('push-modal').style.display = 'none'; localStorage.setItem(PUSH_ASK_KEY, Date.now()); enablePush(); }
+function pushPromptLater() { document.getElementById('push-modal').style.display = 'none'; localStorage.setItem(PUSH_ASK_KEY, Date.now()); }
 let _pushSig = '';
 async function syncPushSchedule(force) {                // heure à laquelle les clés seront toutes rechargées (null si déjà pleines)
   const u = window.auth?.currentUser;
-  if (!u || !getPrefs().push || !('Notification' in window) || Notification.permission !== 'granted') return;
+  if (!u || getPrefs().push === false || !('Notification' in window) || Notification.permission !== 'granted') return;
   const keysAt = state.keys < MAX_KEYS ? state.lastRegen + (MAX_KEYS - state.keys) * REGEN_MS : null;
   const sig = String(keysAt ? Math.round(keysAt / 6e4) : 0); if (!force && sig === _pushSig) return; _pushSig = sig;
   try { await window.setDoc(window.doc(window.db, 'push', u.uid), { keysAt, updatedAt: new Date().toISOString() }, { merge: true }); } catch (e) { _pushSig = ''; }

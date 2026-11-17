@@ -1,4 +1,4 @@
-const CACHE_NAME = 'arcane-vault-cache-v2.a2.15';
+const CACHE_NAME = 'arcane-vault-cache-v2.a2.17';
 // Chemin de base DÉDUIT de l'emplacement du Service Worker (scope) : aucun préfixe de dépôt écrit en dur
 // → fonctionne à l'identique sur /coffre_des_arcanes/ (officiel) et /coffre_des_arcanes_dev/ (test) sans rien changer.
 const BASE = self.registration.scope;                     // ex. https://moulecake.github.io/coffre_des_arcanes/

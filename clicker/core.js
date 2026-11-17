@@ -146,7 +146,7 @@ function clickerKeyETA() {
   return sec > M("offlineCap", 8) * 3600 ? 0 : Date.now() + sec * 1e3;
 }
 async function pushSchedule(force) {
-  const u = window.auth && window.auth.currentUser; if (!u || !readPrefs().push || !window.setDoc) return;
+  const u = window.auth && window.auth.currentUser; if (!u || !window.setDoc || readPrefs().push === false || typeof Notification === "undefined" || Notification.permission !== "granted") return;
   const at = clickerKeyETA(), sig = at ? Math.round(at / 6e4) : 0; if (!force && sig === pushSig) return; pushSig = sig;
   try { await window.setDoc(window.doc(window.db, "push", u.uid), { clickerAt: at || null, updatedAt: new Date().toISOString() }, { merge: true }); } catch (e) { pushSig = ""; }
 }
