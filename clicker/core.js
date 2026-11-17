@@ -1,4 +1,5 @@
 "use strict";
+if (/index\.html$/.test(location.pathname)) history.replaceState(null, "", location.pathname.replace(/index\.html$/, "") + location.search + location.hash);   // adresse propre : /clicker/ sans index.html
 // Core : state, formats, boucle, Voile (surchauffe), Grimoire (gacha), hors-ligne, sauvegarde locale.
 const KEY = "coffre-clicker", $ = id => document.getElementById(id), M = (k, d) => Spells.mod(k, d);
 const U = ["nL","µL","mL","L","kL","ML","GL","TL","PL","EL"], SF = ["","K","M","B","T","Qa","Qi"];
@@ -10,13 +11,109 @@ try { Object.assign(S, JSON.parse(localStorage.getItem(KEY) || "{}")); } catch (
 const save = () => { S.seen = Date.now(); localStorage.setItem(KEY, JSON.stringify(S)); };
 
 // ---- Fragments de clés : EFFORT ACTIF uniquement (clic/sort < 10 s). 5 min d'effort = 1 fragment (5 fragments = 1 clé du Coffre).
-// 10-15 min tryhard ≈ 2-3 fragments · plafond 9/jour (≈ 1,8 clé) · le farm idle ne donne rien. `fr.earned` est cumulatif : le Coffre
+// 10-15 min tryhard ≈ 2-3 fragments · plafond 9/jour (≈ 1,8 clé) · le farm idle ne donne rien À CE NIVEAU (le flux passif = micro-fragments, ci-dessous). `fr.earned` est cumulatif : le Coffre
 // réclame (earned − déjà réclamé), donc jamais de doublon même avec plusieurs appareils.
 const FR_SEC = 300, FR_DAY = 9;
 const dayKey = () => new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
-function fragTick(dt) {
-  const f = S.fr || (S.fr = { earned: 0, eff: 0, day: "", today: 0 }), d = dayKey();
-  if (f.day !== d) { f.day = d; f.today = 0; }
+// ---- Micro-fragments PASSIFS (Sprint 4) : flux lié à l'Éther/s, 100 micro = 1 fragment (même `earned` que l'actif → pont Coffre inchangé).
+// Courbe [log10(nL/s), clés/jour] interpolée linéairement ; <10 nL/s proportionnel ; >1e15 monte vers 25 (atteint à 1e17). Plafond passif 25 clés/jour = 125 fragments,
+// SÉPARÉ des FR_DAY actifs. Hooks M("frag") (en ligne + hors-ligne) et M("fragOff") (hors-ligne seul). Aucune écriture cloud par tick : sync à chaque fragment entier.
+const FR_PCAP = 125, FR_CURVE = [[1, .1], [6, 1], [9, 5], [12, 12], [15, 22], [17, 25]];
+const keysPerDay = e => {
+  if (!(e > 0)) return 0; const l = Math.log10(e); if (l < 1) return .1 * e / 10; if (l >= 17) return 25;
+  for (let i = 1; i < FR_CURVE.length; i++) if (l <= FR_CURVE[i][0]) { const a = FR_CURVE[i - 1], b = FR_CURVE[i]; return a[1] + (b[1] - a[1]) * (l - a[0]) / (b[0] - a[0]); }
+  return 25;
+};
+const fragRate = e => keysPerDay(e) * 5 * 100 / 86400 * M("frag", 1);      // micro-fragments par seconde
+function getFr() {                                     // état normalisé + remise à zéro quotidienne (actif ET passif)
+  const f = S.fr || (S.fr = {}), d = dayKey();
+  f.earned = f.earned || 0; f.eff = f.eff || 0; f.today = f.today || 0; f.micro = f.micro || 0; f.pday = f.pday || 0;
+  if (f.day !== d) { f.day = d; f.today = 0; f.pday = 0; }
+  return f;
+}
+function microAdd(m) {                                 // renvoie le nombre de fragments entiers gagnés
+  const f = getFr(); if (!(m > 0)) return 0;
+  if (f.pday >= FR_PCAP) { f.micro = 0; return 0; }
+  f.micro += m; let n = 0;
+  while (f.micro >= 100 && f.pday < FR_PCAP) { f.micro -= 100; f.earned++; f.pday++; n++; }
+  if (f.pday >= FR_PCAP) f.micro = 0;
+  return n;
+}
+let CK = null, lastT = -1, lastE = -1, keyBusy = 0, shownSeg = -1, lastLiq = -1, gT = 0;   // CK : état Coffre lu en lecture seule (fragments + clickerClaimed)
+const keyTotal = f => CK ? CK.fr + Math.max(0, f.earned - CK.claimed) : f.earned;         // repli hors connexion : earned % 5
+function keyFly() {                                    // 5/5 : la clé pulse, puis vole vers « Retour au Coffre » (purement visuel)
+  const k = $("fkey"), b = document.querySelector(".back"); keyBusy = 1; k.classList.add("ready");
+  const end = () => { k.classList.remove("ready"); keyBusy = 0; };
+  if (RM || !k.animate) return void setTimeout(end, 900);
+  setTimeout(() => {
+    const a = k.getBoundingClientRect(), z = b.getBoundingClientRect(), dx = z.left + z.width / 2 - a.left - a.width / 2, dy = z.top + z.height / 2 - a.top - a.height / 2;
+    for (let i = 0; i < 4; i++) {
+      const g = k.cloneNode(true); g.removeAttribute("id"); g.setAttribute("class", "fkfly"); g.style.cssText = "left:" + a.left + "px;top:" + a.top + "px;width:" + a.width + "px;height:" + a.height + "px";
+      document.body.append(g);
+      const an = g.animate([{ transform: "none", opacity: i ? .5 - i * .1 : 1 }, { transform: "translate(" + dx * .5 + "px," + (dy * .5 - 60) + "px) scale(1.15)", opacity: i ? .4 - i * .08 : 1, offset: .45 }, { transform: "translate(" + dx + "px," + dy + "px) scale(.45)", opacity: 0 }], { duration: 750, delay: i * 70, easing: "cubic-bezier(.5,0,.8,.4)", fill: "backwards" });
+      an.onfinish = () => { g.remove(); if (!i) { b.classList.remove("got"); void b.offsetWidth; b.classList.add("got"); end(); } };
+    }
+  }, 700);
+}
+function grain(c, dt) {                                // grains du Voile → fiole, ≤ 6/s
+  if (RM || document.hidden || !(c.ethPS > 0) || !$("fvial").animate) return;
+  gT += dt; const rate = .4 + 5.6 * Math.min(1, Math.log10(c.ethPS + 1) / 15);
+  if (gT < 1 / rate) return; gT = 0;
+  const v = $("veilSvg").getBoundingClientRect(), t = $("fvial").getBoundingClientRect(); if (!v.width || !t.width) return;
+  const sx = v.left + v.width * (.15 + Math.random() * .7), sy = v.top + v.height * (.25 + Math.random() * .55), ex = t.left + t.width / 2, ey = t.top + t.height * .7;
+  const g = document.createElement("i"); g.className = "fgrain"; document.body.append(g);
+  const an = g.animate([{ transform: "translate(" + sx + "px," + sy + "px)", opacity: 0 }, { transform: "translate(" + (sx + (ex - sx) * .3) + "px," + (sy - 40) + "px)", opacity: 1, offset: .25 }, { transform: "translate(" + ex + "px," + ey + "px) scale(.4)", opacity: 0 }], { duration: 900, easing: "ease-in" });
+  an.onfinish = () => g.remove();
+}
+function fragUI(f, c, dt) {
+  const t = keyTotal(f);
+  if (lastT >= 0 && Math.floor(t / 5) > Math.floor(lastT / 5) && !keyBusy) keyFly();
+  lastT = t;
+  if (lastE >= 0 && f.earned > lastE) { const v = $("fvial"); v.classList.remove("flash"); void v.offsetWidth; v.classList.add("flash"); }
+  lastE = f.earned;
+  const seg = keyBusy ? 5 : t % 5;
+  if (seg !== shownSeg) {
+    shownSeg = seg; $("fkey").classList.toggle("lit", seg > 0);
+    document.querySelectorAll("#fkey .kp").forEach((e, i) => e.classList.toggle("on", i < seg));
+    document.querySelectorAll("#fkey .kcr").forEach(e => e.classList.toggle("on", +e.dataset.i + 2 <= seg));
+  }
+  const lq = Math.floor(f.micro), lv = Math.round(f.micro * 2);
+  if (lv !== lastLiq) { lastLiq = lv; $("fvL").style.transform = "translateY(" + (f.micro < .5 ? 47 : 47 - 29 * f.micro / 100) + "px)"; }
+  const kd = Math.min(25, keysPerDay(c.ethPS) * M("frag", 1));
+  $("frm").textContent = f.pday >= FR_PCAP ? "Plafond passif atteint" : "Passif ≈ " + (kd < 10 ? kd.toFixed(1) : Math.round(kd)) + " clé/j · " + lq + "/100";
+  grain(c, dt);
+}
+// Clé d'or verticale brisée en 5 éclats (zigzags fixes = cassures, graine constante) ; éclat 0 = anneau + joyau rouge, 4 = panneton.
+function initKey() {
+  let sd = 7; const rnd = () => (sd = sd * 16807 % 2147483647) / 2147483647, f1 = n => n.toFixed(1);
+  const P = a => a.map((p, i) => (i ? "L" : "M") + f1(p[0]) + " " + f1(p[1])).join("");
+  const zig = B => Array.from({ length: 9 }, (_, i) => [-2 + (i + (i > 0 && i < 8 ? (rnd() - .5) * .6 : 0)) * 5.5, B + (rnd() - .5) * 8]);
+  const Z = [70, 52, 36, 20].map(zig), top = [[-2, -2], [42, -2]], bot = [[-2, 122], [42, 122]];
+  const ex = [   // gravures propres à chaque éclat
+    "<circle class='kd' cx='20' cy='92' r='13.5'/><g class='kgem' transform='translate(20 92)'><circle r='9.4' fill='none' stroke='#5b3f0c' stroke-width='1.2'/><circle r='7.4' fill='url(#kgm)' stroke='#6b1020' stroke-width='.8'/><path d='M-7.4 0L0-7.4L7.4 0L0 7.4Z M-3.7-3.7L3.7 3.7M3.7-3.7L-3.7 3.7' fill='none' stroke='rgba(255,255,255,.32)' stroke-width='.5'/><ellipse cx='-2.4' cy='-3.1' rx='2' ry='1.1' fill='rgba(255,255,255,.8)' transform='rotate(-35 -2.4 -3.1)'/></g>",
+    "<path class='kd' d='M15 57H25M15 60.5H25'/>", "<path class='kd' d='M20 40V49M17.5 44.5H22.5'/>", "<path class='kd' d='M18 24V33M22 24V33'/>", "<path class='kd' d='M20 8V15'/>"
+  ];
+  let h = "<defs><linearGradient id='kg' gradientUnits='userSpaceOnUse' x1='2' y1='0' x2='38' y2='0'><stop offset='0' stop-color='#8a6a1d'/><stop offset='.3' stop-color='#fff1b0'/><stop offset='.55' stop-color='#e8c04a'/><stop offset='1' stop-color='#7a5a14'/></linearGradient>" +
+    "<radialGradient id='kgm' cx='.4' cy='.35' r='.75'><stop offset='0' stop-color='#fda4af'/><stop offset='.45' stop-color='#e11d48'/><stop offset='1' stop-color='#7f1030'/></radialGradient>" +
+    "<g id='kshape'><circle id='kb' cx='20' cy='92' r='19'/><rect id='kh' x='15' y='6' width='10' height='78' rx='3'/><rect id='kt1' x='24' y='4' width='14' height='10' rx='1.5'/><rect id='kt2' x='24' y='22' width='10' height='8' rx='1.5'/><rect id='kt3' x='24' y='40' width='8' height='7' rx='1.5'/></g>" +
+    "<clipPath id='kall'><use href='#kb'/><use href='#kh'/><use href='#kt1'/><use href='#kt2'/><use href='#kt3'/></clipPath>";
+  for (let k = 0; k < 5; k++) h += "<clipPath id='kc" + k + "'><path d='" + P(k < 4 ? Z[k] : top) + P((k ? Z[k - 1] : bot).slice().reverse()).replace("M", "L") + "Z'/></clipPath>";
+  h += "</defs>";
+  for (let k = 0; k < 5; k++) h += "<g class='kp' clip-path='url(#kc" + k + ")'><use href='#kshape'/><g clip-path='url(#kall)'>" + ex[k] + "</g></g>";
+  h += "<g clip-path='url(#kall)'>";
+  Z.forEach((z, i) => { h += "<path class='kcr' data-i='" + i + "' d='" + P(z) + "'/><path class='kcr hl' data-i='" + i + "' transform='translate(0 1)' d='" + P(z) + "'/>"; });
+  $("fkey").innerHTML = h + "</g>";
+}
+function initStars() {                                 // même ciel que le Coffre : 80 étoiles qui scintillent
+  const c = $("stars");
+  for (let i = 0; i < 80; i++) {
+    const s = document.createElement("div"), z = Math.random() * 2 + 1; s.className = "star";
+    s.style.cssText = "width:" + z + "px;height:" + z + "px;top:" + Math.random() * 100 + "%;left:" + Math.random() * 100 + "%;--d:" + (2 + Math.random() * 4) + "s;--delay:" + -Math.random() * 4 + "s;opacity:" + Math.random() * .5;
+    c.appendChild(s);
+  }
+}
+function fragTick(dt, c) {
+  const f = getFr();
   if (f.today < FR_DAY && Spells.active()) {
     f.eff += dt;
     if (f.eff >= FR_SEC) {
@@ -27,11 +124,14 @@ function fragTick(dt) {
   const r = Math.ceil(FR_SEC - f.eff);
   $("fr").textContent = f.today + " / " + FR_DAY;
   $("frs").textContent = f.today >= FR_DAY ? "Quota du jour atteint" : "Prochain : " + Math.floor(r / 60) + ":" + String(r % 60).padStart(2, "0") + " d'effort";
+  const np = microAdd(fragRate(c.ethPS) * dt);          // flux passif (silencieux : aucun son hors geste utilisateur)
+  if (np) { save(); cloudSave(true); toast("✦ Micro-fragments : +" + np + " fragment(s) passif(s) — envoyé au Coffre (" + f.pday + "/" + FR_PCAP + " aujourd'hui)"); }
+  fragUI(f, c, dt);
 }
 
-// ---- Cloud (Firebase injecté par clicker.html) : champ `clicker` du doc players/{uid}, écriture différée ≥ 30 s, jamais par tick.
+// ---- Cloud (Firebase injecté par clicker/index.html) : champ `clicker` du doc players/{uid}, écriture différée ≥ 30 s, jamais par tick.
 const mergeFr = (a, b) => { const t = (b.day || "") > (a.day || "") || ((b.day || "") === (a.day || "") && (b.today || 0) > (a.today || 0)) ? b : a;
-  return { earned: Math.max(a.earned || 0, b.earned || 0), eff: t.eff || 0, day: t.day || "", today: t.today || 0 }; };
+  return { earned: Math.max(a.earned || 0, b.earned || 0), eff: t.eff || 0, day: t.day || "", today: t.today || 0, micro: t.micro || 0, pday: t.pday || 0 }; };
 let cloudT = 0;
 async function cloudSave(force) {
   const u = window.auth && window.auth.currentUser, n = Date.now(); if (!u || (!force && n - cloudT < 3e4)) return; cloudT = n;
@@ -40,18 +140,19 @@ async function cloudSave(force) {
 }
 async function cloudLoad(u) {
   try {
-    const snap = await window.getDoc(window.doc(window.db, "players", u.uid)), c = snap.exists() ? snap.data().clicker : null;
+    const snap = await window.getDoc(window.doc(window.db, "players", u.uid)), c = snap.exists() ? snap.data().clicker : null, st = snap.exists() ? snap.data().state : null;
+    if (st) { CK = { fr: st.fragments || 0, claimed: st.clickerClaimed || 0 }; lastT = lastE = -1; }   // lecture seule : segments de la clé
     if (c && c.json) {
       const R = JSON.parse(c.json), fr = mergeFr(S.fr || {}, R.fr || {});
       if ((R.seen || 0) > (S.seen || 0)) { Object.keys(S).forEach(k => delete S[k]); Object.assign(S, R); Spells.init(); }
       S.fr = fr; if (!(S.g && S.g.need > 0)) { S.g = { n: 0, t: "norm", need: 0, got: 0 }; nextPage(false); }
-      save(); toast("☁ Progression synchronisée");
+      lastT = lastE = -1; save(); toast("☁ Progression synchronisée");
     }
     cloudSave(true);
   } catch (e) { console.warn("cloudLoad", e); }
 }
 
-let heat = 0, hot = 0, last = Date.now(), ac, tt;
+let heat = 0, hot = 0, hotMs = 5000, last = Date.now(), ac, tt;
 const PG = { red: { p: .05, x: 4, d: 10, n: "Page Nécrotique" }, gold: { p: .01, x: 12, d: 8, n: "Page Dorée" } };
 
 // Audio (Web Audio) : [freq, type, durée, volume]
@@ -172,7 +273,7 @@ function initCursor() {                                // l'Orbe suit la souris 
 
 function clickV(e) {
   const n = Date.now(); if (n < hot) { sfx("deny"); ripple(e, .25); return; }      // voile rigide pendant la surchauffe
-  heat += 10; const over = heat >= 100; if (over) hot = n + 3000;                  // surchauffe : 3 s de pause
+  heat += 10; const over = heat >= 100; if (over) { hotMs = M("cps", CPS_PALIERS[0]) * 1000; hot = n + hotMs; }   // surchauffe : pause = limite en secondes (5 cps → 5 s · 10 → 10 s · 15 → 15 s)
   const m = Spells.onClick(), g = Passives.calc().clickV * M("click", 1) * m; S.eth += g;
   sfx(over ? "rumble" : "zap"); ripple(e, over ? 1.8 : m > 1 ? 1.5 : 1); fl(e, "+" + fE(g), "#a78bfa");
   if (m > 1) critFx(e, "ill", "CRITIQUE ×" + m);        // Image Miroir : glyphe d'Illusion
@@ -242,7 +343,9 @@ function clickG(e) {
 function away(sec) {                                   // hors-ligne : timestamps, plafond 8 h (extensible via sorts)
   sec = Math.min(sec, M("offlineCap", 8) * 3600);
   const c = Passives.calc(), e = c.ethPS * sec, s = c.sgPS * sec * M("offlineSg", 1);
-  S.eth += e; S.sg += s; if (e + s > 0) toast("Absence : +" + fE(e) + " · +" + fN(s) + " Sg");
+  S.eth += e; S.sg += s;
+  const nf = microAdd(fragRate(c.ethPS) * sec * M("fragOff", 1)); if (nf) save();   // micro-fragments hors-ligne (plafond passif/jour inclus)
+  if (e + s > 0) toast("Absence : +" + fE(e) + " · +" + fN(s) + " Sg" + (nf ? " · +" + nf + " fragment(s)" : ""));
 }
 
 function tick() {
@@ -250,18 +353,19 @@ function tick() {
   if (dt > 5) { away(dt); return; }                    // onglet endormi
   const c = Passives.calc(); S.eth += c.ethPS * dt;
   if (c.sgPS > 0) gainSg(c.sgPS * dt * pageX(), false);             // lecture automatique : silencieuse
-  fragTick(dt);
-  if (n < hot) heat = (hot - n) / 30; else { if (hot) { hot = 0; heat = 0; } heat = Math.max(0, heat - M("cps", 10) * 10 * dt); }
+  fragTick(dt, c);
+  if (n < hot) heat = (hot - n) / hotMs * 100; else { if (hot) { hot = 0; heat = 0; } heat = Math.max(0, heat - M("cps", CPS_PALIERS[0]) * 10 * dt); }
 
   $("eth").textContent = fE(S.eth); $("sg").textContent = fN(S.sg);
   $("ethps").textContent = "+" + fE(c.ethPS) + "/s"; $("sgps").textContent = "+" + fN(c.sgPS) + " Sg/s";
   $("heat").style.width = Math.min(100, heat) + "%"; $("heatBox").classList.toggle("hot", n < hot); $("orb").classList.toggle("hot", n < hot); document.body.classList.toggle("hot", n < hot);
-  $("heatTxt").textContent = n < hot ? "Surchauffe — canalisation en pause" : "Canalisation stable";
+  $("heatTxt").textContent = n < hot ? "Surchauffe — canalisation en pause " + Math.ceil((hot - n) / 1e3) + " s" : "Canalisation stable"; $("heatTxt").classList.toggle("red", n < hot);
+  $("heatLim").textContent = "Limite : " + M("cps", CPS_PALIERS[0]) + " clics/s avant surchauffe";
   const G = S.g, pt = G.t;
   $("buff").textContent = "Page " + (G.n + 1) + (pt === "norm" ? "" : " · " + PG[pt].n + " ×" + px(pt));
   $("buff").className = "buff" + (pt === "norm" ? "" : " " + pt);
   $("pgFill").style.width = Math.min(100, G.got / G.need * 100) + "%"; $("pgbar").className = "pgbar " + pt;
-  $("pgTxt").textContent = fN(G.got) + " / " + fN(G.need) + " Sg lues";
+  $("pgTxt").textContent = fN(G.got) + " / " + fN(G.need) + " Runes décryptées";
   const tm = $("tome"); tm.classList.toggle("red", pt === "red"); tm.classList.toggle("gold", pt === "gold"); reveal(Math.min(1, G.got / G.need));
   Spells.tick(dt, n);
   $("hintG").textContent = Spells.has("div1") ? "Augure : prochaine page " + ({ gold: "Dorée", red: "Nécrotique" }[Spells.forced() ? (nx < .2 ? "gold" : "red") : typ(nx, c)] || "commune") : "";
@@ -272,7 +376,7 @@ addEventListener("DOMContentLoaded", () => {
   const e = (Date.now() - S.seen) / 1e3; if (e > 10) away(e);
   Passives.build($("bV"), "V"); Passives.build($("bG"), "G"); Spells.init();
   S.g = S.g || { n: 0, t: "norm", need: 0, got: 0 }; if (!(S.g.need > 0)) nextPage(false);
-  $("orb").onclick = clickV; $("tome").onclick = clickG; initVeil(); initCursor(); initBook();
+  $("orb").onclick = clickV; $("tome").onclick = clickG; initVeil(); initCursor(); initBook(); initKey(); initStars();
   setInterval(tick, 100); setInterval(save, 5000); setInterval(() => !document.hidden && cloudSave(), 6e4);
   if (window.auth && window.onAuthStateChanged) window.onAuthStateChanged(window.auth, u => u && cloudLoad(u));
   addEventListener("pagehide", () => { save(); cloudSave(true); }); document.addEventListener("visibilitychange", () => { if (document.hidden) { save(); cloudSave(true); } });

@@ -4,10 +4,12 @@
 
 
 // ============================================================
-// VERSIONING — Modifiez le chiffre AVANT le point pour reset total,
-// le chiffre APRÈS pour reset des clés uniquement.
+// VERSIONING — Changer CURRENT_VERSION (avec CACHE_NAME de sw.js) offre MAX_KEYS clés une seule fois à chaque joueur.
+// Aucun reset d'inventaire, jamais (comptes Google/Firebase en production).
 // ============================================================
-const CURRENT_VERSION = "2.a2.3";
+// Adresse propre : on masque « index.html » dans la barre d'adresse (affichage seulement).
+if (/index\.html$/.test(location.pathname)) history.replaceState(null, "", location.pathname.replace(/index\.html$/, "") + location.search + location.hash);
+const CURRENT_VERSION = "2.a2.10";
 document.getElementById("app-version").textContent = CURRENT_VERSION;
 
 // DROP RATES — C:40 | PC:25 | R:20 | TR:8 | L:5 | A:2
@@ -121,22 +123,93 @@ let state = {
   keys: MAX_KEYS,
   lastRegen: Date.now(),
   inventory: {},
+  chestsOpened: 0,       // compteur de coffres ouverts (depuis v2.a2.10) — enregistré dans le Firestore avec le reste de `state`
   fragments: 0,
   forceLegendary: false,
   mjActive: false,
  pseudo: ''           // ← AJOUT
 };
 
+// ============================================================
+// INVENTAIRE COMPACT (stockage localStorage + Firestore)
+// En mémoire, l'inventaire garde les clés « Nom|lien|Type|Rareté » (tout le code existant reste inchangé).
+// À l'enregistrement, chaque clé est remplacée par un identifiant court = paramètre « vf= » du lien (ex. amulette-de-cicatrisation).
+// À la lecture, identifiants ET anciennes clés longues sont acceptés → migration automatique, sans perte.
+// Sécurités : un identifiant absent ou en double dans data.js n'est PAS compacté (clé longue conservée) ; si data.js n'est pas chargé, rien n'est converti.
+// ============================================================
+const LOOT_ID = {}, LOOT_BY_ID = {};
+const slugOfLine = l => { try { return new URL(l.split('|')[1]).searchParams.get('vf') || ''; } catch (e) { return ''; } };
+(function buildLootIds(){
+  if (typeof loots === 'undefined' || !loots.length) return;
+  const count = {}; loots.forEach(l => { const id = slugOfLine(l); if (id) count[id] = (count[id] || 0) + 1; });
+  loots.forEach(l => { const id = slugOfLine(l); if (id && count[id] === 1 && /^[a-z0-9-]+$/i.test(id)) { LOOT_ID[l] = id; LOOT_BY_ID[id] = l; } });
+})();
+function packInventory(inv) {
+  const out = {}, ok = Object.keys(LOOT_BY_ID).length > 0;
+  for (const k in (inv || {})) { const c = inv[k]; if (!(c > 0)) continue; const key = (ok && LOOT_ID[k]) || k; out[key] = Math.max(out[key] || 0, c); }
+  return out;
+}
+// ⚠ TEMPORAIRE — À SUPPRIMER APRÈS LE 2026-11-24 (rappel : MEMOIRE.md « RAPPELS » + mémoire Claude).
+// Correctif « raretés » : data.js a été corrigé (les « peu commun » étaient tagués |C, ils sont maintenant |PC). Les inventaires déjà enregistrés
+// contiennent encore l'ancienne ligne (…|C). Toute clé longue NON canonique dont l'identifiant `vf=` correspond à un objet actuel de data.js
+// est donc RAMENÉE sur la ligne actuelle (…|PC) et ses quantités sont AJOUTÉES (jamais écrasées, jamais perdues). L'ancienne clé disparaît ensuite
+// à l'enregistrement suivant (le champ `state` est remplacé en entier). Pour désactiver : passer TEMP_RARITY_FIX à false puis supprimer ce bloc.
+const TEMP_RARITY_FIX = true;
+function unpackInventory(inv) {
+  const out = {}, legacy = [], ok = Object.keys(LOOT_BY_ID).length > 0;
+  for (const k in (inv || {})) {
+    const c = inv[k]; if (!(c > 0)) continue;
+    if (!k.includes('|')) {                              // identifiant court → ligne actuelle de data.js (ou repère si l'objet a disparu)
+      const full = (ok && LOOT_BY_ID[k]) || (k + '|#|Objet inconnu|C');
+      out[full] = Math.max(out[full] || 0, c); continue;   // doublon id / clé longue identique : on garde le max
+    }
+    if (TEMP_RARITY_FIX && ok && !LOOT_ID[k]) {          // clé longue qui n'est plus une ligne actuelle de data.js
+      const canon = LOOT_BY_ID[slugOfLine(k)];
+      if (canon && canon !== k) { legacy.push([canon, c, k]); continue; }
+    }
+    out[k] = Math.max(out[k] || 0, c);
+  }
+  legacy.forEach(([canon, c]) => { out[canon] = (out[canon] || 0) + c; });
+  if (legacy.length) console.info('[Correctif raretés] ' + legacy.length + ' objet(s) ré-étiqueté(s) vers la ligne actuelle de data.js');
+  return out;
+}
+// Vrai si l'inventaire chargé contient des clés longues convertibles (ancien format / ancienne rareté) → on réenregistre aussitôt pour nettoyer le Firestore.
+let _repack = false;
+const needsRepack = inv => Object.keys(LOOT_BY_ID).length > 0 && Object.keys(inv || {}).some(k => k.includes('|') && (LOOT_ID[k] || (TEMP_RARITY_FIX && LOOT_BY_ID[slugOfLine(k)])));
+const serializeState = () => Object.assign({}, state, { inventory: packInventory(state.inventory) });
+const mergeCloudState = cs => { if (needsRepack(cs.inventory)) _repack = true; state = Object.assign(state, cs, { inventory: unpackInventory(cs.inventory) }); };
+// Diagnostic à lancer dans la console (F12) : inventoryIdStats()
+window.inventoryIdStats = () => ({ objetsDansDataJs: (typeof loots !== 'undefined' ? loots.length : 0), identifiantsCompacts: Object.keys(LOOT_BY_ID).length, nonCompactes: (typeof loots !== 'undefined' ? loots.length : 0) - Object.keys(LOOT_BY_ID).length });
+
+// ============================================================
+// CLASSEMENT : mini-document public `leaderboard/{uid}` (pseudo + totaux) — le classement ne télécharge plus les documents joueurs complets.
+// Règles Firestore à ajouter : voir MEMOIRE.md « Règles Firestore ». Écriture seulement si une valeur a changé.
+// ============================================================
+let _lbSig = '';
+async function syncLeaderboardDoc() {
+  const u = window.auth?.currentUser; if (!u || !window.db || !state.pseudo) return;
+  const inv = state.inventory || {};
+  const discovered = Object.keys(inv).filter(k => inv[k] > 0).length;
+  const total = Object.keys(inv).reduce((a, k) => a + (inv[k] > 0 ? inv[k] : 0), 0);
+  const chests = state.chestsOpened || 0, sig = [state.pseudo, discovered, total, chests].join('|');
+  if (sig === _lbSig) return; _lbSig = sig;
+  try {
+    await window.setDoc(window.doc(window.db, 'leaderboard', u.uid), { pseudo: state.pseudo, discovered, total, chests, updatedAt: new Date().toISOString() });
+  } catch (e) { _lbSig = ''; console.warn('Classement : écriture impossible (règles Firestore ?)', e.code || e); }
+}
+
 async function saveState() { 
-  localStorage.setItem(LSKEY, JSON.stringify(state)); 
+  localStorage.setItem(LSKEY, JSON.stringify(serializeState()));
 
   if (window.auth?.currentUser) {
     try {
       const userDocRef = window.doc(window.db, "players", window.auth.currentUser.uid);
+      // mergeFields : le champ `state` est REMPLACÉ en entier (sinon les anciennes clés longues resteraient dans le document)
       await window.setDoc(userDocRef, {
-        state: state,
+        state: serializeState(),
         lastUpdated: new Date().toISOString()
-      }, { merge: true });
+      }, { mergeFields: ['state', 'lastUpdated'] });
+      syncLeaderboardDoc();
     } catch (e) {
       console.error("Erreur de sauvegarde cloud :", e);
     }
@@ -147,25 +220,7 @@ async function loadState() {
   const raw = localStorage.getItem(LSKEY);
   if (!raw) { saveState(); return; }
   try {
-    const saved = JSON.parse(raw);
-    const sv = saved.version || '0.0';
-    const [smaj, smin] = sv.split('.').map(Number);
-    const [cmaj, cmin] = CURRENT_VERSION.split('.').map(Number);
-    if (smaj !== cmaj) {
-      state.keys = MAX_KEYS; state.lastRegen = Date.now();
-      state.inventory = {}; state.fragments = 0;
-      state.version = CURRENT_VERSION; saveState();
-      setTimeout(() => showToast('🔄 Mise à jour majeure — inventaire réinitialisé'), 500);
-    } else {
-      state = Object.assign(state, saved);
-      if (state.activeTrade && !state.activeTrade.giveKey) state.activeTrade = null;
-      state.version = CURRENT_VERSION;
-      if (smin !== cmin) {
-        state.keys = MAX_KEYS; state.lastRegen = Date.now();
-        saveState();
-        setTimeout(() => showToast('🔑 Mise à jour — clés rechargées, inventaire conservé'), 500);
-      }
-    }
+    const loc = JSON.parse(raw); if (needsRepack(loc.inventory)) _repack = true; loc.inventory = unpackInventory(loc.inventory); state = Object.assign(state, loc);
   } catch (e) { saveState(); }
 
   if (window.auth?.currentUser) {
@@ -173,7 +228,7 @@ async function loadState() {
       const userDocRef = window.doc(window.db, "players", window.auth.currentUser.uid);
       const docSnap = await window.getDoc(userDocRef);
       if (docSnap.exists() && docSnap.data().state) {
-        state = Object.assign(state, docSnap.data().state);
+        mergeCloudState(docSnap.data().state);
         if (typeof renderInventory === 'function') renderInventory();
         if (typeof updateTimer === 'function') updateTimer();
         console.log("Données chargées depuis le Cloud des Arcanes !");
@@ -182,7 +237,23 @@ async function loadState() {
       console.error("Erreur de chargement cloud :", e);
     }
   }
+  applyVersionUpdate();
   claimClickerFragments();
+  if (_repack) { _repack = false; saveState(); }
+}
+
+// MISE À JOUR : une seule fois par joueur, quel que soit le nombre de versions sautées → clés remises à MAX_KEYS (jamais réduites).
+// L'inventaire n'est JAMAIS touché. Appelée après chaque fusion local/cloud (le cloud écrase `version` et `keys`).
+function applyVersionUpdate() {
+  if (state.version === CURRENT_VERSION) return;
+  const first = !state.version;                         // sauvegarde sans version (très ancienne) : on aligne sans cadeau superflu
+  state.version = CURRENT_VERSION;
+  if (!first) {
+    state.keys = Math.max(state.keys || 0, MAX_KEYS); state.lastRegen = Date.now();
+    setTimeout(() => showToast('🔑 Mise à jour — ' + MAX_KEYS + ' clés offertes, inventaire conservé'), 500);
+  }
+  saveState();
+  if (typeof updateTimer === 'function') updateTimer();
 }
 // ============================================================
 // REGEN
@@ -357,6 +428,7 @@ function openChest(){
       const finalRarity = actualRarity || rarity;
 
       state.inventory[lootStr]=(state.inventory[lootStr]||0)+1;
+      state.chestsOpened=(state.chestsOpened||0)+1;
       saveState();
 
       playRevealSound(finalRarity);
@@ -411,7 +483,7 @@ function resetToChest(){
 // INVENTORY SIDEBAR
 // ============================================================
 let activeTab='all';
-function openSidebar(){ document.getElementById('sidebar').classList.add('open'); document.getElementById('overlay').classList.add('show'); renderInventory(); refreshTradeSelect(); }
+function openSidebar(){ document.getElementById('sidebar').classList.add('open'); document.getElementById('overlay').classList.add('show'); renderInventory(); }
 function closeSidebar(){
   if (isProfileOpen) {
     // Si on est dans le profil, fermer d'abord le détail ou le profil pour revenir à l'inventaire
@@ -434,35 +506,29 @@ function closeSidebar(){
   }
   document.getElementById('sidebar').classList.remove('open');
   document.getElementById('overlay').classList.remove('show');
-  // Réinitialiser accordéon sauf si troc actif
-  if(!state.activeTrade){
-    pactesOpen = false;
-    document.getElementById('pactes-body').classList.remove('open');
-    document.getElementById('pactes-chevron').style.transform = '';
-    closePacteSection('grimoire');
-    closePacteSection('pacte');
-  }
 }
 
 function recycleByIndex(idx, e){ recycleItem(window._invKeys[idx], e); }
+// ★ FRAGMENTS RAPPORTÉS PAR UN RECYCLAGE selon la rareté (éditable ici). A (Artefact) = valeur provisoire, à décider plus tard.
+const RECYCLE_FRAGS = { C:1, PC:2, R:3, TR:4, L:5, A:5 };
+const recycleGain = lootKey => RECYCLE_FRAGS[lootKey.split('|')[3]] || 1;
 function recycleItem(lootKey, e){
   e.stopPropagation();
   if((state.inventory[lootKey]||0) < 2) return;
+  const gain = recycleGain(lootKey);
   state.inventory[lootKey]--;
-  state.fragments++;
-  // Convert fragments to keys (can exceed MAX_KEYS)
-  if(state.fragments >= FRAGS_PER_KEY){
-    state.fragments -= FRAGS_PER_KEY;
-    state.keys++;
-    saveState(); updateTimer();
-    showToast('✨ Clé forgée depuis les fragments !');
+  state.fragments = (state.fragments||0) + gain;
+  // Fragments → clés (peut dépasser MAX_KEYS) ; plusieurs clés possibles d'un seul recyclage
+  let forged = 0;
+  while(state.fragments >= FRAGS_PER_KEY){ state.fragments -= FRAGS_PER_KEY; state.keys++; forged++; }
+  saveState(); updateTimer();
+  if(forged){
+    showToast('✨ +' + gain + ' fragment' + (gain>1?'s':'') + ' → ' + forged + ' clé' + (forged>1?'s':'') + ' forgée' + (forged>1?'s':'') + ' !');
     document.getElementById('open-btn').disabled=false;
   } else {
-    saveState(); updateTimer();
-    showToast(`♻ Fragment récupéré (${state.fragments}/${FRAGS_PER_KEY})`);
+    showToast('♻ +' + gain + ' fragment' + (gain>1?'s':'') + ' (' + state.fragments + '/' + FRAGS_PER_KEY + ')');
   }
   renderInventory();
-  refreshTradeSelect(); // ← AJOUTER
 }
 
 function renderInventory(){
@@ -472,7 +538,7 @@ function renderInventory(){
     ? '<div style="display:flex; align-items:center; justify-content:space-between; width:100%;">'
       + '<div style="display:flex; align-items:center; gap:8px;">'
       + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
-      + 'Aventurier :&nbsp;<strong>' + state.pseudo + '</strong>'
+      + 'Aventurier :&nbsp;<strong>' + escapeLeaderboardHtml(state.pseudo) + '</strong>'
       + '</div>'
       + '<button class="share-btn" style="padding:4px 10px; font-size:11px; margin:0;" onclick="toggleProfilePanel()">⚙️ Profil</button>'
       + '</div>'
@@ -509,7 +575,7 @@ function renderInventory(){
       const [n,lnk,,rar]=k.split('|');
       const extraHTML = cnt > 1
         ? '<span class="inv-count rc-' + rar + '">×' + cnt + '</span>'
-          + '<button class="recycle-btn" onclick="recycleByIndex(' + idx + ',event)" title="Recycler un doublon">♻</button>'
+          + '<button class="recycle-btn" onclick="recycleByIndex(' + idx + ',event)" title="Recycler un doublon : +' + recycleGain(k) + ' fragment(s)">♻ +' + recycleGain(k) + '</button>'
         : '';
       return '<div class="inv-item" onclick="window.open(\'' + lnk.replace(/'/g,"\\'") + '\',\'_blank\')">'
         + '<div class="inv-dot" style="background:' + (RARITY_DOTS[rar]||'#666') + '"></div>'
@@ -605,7 +671,7 @@ function mjAddItem(){
   state.inventory[lootStr] = (state.inventory[lootStr]||0) + 1;
   if(!state.mjAdded) state.mjAdded = [];
   state.mjAdded.push({ name, ts: Date.now() });
-  saveState(); renderInventory(); refreshTradeSelect();
+  saveState(); renderInventory();
   showToast('⚙ MJ : "' + name + '" ajouté');
 }
 
@@ -632,7 +698,9 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeModal(); });
 // INIT
 // ============================================================
 window.onload = function() {
-  if ('serviceWorker' in navigator) {
+  // Pas de Service Worker en local (Live Server) : chemin /coffre_des_arcanes/ inexistant → erreur 404 et cache périmé en dev.
+  const isLocalDev = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+  if ('serviceWorker' in navigator && !isLocalDev) {
     navigator.serviceWorker.register('/coffre_des_arcanes/sw.js')
       .then(reg => {
         console.log('SW enregistré', reg);
@@ -823,9 +891,9 @@ async function saveGameDataToCloud() {
     const userDocRef = window.doc(window.db, "players", window.auth.currentUser.uid);
     await window.setDoc(userDocRef, {
       pseudo: state.pseudo || "",
-      state: state,
+      state: serializeState(),
       lastUpdated: new Date().toISOString()
-    }, { merge: true });
+    }, { mergeFields: ['pseudo', 'state', 'lastUpdated'] });
     console.log("Données sauvegardées dans les Arcanes du Cloud !");
   } catch (e) {
     console.error("Erreur lors de la sauvegarde Cloud :", e);
@@ -844,7 +912,7 @@ async function loadGameDataFromCloud(uid) {
         state.pseudo = data.pseudo;
       }
       if (data.state) {
-        state = Object.assign(state, data.state);
+        mergeCloudState(data.state);
         if (data.pseudo && !state.pseudo) state.pseudo = data.pseudo;
         if (typeof renderInventory === "function") renderInventory();
         if (typeof updateTimer === "function") updateTimer();
@@ -853,7 +921,10 @@ async function loadGameDataFromCloud(uid) {
       console.log("Aucune sauvegarde trouvée. Première connexion !");
       await saveGameDataToCloud();
     }
-    claimClickerFragments(docSnap.exists() ? docSnap.data().clicker?.earned : 0);inv-btn
+    applyVersionUpdate();
+    if (_repack) { _repack = false; saveState(); }
+    syncLeaderboardDoc();
+    claimClickerFragments(docSnap.exists() ? docSnap.data().clicker?.earned : 0);
   } catch (e) {
     console.error("Erreur lors du chargement des données Cloud :", e);
   }
@@ -897,22 +968,28 @@ async function openLeaderboardModal() {
       // "AUTRE_UID_DE_TEST_ICI"
     ];
 
-    const querySnapshot = await window.getDocs(window.collection(window.db, 'players'));
     const players = [];
+    try {                                              // 1) mini-documents publics (léger)
+      const lb = await window.getDocs(window.collection(window.db, 'leaderboard'));
+      lb.forEach(d => {
+        if (EXCLUDED_UIDS.includes(d.id)) return;
+        const x = d.data(); players.push({ pseudo: x.pseudo || 'Mage Anonyme', discovered: x.discovered || 0 });
+      });
+    } catch (e) { console.warn('Classement : collection leaderboard illisible, repli sur players', e.code || e); }
 
-    querySnapshot.forEach((docSnap) => {
-      const uid = docSnap.id; // L'ID du document Firestore correspond à l'UID du joueur
-
-      // Si le joueur fait partie de la liste noire, on l'ignore complètement
-      if (EXCLUDED_UIDS.includes(uid)) return;
-
-      const data = docSnap.data();
-      const pState = data.state || {};
-      const pseudo = pState.pseudo || data.pseudo || 'Mage Anonyme';
-      const inventory = pState.inventory || {};
-      const discovered = Object.keys(inventory).filter(k => inventory[k] > 0).length;
-      players.push({ pseudo, discovered, inventory });
-    });
+    if (!players.length) {                             // 2) repli (transition) : ancien mode, lit les documents joueurs complets
+      const querySnapshot = await window.getDocs(window.collection(window.db, 'players'));
+      querySnapshot.forEach((docSnap) => {
+        const uid = docSnap.id;
+        if (EXCLUDED_UIDS.includes(uid)) return;
+        const data = docSnap.data();
+        const pState = data.state || {};
+        const pseudo = pState.pseudo || data.pseudo || 'Mage Anonyme';
+        const inventory = unpackInventory(pState.inventory);
+        const discovered = Object.keys(inventory).filter(k => inventory[k] > 0).length;
+        players.push({ pseudo, discovered });
+      });
+    }
 
     // Trier par ordre décroissant d'objets uniques découverts
     players.sort((a, b) => b.discovered - a.discovered);

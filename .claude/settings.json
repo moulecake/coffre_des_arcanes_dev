@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(./**)",
+      "Edit(./**)",
+      "Bash(node --check:*)",
+      "Bash(node:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)"
+    ],
+    "deny": [
+      "Read(./data.js)",
+      "Edit(./data.js)",
+      "Write(./data.js)"
+    ]
+  }
+}

@@ -5,8 +5,7 @@ body{min-height:100vh;padding:16px;color:var(--tx);font:14px Inter,sans-serif;
   background:radial-gradient(ellipse 70% 50% at 20% -10%,rgba(139,92,246,.2),transparent),
   radial-gradient(ellipse 70% 50% at 85% 110%,rgba(212,175,55,.13),transparent),var(--bg)}
 .top{max-width:1100px;margin:0 auto;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
-.back{color:var(--dim);text-decoration:none;font-size:12px;letter-spacing:.5px;transition:var(--t)}.back:hover{color:var(--tx)}
-.res{display:flex;gap:10px}
+.res{display:flex;flex-wrap:wrap;gap:10px}
 .chip{display:flex;flex-direction:column;padding:8px 14px;border-radius:12px;background:var(--glass);border:1px solid var(--bd);backdrop-filter:blur(16px);min-width:130px}
 .chip span{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim)}
 .chip b{font:600 17px Cinzel,serif}.chip small{font-size:11px;color:var(--dim)}
@@ -25,7 +24,7 @@ h2{font:900 15px Cinzel,serif;letter-spacing:2px;text-align:center}
 .orb:active,.tome:active{transform:scale(.94)}
 @keyframes breathe{50%{box-shadow:0 0 85px rgba(56,189,248,.6)}}
 @keyframes breathe-g{50%{box-shadow:0 0 85px rgba(245,158,11,.6)}}
-.heat{height:6px;border-radius:9px;background:rgba(255,255,255,.07);overflow:hidden}
+.heat{height:8px;border-radius:9px;background:rgba(255,255,255,.07);overflow:hidden}
 .heat i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--vio),var(--azu));transition:width .1s}
 .heat.hot i{background:#e11d48}
 .hint{text-align:center;font-size:11px;color:var(--dim)}
@@ -89,6 +88,36 @@ h2{font:900 15px Cinzel,serif;letter-spacing:2px;text-align:center}
 .pgbar.red i{background:linear-gradient(90deg,#fb7185,#e11d48)}.pgbar.gold i{background:linear-gradient(90deg,#fde68a,#f59e0b);box-shadow:0 0 12px #f59e0b}
 .tome.flip svg{animation:flip .45s}@keyframes flip{50%{transform:rotateY(90deg) scale(.9)}}
 .frag b{color:#4ade80}
+/* Sprint 4 : clé d'or brisée en 5 éclats + fiole d'éther */
+.frag b{color:#f5d98a}
+.chip.frag{min-width:240px}.fv{display:flex;align-items:center;gap:12px}.ft{display:flex;flex-direction:column;min-width:0}
+.fkey{width:26px;height:73px;flex:none;overflow:visible;transition:filter .5s}.fkey.lit{filter:drop-shadow(0 0 5px rgba(245,190,50,.45))}
+.kp use{fill:rgba(255,255,255,.035);stroke:rgba(245,217,138,.32);stroke-width:.9;transition:fill .5s,stroke .5s}
+.kp.on use{fill:url(#kg);stroke:#fde68a}.kp.on{animation:kin .7s ease-out}
+.kd{fill:none;stroke:#5b3f0c;stroke-width:.9;opacity:0;transition:opacity .5s}.kp.on .kd{opacity:.85}
+.kcr{fill:none;stroke:#241702;stroke-width:1;stroke-linejoin:miter;opacity:0;transition:opacity .5s}.kcr.hl{stroke:rgba(255,236,170,.7);stroke-width:.5}.kcr.on{opacity:1}
+.kgem{opacity:.28;filter:grayscale(.8) brightness(.7);transition:opacity .5s,filter .5s}.kp.on .kgem{opacity:1;filter:none;animation:gemb 2.6s ease-in-out infinite}
+.fkey.ready{animation:kpulse .45s ease-in-out 2}
+.fvial{width:26px;height:44px;flex:none;filter:drop-shadow(0 0 5px rgba(139,92,246,.4))}
+.fvw1{fill:url(#fvg)}.fvw2{fill:#7dd3fc;opacity:.45}
+.fvw{animation:fvw 3.4s linear infinite}.fvw2{animation-duration:5.2s;animation-direction:reverse}
+.fvb{fill:rgba(224,231,255,.8);animation:fvb 3.2s ease-in infinite}.fvb.b2{animation-delay:-1.1s;animation-duration:4s}.fvb.b3{animation-delay:-2.2s;animation-duration:2.8s}
+#fvL{transition:transform .9s cubic-bezier(.4,0,.2,1)}
+.fvo{fill:none;stroke:url(#fvs);stroke-width:.9;stroke-linejoin:round;opacity:.9}.fvh{fill:none;stroke:rgba(255,255,255,.55);stroke-width:.9;stroke-linecap:round}.fvh.h2{opacity:.3}
+.fvial.flash{animation:vflash .9s ease-out}
+.fkfly{position:fixed;left:0;top:0;pointer-events:none;z-index:40;overflow:visible;filter:drop-shadow(0 0 7px rgba(245,190,50,.8))}
+.fgrain{position:fixed;left:0;top:0;width:5px;height:5px;margin:-2px 0 0 -2px;border-radius:50%;background:#c4b5fd;box-shadow:0 0 6px #a78bfa;pointer-events:none;z-index:30}
+@keyframes kpulse{50%{transform:scale(1.18);filter:drop-shadow(0 0 10px rgba(245,190,50,.95))}}
+@keyframes kin{0%{filter:brightness(2.4)}100%{filter:none}}
+@keyframes gemb{50%{filter:drop-shadow(0 0 3px #fb7185) brightness(1.25)}}
+@keyframes fvw{to{transform:translateX(-28px)}}
+@keyframes fvb{0%{transform:translateY(16px);opacity:0}20%{opacity:.9}100%{transform:translateY(-4px);opacity:0}}
+@keyframes vflash{0%{filter:drop-shadow(0 0 0 #fff)}25%{filter:drop-shadow(0 0 12px #e9d5ff) brightness(1.7)}100%{filter:drop-shadow(0 0 5px rgba(139,92,246,.4))}}
+@media(prefers-reduced-motion:reduce){.fkey.ready,.fvial.flash,.kp.on,.kp.on .kgem,.fvw,.fvb{animation:none}#fvL{transition:none}.star{animation:none}}
+/* étoiles de fond (comme le Coffre) : z-index −1 = derrière tout le contenu */
+.stars{position:fixed;inset:0;pointer-events:none;z-index:-1}
+.star{position:absolute;border-radius:50%;background:#fff;animation:twinkle var(--d,3s) ease-in-out infinite var(--delay,0s)}
+@keyframes twinkle{0%,100%{opacity:.1;transform:scale(1)}50%{opacity:.7;transform:scale(1.3)}}
 /* le sélecteur de sorts doit passer AU-DESSUS de la fenêtre des decks (pré-construction) */
 #pick{z-index:22}#gate{z-index:23}
 /* ---- Sprint 3 · UI-A : Voile d'Éther (filet SVG) + curseur Orbe ---- */
@@ -169,3 +198,47 @@ body.hot #orbCur::before{background:radial-gradient(circle,#fff 0 14%,#fda4af 32
 @keyframes crit{0%{transform:translate(-50%,-50%) scale(.3);opacity:0}25%{transform:translate(-50%,-70%) scale(1.25);opacity:1}100%{transform:translate(-50%,-150%) scale(1);opacity:0}}
 .sl.cast{animation:slotCast .45s ease-out}
 @keyframes slotCast{40%{box-shadow:0 0 18px 4px currentColor;transform:scale(1.12)}}
+
+/* ---- Bouton « Retour au Coffre » : coffre d'index.html, le couvercle s'entrouvre au survol, la clé en vol l'ouvre ---- */
+.back{display:inline-flex;align-items:center;gap:8px;padding:6px 18px 6px 10px;border-radius:16px;text-decoration:none;color:var(--tx);border:1px solid rgba(168,85,247,.38);background:linear-gradient(135deg,rgba(67,56,202,.28),rgba(13,17,28,.82));backdrop-filter:blur(16px);box-shadow:0 4px 18px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.07);transition:transform .25s,border-color .25s,box-shadow .25s}
+.back:hover,.back:focus-visible{transform:translateY(-1px);border-color:rgba(245,217,138,.7);box-shadow:0 6px 26px rgba(168,85,247,.38),inset 0 1px 0 rgba(255,255,255,.12);outline:0}
+.back:active{transform:scale(.97)}
+.cb-ar{width:10px;height:16px;flex:none;color:var(--dim);transition:transform .25s,color .25s}.back:hover .cb-ar,.back:focus-visible .cb-ar{transform:translateX(-4px);color:#f5d98a}
+.cb-chest{width:48px;height:44px;flex:none;overflow:visible;filter:drop-shadow(0 2px 6px rgba(0,0,0,.5))}
+.cb-lid{transform-origin:20px 78px;transition:transform .4s cubic-bezier(.3,1.5,.5,1)}
+.cb-glow{opacity:0;transition:opacity .3s}.cb-sp{opacity:0;transform-box:fill-box;transform-origin:center}
+.back:hover .cb-lid,.back:focus-visible .cb-lid{transform:translateY(-9px) rotate(-7deg)}
+.back:hover .cb-glow,.back:focus-visible .cb-glow{opacity:1}
+.back:hover .cb-sp,.back:focus-visible .cb-sp{animation:cbsp 1.5s ease-in-out infinite}.cb-s2{animation-delay:-.75s!important}
+.cb-kh{animation:khb 2.4s ease-in-out infinite}
+.cb-t{display:flex;flex-direction:column;line-height:1.1}.cb-t small{font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:var(--dim)}
+.cb-t b{font:900 17px Cinzel,serif;letter-spacing:1px;color:#f5d98a;text-shadow:0 0 12px rgba(245,190,50,.25)}
+.back.got{animation:bgot 1s ease-out}.back.got .cb-lid{animation:lidpop 1s ease-out}.back.got .cb-glow{animation:bglw 1s ease-out}
+@keyframes cbsp{0%{opacity:0;transform:translateY(8px) scale(.5)}40%{opacity:1}100%{opacity:0;transform:translateY(-14px) scale(1.1)}}
+@keyframes khb{50%{opacity:.4}}
+@keyframes bgot{0%{box-shadow:0 0 30px rgba(245,190,50,.95);border-color:#f5d98a}100%{box-shadow:0 4px 18px rgba(0,0,0,.35)}}
+@keyframes lidpop{25%,55%{transform:translateY(-10px) rotate(-8deg)}}
+@keyframes bglw{25%,55%{opacity:1}}
+/* ---- Amphithéâtre : en-tête + bouton Decks (éventail de cartes de sorts) ---- */
+.amh{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px}.amh h2{grid-column:2}
+.dkbtn{grid-column:3;justify-self:end;position:relative;overflow:hidden;display:inline-flex;align-items:center;gap:10px;padding:4px 18px 4px 10px;border-radius:16px;border:1px solid rgba(212,175,55,.42);background:linear-gradient(135deg,rgba(212,175,55,.16),rgba(13,17,28,.84));color:var(--tx);cursor:pointer;box-shadow:0 4px 18px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.07);transition:transform .25s,border-color .25s,box-shadow .25s}
+.dkbtn::after{content:"";position:absolute;inset:0;background:linear-gradient(105deg,transparent 40%,rgba(255,241,176,.22) 50%,transparent 60%);transform:translateX(-130%);pointer-events:none}
+.dkbtn:hover,.dkbtn:focus-visible{transform:translateY(-1px);border-color:rgba(245,217,138,.8);box-shadow:0 6px 26px rgba(212,175,55,.3),inset 0 1px 0 rgba(255,255,255,.12);outline:0}
+.dkbtn:hover::after,.dkbtn:focus-visible::after{animation:dksh .9s ease-out}
+.dkbtn:active{transform:scale(.97)}
+.dk-ic{width:58px;height:46px;flex:none;overflow:visible;filter:drop-shadow(0 2px 6px rgba(0,0,0,.5))}
+.dk-c{transform-origin:25px 36px;transition:transform .45s cubic-bezier(.3,1.5,.5,1)}
+.dk-l{transform:translateX(-4px) rotate(-17deg)}.dk-r{transform:translateX(4px) rotate(17deg)}
+.dkbtn:hover .dk-l,.dkbtn:focus-visible .dk-l{transform:translateX(-9px) rotate(-28deg)}.dkbtn:hover .dk-r,.dkbtn:focus-visible .dk-r{transform:translateX(9px) rotate(28deg)}
+.dkbtn:hover .dk-m,.dkbtn:focus-visible .dk-m{transform:translateY(-3px)}
+.dk-plus{transform-box:fill-box;transform-origin:center;transition:transform .3s}.dkbtn:hover .dk-plus{transform:rotate(90deg) scale(1.12)}
+.dk-t{display:flex;flex-direction:column;line-height:1.1;text-align:left}.dk-t small{font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:var(--dim)}
+.dk-t b{font:900 16px Cinzel,serif;letter-spacing:1px;color:#f5d98a}
+@keyframes dksh{to{transform:translateX(130%)}}
+@media(max-width:560px){.amh{grid-template-columns:1fr;justify-items:center}.amh h2,.dkbtn{grid-column:1;justify-self:center}}
+/* ---- Voile & Grimoire : MÊMES rangées (sous-grille) → pastille d'état, barre, texte, sorts alignés des deux côtés quel que soit le contenu ---- */
+@supports (grid-template-rows:subgrid){
+  .duo>.pane{display:grid;grid-row:span 8;grid-template-rows:subgrid;row-gap:16px}
+  .duo>.pane>*{justify-self:stretch}
+  .duo>.pane>.veil,.duo>.pane>.book,.duo>.pane>.orb,.duo>.pane>.tome,.duo>.pane>.buff{justify-self:center}
+}

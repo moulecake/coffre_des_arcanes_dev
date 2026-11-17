@@ -1,10 +1,17 @@
-const CACHE_NAME = 'arcane-vault-cache-v2.a2.3';
+const CACHE_NAME = 'arcane-vault-cache-v2.a2.10';
 const BASE = '/coffre_des_arcanes/';
 const FILES_TO_CACHE = [
+  BASE,
   BASE + 'index.html',
   BASE + 'style.css',
   BASE + 'script.js',
   BASE + 'data.js',
+  BASE + 'clicker/',
+  BASE + 'clicker/index.html',
+  BASE + 'clicker/style.css',
+  BASE + 'clicker/core.js',
+  BASE + 'clicker/passives.js',
+  BASE + 'clicker/spells.js',
   BASE + 'icon-192.png',
   BASE + 'icon-512.png'
 ];
