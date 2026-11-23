@@ -282,39 +282,46 @@
     </div>
 
     <!-- Vue Profil Complet (Masquée par défaut) -->
-    <div id="profile-detail-view" style="display:none; flex-direction:column; gap:16px;">
-      <button class="share-btn" style="width:100%; justify-content:center;" onclick="closeProfileDetail()">← Retour au menu</button>
+    <div id="profile-detail-view" style="display:none; flex-direction:column; gap:12px;">
+      <button class="pf-back" onclick="closeProfileDetail()"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Retour au menu</button>
 
-      <div style="background:rgba(168,85,247,0.06); border:1px solid rgba(168,85,247,0.2); border-radius:12px; padding:12px;">
-        <h4 style="color:#a855f7; font-family:'Cinzel',serif; font-size:13px; margin-bottom:6px;">Modifier le Pseudonyme</h4>
-        <p style="font-size:11px; color:var(--text-dim); margin-bottom:8px;">Changez votre nom public dans l'Académie (synchro Cloud si connecté).</p>
-        <input id="profile-pseudo-input" class="search-input" type="text" maxlength="25" placeholder="Votre nouveau pseudo…" style="width:100%; margin-bottom:8px;" autocomplete="off">
-        <button class="share-btn" style="width:100%; justify-content:center;" onclick="saveProfilePseudo()">💾 Mettre à jour le Pseudo</button>
-      </div>
+      <!-- Identité -->
+      <section class="pf-card pf-c-id">
+        <h4><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><defs><linearGradient id="pi1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff1b0"/><stop offset="1" stop-color="#d4af37"/></linearGradient></defs><path d="M20.5 3.5c-6 .6-10.5 4.6-12.4 10.7L6 20.5l6.3-2.1C18.4 16.5 20.2 9.5 20.5 3.5z" fill="url(#pi1)" stroke="#8a6a1d" stroke-width="1"/><path d="M6 20.5C8 15.5 11 12 15 9.5" stroke="#8a5a14" stroke-width="1.2" stroke-linecap="round" fill="none"/></svg>Nom de l'Aventurier</h4>
+        <p>Ton nom public dans l'Académie (synchro Cloud si connecté).</p>
+        <div class="pf-row">
+          <input id="profile-pseudo-input" class="search-input" type="text" maxlength="25" placeholder="Nouveau pseudo…" autocomplete="off">
+          <button class="pf-btn pf-gold" onclick="saveProfilePseudo()" aria-label="Enregistrer le pseudo"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Valider</button>
+        </div>
+      </section>
 
-      <div style="background:rgba(34,211,238,0.06); border:1px solid rgba(34,211,238,0.2); border-radius:12px; padding:12px;">
-        <h4 style="color:#22d3ee; font-family:'Cinzel',serif; font-size:13px; margin-bottom:6px;">Version de l'Application</h4>
-        <p style="font-size:11px; color:var(--text-dim); margin-bottom:8px;">Vérifiez les mises à jour et nettoyez le cache.</p>
-        <button class="share-btn share-btn-inspect" style="width:100%; justify-content:center;" onclick="checkAppUpdate()">🔄 Vérifier les mises à jour</button>
-      </div>
+      <!-- Mises à jour -->
+      <section class="pf-card pf-c-up">
+        <h4><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><defs><linearGradient id="pi2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7dd3fc"/><stop offset="1" stop-color="#6366f1"/></linearGradient></defs><path d="M20 12a8 8 0 1 1-2.6-5.9" fill="none" stroke="url(#pi2)" stroke-width="2.4" stroke-linecap="round"/><path d="M20.5 3.8v4.6h-4.6" fill="none" stroke="url(#pi2)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="2" fill="#fff1b0"/></svg>Mises à jour</h4>
+        <p>Cherche une nouvelle version et nettoie le cache de l'appli.</p>
+        <button class="pf-btn pf-cyan" onclick="checkAppUpdate()"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.6-5.9M20.5 3.8v4.6h-4.6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Vérifier les mises à jour</button>
+      </section>
 
-      <div class="ptu-only" style="background:rgba(249,115,22,0.07); border:1px solid rgba(249,115,22,0.35); border-radius:12px; padding:12px; flex-direction:column;">
-        <h4 style="color:#fdba74; font-family:'Cinzel',serif; font-size:13px; margin-bottom:6px;">Compte PTU</h4>
-        <p style="font-size:11px; color:var(--text-dim); margin-bottom:8px;">Efface ton compte de test et te laisse choisir : copier ton live ou repartir de zéro. <strong style="color:#fdba74;">Ton compte live n'est jamais touché.</strong></p>
-        <button type="button" class="ptu-reset" style="width:100%;" onclick="confirmPtuReset()">Réinitialiser mon compte PTU</button>
-      </div>
+      <!-- PTU (visible seulement en test) -->
+      <section class="pf-card pf-c-ptu ptu-only" style="flex-direction:column;">
+        <h4><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 3h6M10 3v6.2L4.8 18a2 2 0 0 0 1.7 3h11a2 2 0 0 0 1.7-3L14 9.2V3" fill="rgba(249,115,22,.2)" stroke="#fb923c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M7.5 15.5h9" stroke="#fdba74" stroke-width="1.6" stroke-linecap="round"/></svg>Compte PTU</h4>
+        <p>Efface ton compte de test et te laisse choisir : copier ton live ou repartir de zéro. <strong>Ton compte live n'est jamais touché.</strong></p>
+        <button type="button" class="pf-btn pf-orange" onclick="confirmPtuReset()"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3M18.5 3v4h-4M5.5 21v-4h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Réinitialiser mon compte PTU</button>
+      </section>
 
-      <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:12px; padding:12px;">
-        <h4 style="color:var(--text); font-family:'Cinzel',serif; font-size:13px; margin-bottom:6px;">Session Google & Cloud</h4>
-        <p style="font-size:11px; color:var(--text-dim); margin-bottom:8px;">Déconnectez votre compte de cet appareil.</p>
-        <button class="share-btn" style="width:100%; justify-content:center; background:rgba(244,63,94,0.1); border-color:rgba(244,63,94,0.3); color:#f43f5e;" onclick="confirmLogout()">🚪 Se déconnecter</button>
-      </div>
+      <!-- Session -->
+      <section class="pf-card">
+        <h4><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M10 4H6.5A1.5 1.5 0 0 0 5 5.5v13A1.5 1.5 0 0 0 6.5 20H10" fill="rgba(167,139,250,.14)" stroke="#a78bfa" stroke-width="1.8" stroke-linecap="round"/><path d="M14 8l4 4-4 4M18 12H9" fill="none" stroke="#fff1b0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Session</h4>
+        <p>Déconnecte ton compte Google de cet appareil. Ta progression reste sauvegardée dans le Cloud.</p>
+        <button class="pf-btn pf-rose" onclick="confirmLogout()"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M10 4H6.5A1.5 1.5 0 0 0 5 5.5v13A1.5 1.5 0 0 0 6.5 20H10M14 8l4 4-4 4M18 12H9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Se déconnecter</button>
+      </section>
 
-      <div style="background:rgba(244,63,94,0.05); border:1px solid rgba(244,63,94,0.2); border-radius:12px; padding:12px;">
-        <h4 style="color:#f43f5e; font-family:'Cinzel',serif; font-size:13px; margin-bottom:6px;">Zone Dangereuse</h4>
-        <p style="font-size:11px; color:var(--text-dim); margin-bottom:8px;">Effacez définitivement toutes vos données locales et réinitialisez l'application.</p>
-        <button class="share-btn share-btn-danger" style="width:100%; justify-content:center;" onclick="confirmWipeData()">💥 Effacer mes données</button>
-      </div>
+      <!-- Table rase : repliée pour éviter les appuis par erreur -->
+      <details class="pf-card pf-c-wipe">
+        <summary><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><defs><linearGradient id="pi3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fda4af"/><stop offset="1" stop-color="#e11d48"/></linearGradient></defs><path d="M12 2.5c1 3.2 5 5.3 5 10a5 5 0 0 1-10 0c0-2 1-3.3 2-4.4.2 1.5.9 2.2 1.7 2.4C10.2 7.5 10.6 5 12 2.5z" fill="url(#pi3)" stroke="#9f1239" stroke-width="1"/><path d="M12 12.5c1.2 1 2 2 2 3.2a2 2 0 0 1-4 0c0-1.2.8-2.200 2-3.200z" fill="#fff1b0" opacity=".85"/></svg>Table rase<span class="pf-sum-hint">Effacer la sauvegarde de cet appareil</span><svg class="pf-caret" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></summary>
+        <p>Efface toutes tes données locales et remet l'application à neuf sur cet appareil. Action définitive : un mot de confirmation te sera demandé.</p>
+        <button class="pf-btn pf-danger" onclick="confirmWipeData()"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 2.5c1 3.2 5 5.3 5 10a5 5 0 0 1-10 0c0-2 1-3.300 2-4.400.2 1.500.9 2.200 1.700 2.400C10.200 7.500 10.600 5 12 2.500z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>Effacer ma sauvegarde</button>
+      </details>
     </div>
   </div>
 </div>

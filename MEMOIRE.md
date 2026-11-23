@@ -1,7 +1,7 @@
 # MEMOIRE — Le Coffre des Arcanes (ex-Arcane Vault) + Clicker
 
 > Handoff pour le Claude qui continue le dev. À lire en premier, à mettre à jour à la fin de chaque étape.
-> Dernière mise à jour : 2026-11-23. **Version : v2.a3.2** (code à jour = dossier de travail, pas le zip de handoff). Langue de travail : français. Utilisateur : MJ de JDR D&D, non-dev, colle les blocs à la main.
+> Dernière mise à jour : 2026-11-23. **Version : v2.a3.3** (code à jour = dossier de travail, pas le zip de handoff). Langue de travail : français. Utilisateur : MJ de JDR D&D, non-dev, colle les blocs à la main.
 
 ## ⏰ RAPPELS (à traiter par Claude dès qu'on est à la date)
 - **À partir du 2026-11-24** : supprimer le correctif temporaire des raretés dans `script.js` (bloc `TEMP_RARITY_FIX` + sa branche dans `unpackInventory`, voir le commentaire « À SUPPRIMER APRÈS LE 2026-11-24 ») après avoir demandé à l'utilisateur si tous les alphatesteurs ont rechargé depuis la correction C/PC de `data.js`. Rappeler aussi : supprimer le bloc `#sync-modal` commenté dans `index.html` et décider du repli `players` du classement (à retirer une fois les règles Firestore resserrées).
@@ -182,3 +182,6 @@ Fait : lien (bouton ⚡ GRIMOIRE) et cache SW. Reste : équilibrage global, popo
 
 ### v2.a3.2 — Menu Profil refait (2026-11-23)
 - Carte d'en-tête `#pf-hero` (sigil SVG, pseudo, « x / total objets », barre de progression ; `refreshProfileHero()` appelée à l'ouverture du menu et au retour du détail). Tuiles verre aux icônes encadrées ; icône « Code » = ticket SVG (plus d'emoji) ; slot « Profil » remplacé par la carte ; 3 slots vides supprimés. Bouton « Réinitialiser mon compte PTU » déplacé d'Options vers la fiche Profil (`.ptu-only`). Pas de patchnote (refonte visuelle). Reste : emojis des boutons de la fiche Profil (💾 🔄 🚪 💥) à remplacer par des SVG.
+
+### v2.a3.3 — Fiche Profil refaite (2026-11-23)
+- Fiche Profil en cartes `.pf-card` à titre SVG : Nom de l'Aventurier (champ + « Valider » sur une ligne), Mises à jour, Compte PTU (`.ptu-only`), Session, **« Table rase »** (ex-« Zone Dangereuse », repliée dans `<details>` contre les appuis par erreur ; bouton « Effacer ma sauvegarde »). Tous les emojis de la fiche remplacés par des SVG. « 0/9 » : mis de côté (l'utilisateur cherche une idée).
