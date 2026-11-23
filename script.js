@@ -9,7 +9,7 @@
 // ============================================================
 // Adresse propre : on masque « index.html » dans la barre d'adresse (affichage seulement).
 if (/index\.html$/.test(location.pathname)) history.replaceState(null, "", location.pathname.replace(/index\.html$/, "") + location.search + location.hash);
-const CURRENT_VERSION = "2.a3.1";
+const CURRENT_VERSION = "2.a3.2";
 document.querySelectorAll('[id="app-version"]').forEach(e => { e.textContent = CURRENT_VERSION; });   // 2 pieds de page (accueil + app)
 
 // DROP RATES — C:40 | PC:25 | R:20 | TR:8 | L:5 | A:2
@@ -1458,6 +1458,19 @@ function runPendingKeyFx(){
 // --- PROFIL UTILISATEUR & GESTION DU COMPTE ---
 let isProfileOpen = false;
 
+// Carte d'en-tête du menu Profil : pseudo + progression du codex
+function refreshProfileHero() {
+  try {
+    const n = document.getElementById('pf-name'), sub = document.getElementById('pf-sub'), bar = document.getElementById('pf-bar-fill');
+    if (!n) return;
+    const total = (typeof loots !== 'undefined' && loots.length) || 0;
+    const disc = Object.keys(state.inventory || {}).filter(k => (state.inventory[k] || 0) > 0).length;
+    n.textContent = state.pseudo || 'Mage Anonyme';
+    if (sub) sub.textContent = disc + (total ? ' / ' + total : '') + ' objets découverts';
+    if (bar) bar.style.width = (total ? Math.round(disc / total * 100) : 0) + '%';
+  } catch (e) {}
+}
+
 function toggleProfilePanel() {
   isProfileOpen = !isProfileOpen;
   const invView = document.getElementById('inventory-view');
@@ -1471,7 +1484,9 @@ function toggleProfilePanel() {
     if (profPanel) profPanel.style.display = 'flex';
     if (gridView) gridView.style.display = 'grid';
     if (detailView) detailView.style.display = 'none';
+    const hero0 = document.getElementById('pf-hero'); if (hero0) hero0.style.display = '';
     if (titleText) titleText.textContent = '✦ Profil & Modules';
+    refreshProfileHero();
   } else {
     if (invView) invView.style.display = 'flex';
     if (profPanel) profPanel.style.display = 'none';
@@ -1485,6 +1500,7 @@ function openProfileDetail() {
   const titleText = document.getElementById('sidebar-title-text');
 
   if (gridView) gridView.style.display = 'none';
+  const hero = document.getElementById('pf-hero'); if (hero) hero.style.display = 'none';
   if (detailView) detailView.style.display = 'flex';
   if (titleText) titleText.textContent = '✦ Profil du Mage';
   const pseudoInput = document.getElementById('profile-pseudo-input');
@@ -1497,8 +1513,10 @@ function closeProfileDetail() {
   const titleText = document.getElementById('sidebar-title-text');
 
   if (gridView) gridView.style.display = 'grid';
+  const hero = document.getElementById('pf-hero'); if (hero) hero.style.display = '';
   if (detailView) detailView.style.display = 'none';
   if (titleText) titleText.textContent = '✦ Profil & Modules';
+  refreshProfileHero();
 }
 
 function openPromoCodeModal() {
