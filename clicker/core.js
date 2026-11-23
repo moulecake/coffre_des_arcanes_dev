@@ -1,9 +1,9 @@
 "use strict";
 if (/index\.html$/.test(location.pathname)) history.replaceState(null, "", location.pathname.replace(/index\.html$/, "") + location.search + location.hash);   // adresse propre : /clicker/ sans index.html
 // Core : state, formats, boucle, Voile (surchauffe), Grimoire (gacha), hors-ligne, sauvegarde locale.
-const PREFS_KEY = "coffre-prefs", readPrefs = () => { try { return Object.assign({ sound: true, vibe: true }, JSON.parse(localStorage.getItem(PREFS_KEY) || "{}")); } catch (e) { return { sound: true, vibe: true }; } };
+const PREFS_KEY = CHANNEL.lsk("coffre-prefs"), readPrefs = () => { try { return Object.assign({ sound: true, vibe: true }, JSON.parse(localStorage.getItem(PREFS_KEY) || "{}")); } catch (e) { return { sound: true, vibe: true }; } };
 let SOUND = readPrefs().sound !== false;               // son activé ? (réglable ici et dans Options du Coffre)
-const KEY = "coffre-clicker", $ = id => document.getElementById(id), M = (k, d) => Spells.mod(k, d);
+const KEY = CHANNEL.lsk("coffre-clicker"), $ = id => document.getElementById(id), M = (k, d) => Spells.mod(k, d);
 const U = ["nL","µL","mL","L","kL","ML","GL","TL","PL","EL"], SF = ["","K","M","B","T","Qa","Qi"];
 const fE = v => { if (v < 1e3) return v.toFixed(v < 10 ? 2 : 1) + " nL"; const i = Math.min(Math.floor(Math.log10(v) / 3), 9), x = v / 1e3 ** i; return x.toFixed(x < 10 ? 2 : x < 100 ? 1 : 0) + " " + U[i]; };
 const fN = v => { if (v < 1e3) return v < 10 ? v.toFixed(1) : Math.floor(v) + ""; const i = Math.min(Math.floor(Math.log10(v) / 3), 6); return (v / 1e3 ** i).toFixed(2) + SF[i]; };
@@ -146,7 +146,7 @@ function clickerKeyETA() {
   return sec > M("offlineCap", 8) * 3600 ? 0 : Date.now() + sec * 1e3;
 }
 async function pushSchedule(force) {
-  const u = window.auth && window.auth.currentUser; if (!u || !window.setDoc || readPrefs().push === false || typeof Notification === "undefined" || Notification.permission !== "granted") return;
+  const u = window.auth && window.auth.currentUser; if (CHANNEL.ptu || !u || !window.setDoc || readPrefs().push === false || typeof Notification === "undefined" || Notification.permission !== "granted") return;
   const at = clickerKeyETA(), sig = at ? Math.round(at / 6e4) : 0; if (!force && sig === pushSig) return; pushSig = sig;
   try { await window.setDoc(window.doc(window.db, "push", u.uid), { clickerAt: at || null, updatedAt: new Date().toISOString() }, { merge: true }); } catch (e) { pushSig = ""; }
 }
@@ -165,7 +165,7 @@ let cloudT = 0, cloudReady = false, cloudUid = "";
 async function cloudSave(force) {
   pushSchedule(force);
   const u = window.auth && window.auth.currentUser, n = Date.now(); if (!u || !cloudReady || cloudUid !== u.uid || (!force && n - cloudT < 3e4)) return; cloudT = n;
-  const ref = window.doc(window.db, "players", u.uid), body = () => ({ clicker: { json: JSON.stringify(S), earned: (S.fr && S.fr.earned) || 0, ts: n } });
+  const ref = window.doc(window.db, CHANNEL.col("players"), u.uid), body = () => ({ clicker: { json: JSON.stringify(S), earned: (S.fr && S.fr.earned) || 0, ts: n } });
   try {
     if (!window.runTransaction) return void await window.setDoc(ref, body(), { merge: true });
     await window.runTransaction(window.db, async tx => {
@@ -181,8 +181,9 @@ async function cloudSave(force) {
 }
 async function cloudLoad(u) {
   try {
-    const snap = await window.getDoc(window.doc(window.db, "players", u.uid)), c = snap.exists() ? snap.data().clicker : null, st = snap.exists() ? snap.data().state : null;
+    const snap = await window.getDoc(window.doc(window.db, CHANNEL.col("players"), u.uid)), c = snap.exists() ? snap.data().clicker : null, st = snap.exists() ? snap.data().state : null;
     if (st) { CK = { fr: st.fragments || 0, claimed: st.clickerClaimed || 0 }; lastT = lastE = -1; }   // lecture seule : segments de la clé
+    if (CHANNEL.ptu && !st) { toast("PTU : choisis d'abord ton compte PTU depuis le Coffre"); return; }   // le compte PTU est créé par le Coffre (copie du live ou départ à zéro) ; le clicker n'écrit rien avant
     let R = null; if (c && c.json) { try { R = JSON.parse(c.json); } catch (e) {} }
     const foreign = !!(S.uid && S.uid !== u.uid), lp = foreign ? -1 : progScore(S), cp = R ? progScore(R) : -1;
     if (R && (cp > lp || (cp === lp && (R.seen || 0) > (S.seen || 0)))) {                // le cloud est plus avancé (ou égal et plus récent)

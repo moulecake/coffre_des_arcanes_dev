@@ -1,13 +1,13 @@
 {
-  "name": "Coffre des Arcanes",
-  "short_name": "Coffre des Arcanes",
+  "name": "Coffre des Arcanes PTU",
+  "short_name": "Arcanes PTU",
   "description": "Application d'opening basé sur les jeux de rôle sur table - Simulation de tirages d'objets magiques",
   "id": "./index.html",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "theme_color": "#1a1a2e",
+  "theme_color": "#2a1204",
   "background_color": "#16213e",
   "icons": [
     {

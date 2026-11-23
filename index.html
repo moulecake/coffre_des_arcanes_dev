@@ -11,12 +11,13 @@
     <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
     <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
     <meta name="theme-color" content="#1a1a2e">
+    <script src="channel.js"></script>
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="Coffre des Arcanes">
     <script>/* installation PWA : l'événement peut partir avant script.js (defer) → on le garde ici */window._bip=null;addEventListener('beforeinstallprompt',function(e){e.preventDefault();window._bip=e;try{window.dispatchEvent(new Event('bip-ready'))}catch(x){}});addEventListener('appinstalled',function(){window._bip=null;window._justInstalled=true;try{window.dispatchEvent(new Event('bip-done'))}catch(x){}});</script>
     <!-- Démarrage rapide : joueur déjà connu sur cet appareil → pas d'écran de connexion au premier affichage (retiré si Firebase dit « non connecté ») -->
-    <script>try{if(JSON.parse(localStorage.getItem('arcane-vault')||'{}').pseudo)document.documentElement.classList.add('fast')}catch(e){}</script>
+    <script>try{if(JSON.parse(localStorage.getItem(CHANNEL.lsk('arcane-vault'))||'{}').pseudo)document.documentElement.classList.add('fast')}catch(e){}</script>
 
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;900&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
@@ -25,7 +26,7 @@
     <script type="module">
       import { initializeApp } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-app.js";
       import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-auth.js";
-      import { getFirestore, doc, setDoc, getDoc, collection, getDocs, runTransaction, updateDoc } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
+      import { getFirestore, doc, setDoc, getDoc, collection, getDocs, runTransaction, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
 
       const firebaseConfig = {
         apiKey: "AIzaSyBkwZIkmAAuYtZpoVokvhZd5MYlTfkLyww",
@@ -46,12 +47,14 @@
       window.signOut = signOut;
       window.onAuthStateChanged = onAuthStateChanged;
       window.doc = doc;
-      window.setDoc = setDoc;
+      const FS = CHANNEL.wrapFirestore({ setDoc, updateDoc, deleteDoc, runTransaction });   // GARDE-FOU canal : en PTU, aucune écriture hors ptu_*
+      window.setDoc = FS.setDoc;
       window.getDoc = getDoc;
       window.collection = collection;
       window.getDocs = getDocs;
-      window.runTransaction = runTransaction;
-      window.updateDoc = updateDoc;
+      window.runTransaction = FS.runTransaction;
+      window.updateDoc = FS.updateDoc;
+      window.deleteDoc = FS.deleteDoc;
     </script>
 
     <!-- Scripts de l'application -->
@@ -63,6 +66,7 @@
 <body>
 
 <div class="stars" id="stars"></div>
+<div id="ptu-badge" class="ptu-badge" aria-label="Version de test publique" title="Version de test publique (PTU) : ta progression est séparée du live">PTU</div>
 <div id="flash"></div>
 <!-- ÉCRAN D'ACCUEIL — Profil Joueur & Saisie Pseudo -->
 <div id="welcome-screen">
@@ -433,9 +437,13 @@
           <div class="opt-txt"><b>Vibrations</b><small>Retour haptique sur smartphone</small></div>
           <label class="toggle-switch"><input type="checkbox" id="opt-vibe" onchange="setPref('vibe', this.checked)"><span class="toggle-slider"></span></label>
         </div>
-        <div class="opt-row">
+        <div class="opt-row live-only">
           <div class="opt-txt"><b>Notifications</b><small>Un rappel quand tes clés sont rechargées ou qu'une clé est prête dans le Clicker. <strong style="color:#fbbf24;">Conseillé sur smartphone</strong> pour ne pas rater tes clés (sur iPhone : ajoute d'abord l'app à l'écran d'accueil). Nécessite d'être connecté.</small></div>
           <label class="toggle-switch"><input type="checkbox" id="opt-push" onchange="togglePush(this)"><span class="toggle-slider"></span></label>
+        </div>
+        <div class="opt-row ptu-only">
+          <div class="opt-txt"><b>Compte PTU</b><small>Efface ton compte de test et te laisse choisir : copier ton live ou repartir de zéro. <strong style="color:#fdba74;">Ton compte live n'est jamais touché.</strong></small></div>
+          <button type="button" class="ptu-reset" onclick="confirmPtuReset()">Réinitialiser</button>
         </div>
     </div>
 </div>
@@ -477,6 +485,31 @@
         <button class="push-go" onclick="pushPromptYes()">🔔 Activer les notifications</button>
         <button class="push-later" onclick="pushPromptLater()">Plus tard</button>
         <p style="font-size:10.5px; color:var(--text-dim); text-align:center; margin-top:6px;">Modifiable à tout moment dans Menu › Options. Sur iPhone, ajoute d'abord l'app à l'écran d'accueil.</p>
+    </div>
+</div>
+
+<!-- PTU : ENTRÉE DANS LE COMPTE DE TEST (une fois) — copie du live ou départ à zéro -->
+<div id="ptu-modal" class="legal-modal" style="display:none; z-index:10050;">
+    <div class="legal-modal-content push-box ptu-box" role="dialog" aria-modal="true" aria-labelledby="ptu-t">
+        <svg class="ptu-ic" viewBox="0 0 64 64" aria-hidden="true">
+          <defs>
+            <linearGradient id="pf1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fed7aa"/><stop offset=".5" stop-color="#f97316"/><stop offset="1" stop-color="#9a3412"/></linearGradient>
+            <linearGradient id="pf2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff1b0"/><stop offset="1" stop-color="#b8892a"/></linearGradient>
+            <radialGradient id="pf3" cx=".5" cy=".5" r=".6"><stop offset="0" stop-color="rgba(249,115,22,.45)"/><stop offset="1" stop-color="rgba(249,115,22,0)"/></radialGradient>
+          </defs>
+          <circle cx="32" cy="36" r="28" fill="url(#pf3)"/>
+          <path d="M25 6h14v4h-2v13.5L50 49c2 3.6-.4 8-4.6 8H18.6C14.4 57 12 52.6 14 49l13-25.5V10h-2z" fill="rgba(255,237,213,.1)" stroke="url(#pf2)" stroke-width="2" stroke-linejoin="round"/>
+          <path d="M20.4 41.5h23.2l6.2 11.4c.9 1.7-.3 3.6-2.2 3.6H16.4c-1.9 0-3.1-1.9-2.2-3.6z" fill="url(#pf1)"/>
+          <path d="M20 41.5q6 3 12 0t12 0" fill="none" stroke="#ffedd5" stroke-width="1.4" stroke-linecap="round" opacity=".8"/>
+          <circle cx="27" cy="49" r="2.2" fill="#ffedd5" opacity=".75"/><circle cx="37" cy="46" r="1.5" fill="#ffedd5" opacity=".6"/><circle cx="33" cy="52" r="1.2" fill="#ffedd5" opacity=".55"/>
+          <path d="M23 11h18" stroke="url(#pf2)" stroke-width="2.4" stroke-linecap="round"/>
+        </svg>
+        <h3 id="ptu-t" style="margin:6px 0 4px; color:#fdba74; font-family:'Cinzel',serif; text-align:center;">Bienvenue sur le PTU</h3>
+        <p style="font-size:13px; color:var(--text-dim); text-align:center; line-height:1.5;">Le <strong style="color:#fdba74;">Test Public</strong> : tu essaies les nouveautés en avance. Ta progression ici est <strong>séparée</strong> de ton compte live, et <strong>rien n'est renvoyé vers le live</strong> (ton temps sera récompensé autrement). Tu pourras te réinitialiser dans Menu › Options.</p>
+        <button class="push-go ptu-go" id="ptu-copy">📋 Copier mon compte live</button>
+        <p id="ptu-nolive" style="display:none; font-size:11.5px; color:#fdba74; text-align:center;">Aucun compte live trouvé : tu démarres de zéro.</p>
+        <button class="push-later" id="ptu-zero">Repartir de zéro</button>
+        <p style="font-size:10.5px; color:var(--text-dim); text-align:center; margin-top:4px;">La copie est faite une seule fois et en lecture seule : ton live n'est jamais modifié.</p>
     </div>
 </div>
 
@@ -554,7 +587,7 @@
   const db = getFirestore(app);
 
   // Rendre global pour script.js si besoin
-  window.firebaseAuth = { auth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, db, doc, setDoc, getDoc };
+  window.firebaseAuth = { auth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, db, doc, setDoc: CHANNEL.wrapFirestore({ setDoc }).setDoc, getDoc };
 </script>
 </body>
 </html>

@@ -1,7 +1,7 @@
 # MEMOIRE — Le Coffre des Arcanes (ex-Arcane Vault) + Clicker
 
 > Handoff pour le Claude qui continue le dev. À lire en premier, à mettre à jour à la fin de chaque étape.
-> Dernière mise à jour : 2026-11-23. **Version : v2.a3.0** (code à jour = dossier de travail, pas le zip de handoff). Langue de travail : français. Utilisateur : MJ de JDR D&D, non-dev, colle les blocs à la main.
+> Dernière mise à jour : 2026-11-23. **Version : v2.a3.1** (code à jour = dossier de travail, pas le zip de handoff). Langue de travail : français. Utilisateur : MJ de JDR D&D, non-dev, colle les blocs à la main.
 
 ## ⏰ RAPPELS (à traiter par Claude dès qu'on est à la date)
 - **À partir du 2026-11-24** : supprimer le correctif temporaire des raretés dans `script.js` (bloc `TEMP_RARITY_FIX` + sa branche dans `unpackInventory`, voir le commentaire « À SUPPRIMER APRÈS LE 2026-11-24 ») après avoir demandé à l'utilisateur si tous les alphatesteurs ont rechargé depuis la correction C/PC de `data.js`. Rappeler aussi : supprimer le bloc `#sync-modal` commenté dans `index.html` et décider du repli `players` du classement (à retirer une fois les règles Firestore resserrées).
@@ -158,6 +158,12 @@ match /players/{uid} {   // à resserrer SEULEMENT quand tous les testeurs ont l
 - **Installer la PWA** : `<head>` capture `beforeinstallprompt` (`window._bip`) ; `openInstallModal/installApp/maybeAskInstall` (script.js) ; modale `#install-modal` unique (clé `arcane-install-asked`, jamais par-dessus une autre fenêtre) ; slot 6 du profil « Installer » (masqué si déjà installée) ; iOS/autres : étapes écrites. Métas `apple-mobile-web-app-capable`. Test Chrome réel de l'installation non fait (événement simulé).
 - **À valider par l'utilisateur** : position du « 0/9 » (laissée en place, rien déplacé) ; texte du patchnote 2.a3.0 (brouillon) ; Lot F = atelier de design des sorts (document à produire, pas de code) ; v2.a3.1 = refonte des sorts.
 - Pièges : le navigateur de test met en cache le JS/CSS (python http.server) : `fetch(url,{cache:'reload'})` avant de recharger. Changer `CURRENT_VERSION` offre encore 3 clés à chaque bump a3.x (comportement voulu existant).
+### v2.a3.1 — PTU (test public) séparé du live (2026-11-23) — détail et checklist de bascule : **PTU.md**
+- `channel.js` (classique, chargé en 1er, en cache SW) : canal par l'adresse (live seulement `github.io/coffre_des_arcanes/`), `CHANNEL.col()` (collections `ptu_*`), `CHANNEL.lsk()` (clés `ptu-*`), `clearLocal()` (remplace `localStorage.clear()` qui aurait vidé l'AUTRE version), `wrapFirestore` = GARDE-FOU (PTU : écriture hors `ptu_*` refusée, testé). Cache SW préfixé `ptu-` et nettoyage limité à son préfixe (Cache Storage partagé par l'origine). Notifications push désactivées en PTU (collection `push` = live).
+- Entrée PTU (`ptuEntryGate`, `_ptuSeed`, `#ptu-modal`) : copier le live (lecture seule, une fois) ou repartir de zéro ; `PTU_ENTRY_MODE` impose un choix ; Options › Compte PTU = réinitialisation. Thème orange `html.ptu` (contrastes AAA mesurés : texte 17:1, dim 8:1, accents ≥ 6,2:1) + badge + titre. `manifest.json` du dépôt dev = nom PTU : NE PAS le copier à la bascule.
+- Testé en réel (compte test Eliéta, localhost = PTU) : copie live → `ptu_players` (42 objets, clicker copié), reset (doc supprimé, clés `ptu-*` effacées, clés live conservées), départ à zéro, clicker PTU ; le document live est resté IDENTIQUE (octets et rev) à chaque étape.
+- **FAILLE FIRESTORE trouvée** : règles actuelles = tout utilisateur connecté lit TOUS les `players` et écrit PARTOUT (y compris le doc d'un autre uid). Correctif proposé dans PTU.md, à publier après relecture des règles (`promo_codes`) : il faut l'accès à la console Firebase (le Chrome MCP n'était pas connecté). Sauvegarde Firestore du 2026-11-23 : `..\_sauvegardes-firebase\` (hors dépôt).
+- Version : `CURRENT_VERSION` + `CACHE_NAME` incrémentés à CHAQUE modification (demande de l'utilisateur), patchnote seulement pour une vraie fonctionnalité (sans entrée, aucune fenêtre ne s'affiche).
 ### Étape 5 (restée ouverte)
 Fait : lien (bouton ⚡ GRIMOIRE) et cache SW. Reste : équilibrage global, popover de sort sur mobile, polish ; confirmer visuellement UI-B / UI-C (UI-A validé « Super beau »).
 

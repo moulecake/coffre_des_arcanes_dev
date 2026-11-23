@@ -9,7 +9,7 @@
 // ============================================================
 // Adresse propre : on masque « index.html » dans la barre d'adresse (affichage seulement).
 if (/index\.html$/.test(location.pathname)) history.replaceState(null, "", location.pathname.replace(/index\.html$/, "") + location.search + location.hash);
-const CURRENT_VERSION = "2.a3.0";
+const CURRENT_VERSION = "2.a3.1";
 document.querySelectorAll('[id="app-version"]').forEach(e => { e.textContent = CURRENT_VERSION; });   // 2 pieds de page (accueil + app)
 
 // DROP RATES — C:40 | PC:25 | R:20 | TR:8 | L:5 | A:2
@@ -20,13 +20,13 @@ const RARITY_FALLBACK = ['A','L','TR','R','PC','C'];
 const MAX_KEYS = 3;
 const REGEN_MS = 4 * 60 * 60 * 1000;
 const FRAGS_PER_KEY = 5;
-const LSKEY = 'arcane-vault';
+const LSKEY = CHANNEL.lsk('arcane-vault');
 
 
 // ============================================================
 // PRÉFÉRENCES (appareil) — partagées avec le Clicker : clé localStorage « coffre-prefs »
 // ============================================================
-const PREFS_KEY = 'coffre-prefs';
+const PREFS_KEY = CHANNEL.lsk('coffre-prefs');
 function getPrefs(){ try{ return Object.assign({sound:true, vibe:true}, JSON.parse(localStorage.getItem(PREFS_KEY)||'{}')); }catch(e){ return {sound:true, vibe:true}; } }
 function setPref(k, v){ const p=getPrefs(); p[k]=!!v; try{ localStorage.setItem(PREFS_KEY, JSON.stringify(p)); }catch(e){} }
 const soundOn = () => getPrefs().sound !== false;
@@ -204,7 +204,7 @@ function unpackInventory(inv) {
 //  • Aucune écriture cloud avant la 1re synchro réussie, ni si data.js n'est pas chargé.
 // Rien d'autre ne doit écrire `players/{uid}.state` : tout passe par syncState().
 // ============================================================
-const SCHEMA = 2, BASE_KEY = 'arcane-base', LOCALBK_KEY = 'arcane-localbackup';
+const SCHEMA = 2, BASE_KEY = CHANNEL.lsk('arcane-base'), LOCALBK_KEY = CHANNEL.lsk('arcane-localbackup');
 let _cloudLoaded = false, _syncing = false, _syncAgain = false, _dirty = false, _syncT = 0, _mut = 0, _base = null, _lastSync = null;
 // Vrai si l'inventaire contient des clés longues convertibles (ancien format / ancienne rareté).
 const needsRepack = inv => Object.keys(LOOT_BY_ID).length > 0 && Object.keys(inv || {}).some(k => k.includes('|') && (LOOT_ID[k] || (TEMP_RARITY_FIX && LOOT_BY_ID[slugOfLine(k)])));
@@ -262,17 +262,18 @@ async function syncState(reason) {
   const u = window.auth?.currentUser;
   if (!u || !window.runTransaction || !window.db) return false;
   if (!dataOk()) { console.warn('[synchro] data.js non chargé : aucune écriture cloud'); return false; }
+  if (window._ptuResetting) return false;                                     // réinitialisation PTU en cours : aucune écriture
   if (_syncing) { _syncAgain = true; return false; }
   _syncing = true; clearTimeout(_syncT);
   const mut0 = _mut, L0 = snapLocal();
   try {
-    const ref = window.doc(window.db, 'players', u.uid); let res = null;
+    const ref = window.doc(window.db, CHANNEL.col('players'), u.uid); let res = null;
     await window.runTransaction(window.db, async tx => {
       const snap = await tx.get(ref), data = snap.exists() ? snap.data() : {}, now = Date.now();
       const cs = data.state ? unpackState(data.state) : null;
       const base = _base && _base.uid === u.uid ? _base : null, foreign = !!(L0.uid && L0.uid !== u.uid);
       let merged, mode;
-      if (!cs) { merged = foreign ? freshState() : Object.assign({}, L0); mode = 'create'; }
+      if (!cs) { merged = _ptuSeed ? Object.assign({}, _ptuSeed) : (foreign ? freshState() : Object.assign({}, L0)); mode = 'create'; }   // PTU : graine = copie du live ou départ à zéro
       else if (foreign) { merged = Object.assign({}, cs); mode = 'adopt'; }                       // état local d'un autre compte : ignoré
       else if (base && (cs.rev || 0) === base.rev) { merged = Object.assign({}, cs, L0); mode = 'push'; }   // cloud inchangé depuis notre dernière synchro
       else { merged = mergeStates(base, L0, cs); mode = 'merge'; }
@@ -338,17 +339,19 @@ async function getFcmToken() {
   return m.getToken(m.getMessaging(window.fbApp), { vapidKey: FCM_VAPID_KEY, serviceWorkerRegistration: reg });
 }
 async function savePushToken(token) {
+  if (CHANNEL.ptu) return;                                // PTU : pas de notifications (la collection `push` est celle du live)
   const u = window.auth?.currentUser; if (!u) return;
   await window.setDoc(window.doc(window.db, 'push', u.uid), { tokens: { [pushOriginKey()]: { t: token, url: pushBaseUrl(), ts: Date.now() } }, updatedAt: new Date().toISOString() }, { merge: true });
 }
-async function enablePush() {                           // à appeler depuis un CLIC (Options ou fenêtre d'invitation) ; renvoie true si activé
+async function enablePush() {
+  if (CHANNEL.ptu) { showToast('Notifications indisponibles en PTU'); return false; }                           // à appeler depuis un CLIC (Options ou fenêtre d'invitation) ; renvoie true si activé
   try {
     if (!window.auth?.currentUser) throw new Error('login');
     if (!('Notification' in window) || !('serviceWorker' in navigator)) throw new Error('unsupported');
     const perm = await Notification.requestPermission();
     if (perm !== 'granted') throw new Error('denied');
     const token = await getFcmToken();
-    await savePushToken(token); localStorage.setItem('arcane-push-token', token); setPref('push', true);
+    await savePushToken(token); localStorage.setItem(PUSH_TOKEN_KEY, token); setPref('push', true);
     showToast('🔔 Notifications activées !', 4000); syncPushSchedule(true);
     return true;
   } catch (e) {
@@ -360,7 +363,8 @@ async function enablePush() {                           // à appeler depuis un 
 }
 async function togglePush(cb) { if (!cb.checked) { await disablePush(); return; } if (!(await enablePush())) cb.checked = false; }
 async function disablePush() {
-  setPref('push', false); localStorage.removeItem('arcane-push-token');
+  if (CHANNEL.ptu) return;
+  setPref('push', false); localStorage.removeItem(PUSH_TOKEN_KEY);
   try { const u = window.auth?.currentUser; if (u) await window.setDoc(window.doc(window.db, 'push', u.uid), { tokens: { [pushOriginKey()]: null }, keysAt: null, clickerAt: null, updatedAt: new Date().toISOString() }, { merge: true }); } catch (e) {}
   try { const m = await import(FCM_CDN); await m.deleteToken(m.getMessaging(window.fbApp)); } catch (e) {}
   showToast('🔕 Notifications désactivées');
@@ -368,15 +372,17 @@ async function disablePush() {
 // ACTIVÉES PAR DÉFAUT : à chaque connexion, si l'autorisation est déjà accordée on rafraîchit le jeton ; sinon on PROPOSE une fois (fenêtre d'invitation,
 // puis rappel après 7 jours). Le navigateur exige un clic du joueur pour demander l'autorisation : on ne peut pas l'accorder à sa place.
 // Tant que le joueur n'a pas désactivé lui-même (`push:false`), tout reste actif.
-const PUSH_ASK_KEY = 'arcane-push-asked';
+const PUSH_ASK_KEY = CHANNEL.lsk('arcane-push-asked'), PUSH_TOKEN_KEY = CHANNEL.lsk('arcane-push-token');
 async function ensurePush(delay) {
+  if (CHANNEL.ptu) return;
   if (!('Notification' in window) || !('serviceWorker' in navigator) || getPrefs().push === false) return;
   if (Notification.permission === 'granted') {
-    try { const t = await getFcmToken(); if (t !== localStorage.getItem('arcane-push-token')) { await savePushToken(t); localStorage.setItem('arcane-push-token', t); } syncPushSchedule(true); }
+    try { const t = await getFcmToken(); if (t !== localStorage.getItem(PUSH_TOKEN_KEY)) { await savePushToken(t); localStorage.setItem(PUSH_TOKEN_KEY, t); } syncPushSchedule(true); }
     catch (e) { console.warn('push', e); }
   } else if (Notification.permission === 'default') maybeAskPush(delay);
 }
 function maybeAskPush(delay) {
+  if (CHANNEL.ptu) return;
   const asked = +localStorage.getItem(PUSH_ASK_KEY) || 0; if (asked && Date.now() - asked < 7 * 864e5) return;
   setTimeout(async () => {
     try { const m = await import(FCM_CDN); if (!(await m.isSupported())) return; } catch (e) { return; }        // ex. iPhone sans installation : on ne harcèle pas
@@ -391,7 +397,7 @@ function pushPromptLater() { document.getElementById('push-modal').style.display
 //  - Chrome/Edge/Android : `window._bip` (événement beforeinstallprompt, capturé dans <head>) → vrai bouton « Installer »
 //  - iPhone/iPad (Safari) et autres : pas d'événement → étapes écrites (Partager › Sur l'écran d'accueil / menu du navigateur)
 // ============================================================
-const INSTALL_ASK_KEY = 'arcane-install-asked';
+const INSTALL_ASK_KEY = CHANNEL.lsk('arcane-install-asked');
 const isStandalone = () => { try { return matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches || navigator.standalone === true || !!window._justInstalled; } catch (e) { return false; } };
 const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 function refreshInstallSlot() { const b = document.getElementById('install-slot'); if (b) b.style.display = isStandalone() ? 'none' : ''; }
@@ -439,7 +445,8 @@ window.addEventListener('bip-ready', refreshInstallSlot); window.addEventListene
 document.addEventListener('DOMContentLoaded', refreshInstallSlot);
 try { matchMedia('(display-mode: standalone)').addEventListener('change', refreshInstallSlot); } catch (e) {}
 let _pushSig = '';
-async function syncPushSchedule(force) {                // heure à laquelle les clés seront toutes rechargées (null si déjà pleines)
+async function syncPushSchedule(force) {
+  if (CHANNEL.ptu) return;                // heure à laquelle les clés seront toutes rechargées (null si déjà pleines)
   const u = window.auth?.currentUser;
   if (!u || getPrefs().push === false || !('Notification' in window) || Notification.permission !== 'granted') return;
   const keysAt = state.keys < MAX_KEYS ? state.lastRegen + (MAX_KEYS - state.keys) * REGEN_MS : null;
@@ -456,7 +463,7 @@ async function syncLeaderboardDoc() {
   const chests = state.chestsOpened || 0, sig = [state.pseudo, discovered, total, chests].join('|');
   if (sig === _lbSig) return; _lbSig = sig;
   try {
-    await window.setDoc(window.doc(window.db, 'leaderboard', u.uid), { pseudo: state.pseudo, discovered, total, chests, updatedAt: new Date().toISOString() });
+    await window.setDoc(window.doc(window.db, CHANNEL.col('leaderboard'), u.uid), { pseudo: state.pseudo, discovered, total, chests, updatedAt: new Date().toISOString() });
   } catch (e) { _lbSig = ''; console.warn('Classement : écriture impossible (règles Firestore ?)', e.code || e); }
 }
 
@@ -1179,9 +1186,74 @@ document.getElementById("google-login-btn")?.addEventListener("click", () => {
 
 async function saveGameDataToCloud() { return syncState('manual'); }      // ancien nom conservé : tout passe par syncState()
 
+// ============================================================
+// PTU (test public, canal « ptu ») — le compte PTU est séparé du compte live (collections ptu_*, clés locales ptu-*).
+// À la 1re entrée : le joueur choisit « copier mon compte live » (lecture SEULE du live, une seule fois) ou « repartir de zéro ».
+// Il peut se réinitialiser à tout moment (Options). Aucune donnée ne repart vers le live : récompenses par codes / skins.
+// ★ PTU_ENTRY_MODE (éditable) : 'ask' = le joueur choisit · 'copy' = copie imposée · 'zero' = départ à zéro imposé (selon le test voulu).
+// ============================================================
+const PTU_ENTRY_MODE = 'ask';
+let _ptuSeed = null;
+function ptuAsk(hasLive) {
+  return new Promise(res => {
+    const m = document.getElementById('ptu-modal'); if (!m) return res('zero');
+    document.getElementById('ptu-copy').disabled = !hasLive;
+    document.getElementById('ptu-nolive').style.display = hasLive ? 'none' : 'block';
+    const done = k => { m.style.display = 'none'; res(k); };
+    document.getElementById('ptu-copy').onclick = () => done('copy');
+    document.getElementById('ptu-zero').onclick = () => done('zero');
+    m.style.display = 'flex';
+  });
+}
+async function ptuEntryGate(uid) {
+  try {
+    const ref = window.doc(window.db, CHANNEL.col('players'), uid);
+    const mine = await window.getDoc(ref);
+    if (mine.exists() && mine.data().state) return;                     // compte PTU déjà créé
+    let live = null;                                                    // LECTURE SEULE du live (jamais d'écriture : garde-fou channel.js)
+    try { const ls = await window.getDoc(window.doc(window.db, 'players', uid)); live = ls.exists() ? ls.data() : null; } catch (e) { console.warn('PTU : lecture du live impossible', e.code || e); }
+    const hasLive = !!(live && live.state);
+    let mode = PTU_ENTRY_MODE === 'ask' ? await ptuAsk(hasLive) : PTU_ENTRY_MODE;
+    if (mode === 'copy' && !hasLive) mode = 'zero';
+    if (mode === 'copy') {
+      const st = unpackState(live.state); delete st.uid; delete st.rev; delete st.savedAt; delete st.schema;
+      _ptuSeed = st;
+      if (live.clicker && live.clicker.json) { try { await window.setDoc(ref, { clicker: live.clicker }, { merge: true }); } catch (e) { console.warn('PTU : copie du clicker', e); } }
+    } else {
+      _ptuSeed = Object.assign(freshState(), { pseudo: (live && (live.pseudo || (live.state && live.state.pseudo))) || '' });
+    }
+    if (_ptuSeed && !_ptuSeed.pseudo && live) _ptuSeed.pseudo = live.pseudo || '';
+  } catch (e) { console.error('PTU : entrée', e); }
+}
+function confirmPtuReset() {
+  const modal = document.getElementById('profile-action-modal'), title = document.getElementById('profile-modal-title'), body = document.getElementById('profile-modal-body');
+  const inputWrap = document.getElementById('profile-modal-input-wrap'), input = document.getElementById('profile-modal-confirm-input'), btn = document.getElementById('profile-modal-confirm-btn');
+  if (!(modal && title && body && btn)) return;
+  title.textContent = '🧪 Réinitialiser mon compte PTU';
+  body.innerHTML = 'Ton compte <b>PTU</b> sera effacé (objets, clés, clicker de CE test), puis tu choisiras à nouveau : copier ton live ou repartir de zéro.<br><b>Ton compte live n\'est pas touché.</b><br><br>Tape <b>REINITIALISER</b> pour confirmer :';
+  if (inputWrap) inputWrap.style.display = 'block'; if (input) input.value = '';
+  btn.textContent = 'Réinitialiser le PTU'; btn.className = 'share-btn share-btn-danger'; btn.onclick = executePtuReset; modal.style.display = 'flex';
+}
+async function executePtuReset() {
+  const input = document.getElementById('profile-modal-confirm-input');
+  if (!CHANNEL.ptu) return;                                            // sécurité : n'existe qu'en PTU
+  if (!input || input.value.trim().toUpperCase() !== 'REINITIALISER') { showToast('❌ Tape REINITIALISER pour confirmer.'); return; }
+  closeProfileActionModal(); window._ptuResetting = true;
+  try {
+    const u = window.auth && window.auth.currentUser;
+    if (u && window.deleteDoc) {
+      await window.deleteDoc(window.doc(window.db, CHANNEL.col('players'), u.uid));
+      try { await window.deleteDoc(window.doc(window.db, CHANNEL.col('leaderboard'), u.uid)); } catch (e) {}
+    }
+    CHANNEL.clearLocal(); showToast('🧪 Compte PTU réinitialisé…'); setTimeout(() => location.reload(), 900);
+  } catch (e) { window._ptuResetting = false; console.error('PTU reset', e); showToast('❌ Réinitialisation impossible : ' + (e.code || e.message)); }
+}
+
 async function loadGameDataFromCloud(uid) {
   try {
+    if (CHANNEL.ptu) await ptuEntryGate(uid);                // PTU : 1re entrée = choix copie du live / départ à zéro
     const res = await syncState('login');                   // lit le cloud, fusionne avec le local (jamais d'écrasement), écrit le résultat
+    _ptuSeed = null;
     applyVersionUpdate();
     syncLeaderboardDoc();
     claimClickerFragments(res ? res.clickerEarned : 0);
@@ -1192,7 +1264,7 @@ async function loadGameDataFromCloud(uid) {
 
 // --- LEADERBOARD & CLASSEMENT DES MAGES ---
 document.addEventListener('DOMContentLoaded', () => {
-  const lbVisited = localStorage.getItem('arcane-lb-visited');
+  const lbVisited = localStorage.getItem(CHANNEL.lsk('arcane-lb-visited'));
   const btn = document.getElementById('leaderboard-btn');
   if (btn && !lbVisited) {
     btn.classList.add('pulsing');
@@ -1204,7 +1276,7 @@ async function openLeaderboardModal() {
   if (btn) {
     btn.classList.remove('pulsing');
   }
-  localStorage.setItem('arcane-lb-visited', 'true');
+  localStorage.setItem(CHANNEL.lsk('arcane-lb-visited'), 'true');
 
   const modal = document.getElementById('leaderboard-modal');
   const listContainer = document.getElementById('leaderboard-list');
@@ -1230,7 +1302,7 @@ async function openLeaderboardModal() {
 
     const players = [];
     try {                                              // 1) mini-documents publics (léger)
-      const lb = await window.getDocs(window.collection(window.db, 'leaderboard'));
+      const lb = await window.getDocs(window.collection(window.db, CHANNEL.col('leaderboard')));
       lb.forEach(d => {
         if (EXCLUDED_UIDS.includes(d.id)) return;
         const x = d.data(); players.push({ pseudo: x.pseudo || 'Mage Anonyme', discovered: x.discovered || 0 });
@@ -1238,7 +1310,7 @@ async function openLeaderboardModal() {
     } catch (e) { console.warn('Classement : collection leaderboard illisible, repli sur players', e.code || e); }
 
     if (!players.length) {                             // 2) repli (transition) : ancien mode, lit les documents joueurs complets
-      const querySnapshot = await window.getDocs(window.collection(window.db, 'players'));
+      const querySnapshot = await window.getDocs(window.collection(window.db, CHANNEL.col('players')));
       querySnapshot.forEach((docSnap) => {
         const uid = docSnap.id;
         if (EXCLUDED_UIDS.includes(uid)) return;
@@ -1324,7 +1396,7 @@ function escapeLeaderboardHtml(str) {
 // PONT CLICKER → FRAGMENTS (idempotent : earned − déjà réclamé)
 function claimClickerFragments(cloudEarned) {
   let earned = cloudEarned || 0;
-  try { const c = JSON.parse(localStorage.getItem('coffre-clicker') || '{}'); earned = Math.max(earned, (c.fr && c.fr.earned) || 0); } catch (e) {}
+  try { const c = JSON.parse(localStorage.getItem(CHANNEL.lsk('coffre-clicker')) || '{}'); earned = Math.max(earned, (c.fr && c.fr.earned) || 0); } catch (e) {}
   const d = earned - (state.clickerClaimed || 0);
   if (d <= 0) return;
   state.clickerClaimed = earned;
@@ -1479,7 +1551,7 @@ async function validatePromoCode() {
     }
     const currentUid = currentUser.uid;
 
-    const docRef = window.doc(db, "promo_codes", code);
+    const docRef = window.doc(db, CHANNEL.col("promo_codes"), code);
 
     let keysToAdd = 1;
     await window.runTransaction(db, async (transaction) => {
@@ -1584,7 +1656,7 @@ async function saveProfilePseudo() {
     try {
       const user = window.firebaseAuth.auth.currentUser;
       const { db, doc, setDoc } = window.firebaseAuth;
-      await setDoc(doc(db, "players", user.uid), {
+      await setDoc(doc(db, CHANNEL.col("players"), user.uid), {
         pseudo: newPseudo,
         discovered: Object.keys(state.inventory).filter(k => (state.inventory[k]||0)>0).length,
         updatedAt: new Date().toISOString()
@@ -1684,7 +1756,7 @@ function executeWipeData() {
     return;
   }
   closeProfileActionModal();
-  localStorage.clear();
+  CHANNEL.clearLocal();                              // clés de CE canal seulement (l'autre version, live/PTU, garde les siennes)
   showToast('💥 Données effacées. Réinitialisation...');
   setTimeout(() => window.location.reload(), 1000);
 }

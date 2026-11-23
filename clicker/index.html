@@ -12,6 +12,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 <!-- Firebase (même projet que le Coffre : la session Google est partagée) -->
+<script src="../channel.js"></script>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-app.js";
   import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-auth.js";
@@ -19,7 +20,8 @@
   const app = initializeApp({ apiKey: "AIzaSyBkwZIkmAAuYtZpoVokvhZd5MYlTfkLyww", authDomain: "coffre-des-arcanes.firebaseapp.com", projectId: "coffre-des-arcanes",
     storageBucket: "coffre-des-arcanes.firebasestorage.app", messagingSenderId: "905578088250", appId: "1:905578088250:web:38f331566593c3b485f203" });
   window.auth = getAuth(app); window.db = getFirestore(app);
-  window.onAuthStateChanged = onAuthStateChanged; window.doc = doc; window.setDoc = setDoc; window.getDoc = getDoc; window.runTransaction = runTransaction;
+  window.onAuthStateChanged = onAuthStateChanged; window.doc = doc; window.getDoc = getDoc;
+  const FS = CHANNEL.wrapFirestore({ setDoc, runTransaction }); window.setDoc = FS.setDoc; window.runTransaction = FS.runTransaction;   // garde-fou canal : en PTU, aucune écriture hors ptu_*
 </script>
 <!-- Ordre : spells (hooks) > passives (bâtiments) > core (state, boucle) -->
 <script src="../nav.js" defer></script>
@@ -29,6 +31,7 @@
 </head>
 <body>
 <div class="stars" id="stars" aria-hidden="true"></div>
+<div class="ptu-badge" aria-label="Version de test publique" title="Version de test publique (PTU)">PTU</div>
 <header class="top">
   <div class="topl">
   <a class="back" href="../" aria-label="Retour au Coffre" title="Retour au Coffre des Arcanes">

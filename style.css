@@ -737,3 +737,22 @@ html.fast #app{visibility:visible!important;opacity:1!important}
 .inst-ic .inst-arrow{animation:instDrop 2s ease-in-out infinite}
 @keyframes instDrop{0%,100%{transform:translateY(-1.5px)}50%{transform:translateY(2.5px)}}
 @media(prefers-reduced-motion:reduce){.inst-ic .inst-arrow{animation:none}}
+
+/* ============================================================
+   PTU (v2.a3.1) : thème orange « Légendaire » + repères. Actif seulement avec <html class="ptu"> (channel.js : tout sauf le dépôt officiel).
+   Fonds sombres bruns, texte clair : contrastes WCAG mesurés (voir PTU.md). Les couleurs d'accent/rareté ne changent pas.
+   ============================================================ */
+html.ptu { --bg: #0d0702; --surface: #170d05; --glass: rgba(31,17,7,.74); --border: rgba(249,115,22,.2); --text: #f5ebe0; --text-dim: #b8a28d; }
+html.ptu body::before { background: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(249,115,22,.2), transparent), radial-gradient(ellipse 60% 40% at 80% 80%, rgba(234,88,12,.12), transparent), radial-gradient(ellipse 50% 35% at 10% 90%, rgba(251,191,36,.07), transparent); }
+html.ptu .star { background: #ffb866; box-shadow: 0 0 6px rgba(249,115,22,.6); }
+.ptu-badge { display: none; }
+html.ptu .ptu-badge { display: block; position: fixed; top: 8px; left: 8px; z-index: 30; padding: 3px 9px; border-radius: 8px; font: 900 10px 'Cinzel', serif; letter-spacing: 2px; color: #ffedd5; background: linear-gradient(135deg, #c2410c, #f97316); border: 1px solid rgba(255,237,213,.55); box-shadow: 0 2px 12px rgba(249,115,22,.45), inset 0 1px 0 rgba(255,255,255,.3); pointer-events: none; }
+.ptu-only { display: none !important; }
+html.ptu .ptu-only { display: flex !important; }
+html.ptu .live-only { display: none !important; }
+.ptu-reset { flex: none; padding: 8px 12px; border-radius: 10px; cursor: pointer; font: 700 11px 'Inter', sans-serif; color: #fdba74; border: 1px solid rgba(249,115,22,.55); background: rgba(249,115,22,.1); transition: background .2s, transform .2s; }
+.ptu-reset:hover, .ptu-reset:focus-visible { background: rgba(249,115,22,.22); transform: translateY(-1px); outline: 0; }
+.ptu-box { border-color: rgba(249,115,22,.4) !important; box-shadow: 0 20px 60px rgba(0,0,0,.6), inset 0 0 60px rgba(249,115,22,.1) !important; }
+.ptu-ic { width: 92px; height: 92px; align-self: center; overflow: visible; filter: drop-shadow(0 0 14px rgba(249,115,22,.55)); }
+.ptu-go { border-color: rgba(251,146,60,.75) !important; background: linear-gradient(135deg, rgba(194,65,12,.45), rgba(249,115,22,.3)) !important; color: #ffedd5 !important; }
+.ptu-go:disabled { opacity: .4; cursor: not-allowed; transform: none !important; }

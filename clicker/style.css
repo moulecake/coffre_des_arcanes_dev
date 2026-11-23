@@ -292,3 +292,10 @@ body.hot #orbCur::before{background:radial-gradient(circle,#fff 0 14%,#fda4af 32
 .stkc b{font:600 14px Cinzel,serif;white-space:nowrap}
 .stkc.sg b{color:#f5d98a}
 @media(prefers-reduced-motion:reduce){#stk,.stkc{transition:none}}
+/* PTU (v2.a3.1) : thème orange « Légendaire » (<html class="ptu">, channel.js) ; fonds sombres bruns, texte clair (WCAG : voir PTU.md) */
+html.ptu{--bg:#0d0702;--glass:rgba(31,17,7,.74);--bd:rgba(249,115,22,.2);--tx:#f5ebe0;--dim:#b8a28d}
+html.ptu body{background:radial-gradient(ellipse 70% 50% at 20% -10%,rgba(249,115,22,.22),transparent),radial-gradient(ellipse 70% 50% at 85% 110%,rgba(234,88,12,.15),transparent),var(--bg)}
+html.ptu .star{background:#ffb866;box-shadow:0 0 6px rgba(249,115,22,.6)}
+.ptu-badge{display:none}
+html.ptu .ptu-badge{display:block;position:fixed;top:8px;right:8px;z-index:30;padding:3px 9px;border-radius:8px;font:900 10px Cinzel,serif;letter-spacing:2px;color:#ffedd5;background:linear-gradient(135deg,#c2410c,#f97316);border:1px solid rgba(255,237,213,.55);box-shadow:0 2px 12px rgba(249,115,22,.45),inset 0 1px 0 rgba(255,255,255,.3);pointer-events:none}
+@media(pointer:coarse){html.ptu .chip,html.ptu .pane{background:rgba(31,17,7,.92)}}
