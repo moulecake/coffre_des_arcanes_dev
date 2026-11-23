@@ -22,21 +22,22 @@ Même code sur les deux dépôts. Le canal se déduit de l'adresse (`channel.js`
 
 ## Règles Firestore — CONSTAT DU 2026-11-23 (à corriger, voir MEMOIRE.md)
 Testé avec le compte test : **n'importe quel joueur connecté peut LIRE tous les documents `players` (état complet des inventaires) et ÉCRIRE dans n'importe quelle collection/document, y compris ceux d'un autre uid** (écriture dans `ptu_players/<autre uid>` et dans une collection inconnue : acceptée). Cela permet à un joueur de modifier un autre compte via la console du navigateur.
-Proposition (à publier APRÈS relecture des règles actuelles, surtout `promo_codes`, et test avec une sonde) :
+**Règles actuelles trouvées dans la console (2026-11-23)** : règle de démarrage `match /{document=**} { allow read, write: if request.time < timestamp.date(2026, 12, 3); }` (ouverte à TOUS, même non connectés) + `push/{uid}` propriétaire. **Le 3 décembre 2026 tout accès client serait refusé : l'appli (live et PTU) cesserait de fonctionner.**
+Version corrigée : **`firestore.rules`** (à la racine du dépôt). À coller dans Console › Firestore › Règles › remplacer tout › Publier. Chacun ne lit/écrit que ses documents ; codes promo : lecture d'un code par son identifiant seulement, mise à jour limitée au joueur concerné ; collections inconnues fermées. L'ancienne version des règles est conservée plus bas pour revenir en arrière.
+Sauvegarde du 2026-11-23 (avant toute modif des règles) : `..\_sauvegardes-firebase\backup-firestore-2026-11-23-18-19.json` (hors dépôt ; contient des données privées et des jetons : ne jamais l'envoyer en ligne).
+
+
+### Règles AVANT correction (retour arrière possible)
 ```
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function me(uid) { return request.auth != null && request.auth.uid == uid; }
-    // Lecture conservée pour l'ancien classement live (lit tout `players`) : à resserrer quand le live n'en dépend plus.
-    match /players/{uid} { allow read: if request.auth != null; allow create, update, delete: if me(uid); }
-    match /leaderboard/{uid} { allow read: if request.auth != null; allow create, update, delete: if me(uid); }
-    match /push/{uid} { allow read, write: if me(uid); }
-    match /ptu_players/{uid} { allow read, write: if me(uid); }
-    match /ptu_leaderboard/{uid} { allow read: if request.auth != null; allow write: if me(uid); }
-    // promo_codes : reprendre la règle EXISTANTE (relire la console) en gardant la logique d'usage unique.
-    match /{document=**} { allow read, write: if false; }
+    match /{document=**} {
+      allow read, write: if request.time < timestamp.date(2026, 12, 3);
+    }
+    match /push/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
   }
 }
 ```
-Sauvegarde du 2026-11-23 (avant toute modif des règles) : `..\_sauvegardes-firebase\backup-firestore-2026-11-23-18-19.json` (hors dépôt ; contient des données privées et des jetons : ne jamais l'envoyer en ligne).

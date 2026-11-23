@@ -1,0 +1,70 @@
+rules_version = '2';
+// RÈGLES FIRESTORE — Le Coffre des Arcanes (live + PTU). À coller dans Console Firebase › Firestore › Règles › Publier.
+// Remplace la règle de démarrage « allow read, write: if request.time < 2026-12-03 » (ouverte à tous, qui BLOQUERAIT toute l'appli le 3 décembre).
+// Principe : chacun ne lit/écrit QUE ses propres documents ; aucune collection inconnue n'est accessible.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function me(uid) { return signedIn() && request.auth.uid == uid; }
+    function lbFieldsOk() {
+      return request.resource.data.keys().hasOnly(['pseudo', 'discovered', 'total', 'chests', 'updatedAt'])
+        && request.resource.data.pseudo is string && request.resource.data.pseudo.size() <= 30
+        && request.resource.data.discovered is number && request.resource.data.total is number;
+    }
+    // Codes promo : jamais créés/supprimés/listés par un client ; seul le destinataire (code individuel) ou le joueur qui l'utilise (code universel) peut le marquer.
+    function promoNotExpired() { return !('expiresAt' in resource.data) || resource.data.expiresAt > request.time; }
+    function promoIndividualOk() {
+      return resource.data.get('assignedTo', '') == request.auth.uid
+        && resource.data.get('used', false) == false
+        && request.resource.data.used == true
+        && request.resource.data.usedBy == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['used', 'usedBy', 'usedAt']);
+    }
+    function promoUniversalOk() {
+      return resource.data.get('assignedTo', '') == ''
+        && !(request.auth.uid in resource.data.get('redeemedBy', []))
+        && request.auth.uid in request.resource.data.redeemedBy
+        && request.resource.data.redeemedBy.size() == resource.data.get('redeemedBy', []).size() + 1
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['redeemedBy', 'redeemedDetails']);
+    }
+
+    // ---- LIVE ----
+    match /players/{uid} {                       // progression complète : visible et modifiable par son propriétaire uniquement (pas de suppression côté client)
+      allow read: if me(uid);
+      allow create, update: if me(uid);
+    }
+    match /leaderboard/{uid} {                   // mini-document public du classement
+      allow read: if signedIn();
+      allow create, update: if me(uid) && lbFieldsOk();
+    }
+    match /push/{uid} {                          // jetons de notifications (règle d'origine conservée)
+      allow read, write: if me(uid);
+    }
+    match /promo_codes/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow update: if signedIn() && promoNotExpired() && (promoIndividualOk() || promoUniversalOk());
+    }
+
+    // ---- PTU (test public) : mêmes principes, collections préfixées ----
+    match /ptu_players/{uid} {
+      allow read, write: if me(uid);             // suppression autorisée : bouton « Réinitialiser mon compte PTU »
+    }
+    match /ptu_leaderboard/{uid} {
+      allow read: if signedIn();
+      allow create, update: if me(uid) && lbFieldsOk();
+      allow delete: if me(uid);
+    }
+    match /ptu_promo_codes/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow update: if signedIn() && promoNotExpired() && (promoIndividualOk() || promoUniversalOk());
+    }
+
+    // Tout le reste est fermé.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
