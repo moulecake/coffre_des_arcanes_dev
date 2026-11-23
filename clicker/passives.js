@@ -10,7 +10,9 @@ const Passives = (() => {
     { id: "hom", s: "G", n: "Homoncule Liseur",    ic: "☿", base: 600,  d: "+5% de pages rares", p: "bgi" }
   ];
   const cost = b => Math.ceil(b.base * 1.15 ** own(b.id) * M(b.s === "G" ? "sgCost" : "ethCost", 1));
-  const calc = () => {
+  let cc = null, ct = 0;                                              // cache de 50 ms : calc() est appelé à chaque clic, tick et mise à jour (7 lectures M() à chaque fois)
+  const calc = () => { const t = performance.now(); if (cc && t - ct < 50) return cc; ct = t; return cc = calc0(); };
+  const calc0 = () => {
     const a = own("anc"), p = own("pyl"), b = own("bou"), l = own("lut"), c = own("bgi"), h = own("hom");
     const flat = a * tm(a) * M("passive", 1), clickV = 1 + .02 * flat, crit = Math.min(.5, .01 * b * tm(b));
     const ethPS = (flat + (p * .5 * tm(p) * M("pylon", 1) + M("famil", 0)) * clickV) * (1 + crit * 4) * M("ether", 1);
@@ -20,7 +22,7 @@ const Passives = (() => {
   const buy = b => {
     const k = b.s === "G" ? "sg" : "eth", c = cost(b);
     if (S[k] < c) return;
-    S[k] -= c; S.b[b.id] = own(b.id) + 1; save(); update();
+    S[k] -= c; S.b[b.id] = own(b.id) + 1; cc = null; save(); update();
   };
   const build = (el, s) => L.filter(b => b.s === s).forEach(b => {
     const d = document.createElement("div");

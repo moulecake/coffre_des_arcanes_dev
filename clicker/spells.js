@@ -6,6 +6,9 @@
 //   Palier 1 = de base (sans sort) · Bouclier d'Éther équipé : palier 2 (rangs Abjuration 1-2), palier 3 (rangs 3-4).
 //   Chaque clic ajoute 10 de chaleur, la chaleur retombe de (cps × 10)/s : au-delà de ce nombre de clics/s, ça chauffe jusqu'à 100 → surchauffe : pause de (limite) secondes (5 cps → 5 s, 10 → 10 s, 15 → 15 s ; voir `hotMs` dans clicker-core.js).
 const CPS_PALIERS = [5, 10, 15];
+// ★ RÉGLAGE SÉCURITÉ GRIMOIRE (anti-autoclic) : clics/s maximum sur le Grimoire avant « chaos » ; la pause dure autant de secondes (10 cps → 10 s).
+//   Même principe que le Voile : +10 de chaleur par clic, retombe de (cps × 10)/s. Aucun sort ne la modifie pour l'instant.
+const CPS_GRIMOIRE = 10;
 const Spells = (() => {
   const SCH = [
     ["evo", "Évocation", 25, "<path d='M13 2L4 14h7l-1 8 9-12h-7z'/>"],
@@ -71,7 +74,7 @@ const Spells = (() => {
     div2: P(["offlineSg", "*", 1.2], ["fragOff", "*", 1.2]), div4: P(["study", "*", .75]), tra1: P(["frag", "*", 1.15]), tra4: P(["ether", "*", 1.25], ["scribe", "*", 1.25], ["frag", "*", 1.25]),
     con1: P(["ethCost", "*", .95], ["sgCost", "*", .95]), con2: P(["famil", "+", 1])
   };
-  let ml = [], dirty = 1, fxs = [], mirror = 0, presc = 0, clicks = 0, cur = 0, pp = "V", si = 0, lastAct = 0, ed = null;
+  let ml = [], dirty = 1, fxs = [], mirror = 0, presc = 0, clicks = 0, cur = 0, pp = "V", si = 0, lastAct = 0, lastEffort = 0, ed = null;   // lastAct = farm (Gold Sink) ; lastEffort = tout appui (fragments d'effort)
   const ap = (r, m) => m[1] === "*" ? r * m[2] : m[1] === "+" ? r + m[2] : Math.max(r, m[2]);
   const mod = (k, d) => {
     if (dirty) { dirty = 0; ml = []; eqIds().forEach(id => PM[id] && ml.push(...PM[id]())); }
@@ -103,7 +106,7 @@ const Spells = (() => {
     con4: () => fx([["ether", "*", 3], ["click", "*", 3], ["sg", "*", 3]], 10)
   };
   const cast = (s, p) => {
-    const n = Date.now(); lastAct = n;
+    const n = Date.now(); lastAct = lastEffort = n;
     if (n < (sp().pen || 0)) { sfx("deny"); toast("Adaptation en cours — sorts actifs bloqués " + Math.ceil((sp().pen - n) / 1e3) + " s"); return; }
     if (n < (sp().cd[s.id] || 0)) { sfx("deny"); return; }
     if (ACT[s.id]() === false) { toast("Aucun sort en recharge à réinitialiser"); return; }
@@ -113,8 +116,8 @@ const Spells = (() => {
     save(); if (window.cloudSave) cloudSave();
     const pane = document.querySelector(p === "V" ? ".voile" : ".grimoire"); pane.classList.add("wave"); setTimeout(() => pane.classList.remove("wave"), 700);
   };
-  const onClick = () => { lastAct = Date.now(); let m = 1; if (mirror) { mirror = 0; m = 5; } if (has("evo4") && ++clicks % 100 === 0) fx([["ether", "*", 2], ["click", "*", 2]], 15); return m; };
-  const force = () => presc > 0 && (presc--, true), forced = () => presc > 0, touch = () => { lastAct = Date.now(); }, active = () => Date.now() - lastAct < 1e4;
+  const onClick = () => { lastAct = lastEffort = Date.now(); let m = 1; if (mirror) { mirror = 0; m = 5; } if (has("evo4") && ++clicks % 100 === 0) fx([["ether", "*", 2], ["click", "*", 2]], 15); return m; };
+  const force = () => presc > 0 && (presc--, true), forced = () => presc > 0, touch = () => { lastAct = lastEffort = Date.now(); }, effort = () => { lastEffort = Date.now(); }, active = () => Date.now() - lastEffort < 1e4;
 
   // ---- Barres de sorts ----
   const bar = p => {
@@ -273,5 +276,5 @@ const Spells = (() => {
     document.querySelectorAll(".gear[data-p]").forEach(g => g.onclick = () => pick(g.dataset.p));
     $("pclose").onclick = closePick; $("pick").onclick = e => { if (e.target.id === "pick") closePick(); };
   };
-  return { glyph: gl, hue, cast, SCH, mod, init, tick, onClick, force, forced, touch, active, has, learn, SP, applyDeck, D, guard };
+  return { glyph: gl, hue, cast, SCH, mod, init, tick, onClick, force, forced, touch, effort, active, has, learn, SP, applyDeck, D, guard };
 })();

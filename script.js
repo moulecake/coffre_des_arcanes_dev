@@ -9,7 +9,7 @@
 // ============================================================
 // Adresse propre : on masque « index.html » dans la barre d'adresse (affichage seulement).
 if (/index\.html$/.test(location.pathname)) history.replaceState(null, "", location.pathname.replace(/index\.html$/, "") + location.search + location.hash);
-const CURRENT_VERSION = "2.a2.10";
+const CURRENT_VERSION = "2.a3.0";
 document.getElementById("app-version").textContent = CURRENT_VERSION;
 
 // DROP RATES — C:40 | PC:25 | R:20 | TR:8 | L:5 | A:2
@@ -24,6 +24,20 @@ const LSKEY = 'arcane-vault';
 
 
 // ============================================================
+// PRÉFÉRENCES (appareil) — partagées avec le Clicker : clé localStorage « coffre-prefs »
+// ============================================================
+const PREFS_KEY = 'coffre-prefs';
+function getPrefs(){ try{ return Object.assign({sound:true, vibe:true}, JSON.parse(localStorage.getItem(PREFS_KEY)||'{}')); }catch(e){ return {sound:true, vibe:true}; } }
+function setPref(k, v){ const p=getPrefs(); p[k]=!!v; try{ localStorage.setItem(PREFS_KEY, JSON.stringify(p)); }catch(e){} }
+const soundOn = () => getPrefs().sound !== false;
+function openOptionsModal(){
+  const p=getPrefs(); document.getElementById('opt-sound').checked=p.sound!==false; document.getElementById('opt-vibe').checked=p.vibe!==false;
+  document.getElementById('opt-push').checked=p.push!==false && ('Notification' in window) && Notification.permission==='granted';
+  document.getElementById('options-modal').style.display='flex';
+}
+function closeOptionsModal(){ document.getElementById('options-modal').style.display='none'; }
+
+// ============================================================
 // WEB AUDIO API
 // ============================================================
 let audioCtx = null;
@@ -31,6 +45,7 @@ function getAudioCtx(){ if(!audioCtx) audioCtx = new (window.AudioContext||windo
 
 let shakeInterval = null;
 function playClickSound(){
+  if(!soundOn()) return;
   // Tension croissante : clics de plus en plus rapides
   try{
     const ctx = getAudioCtx();
@@ -49,6 +64,7 @@ function playClickSound(){
 }
 
 function playImpactSound(){
+  if(!soundOn()) return;
   try{
     const ctx = getAudioCtx();
     const t = ctx.currentTime;
@@ -74,6 +90,7 @@ function playImpactSound(){
 }
 
 function playRevealSound(rarity){
+  if(!soundOn()) return;
   try{
     const ctx = getAudioCtx();
     let t = ctx.currentTime + 0.05;
@@ -146,7 +163,11 @@ const slugOfLine = l => { try { return new URL(l.split('|')[1]).searchParams.get
 })();
 function packInventory(inv) {
   const out = {}, ok = Object.keys(LOOT_BY_ID).length > 0;
-  for (const k in (inv || {})) { const c = inv[k]; if (!(c > 0)) continue; const key = (ok && LOOT_ID[k]) || k; out[key] = Math.max(out[key] || 0, c); }
+  for (const k in (inv || {})) {
+    const c = inv[k]; if (!(c > 0)) continue;
+    const ph = k.match(/^([a-z0-9-]+)\|#\|Objet inconnu\|C$/i);                     // repère créé quand data.js ne connaissait pas l'identifiant : on remet l'identifiant d'origine
+    const key = ph ? ph[1] : ((ok && LOOT_ID[k]) || k); out[key] = Math.max(out[key] || 0, c);
+  }
   return out;
 }
 // ⚠ TEMPORAIRE — À SUPPRIMER APRÈS LE 2026-11-24 (rappel : MEMOIRE.md « RAPPELS » + mémoire Claude).
@@ -173,11 +194,126 @@ function unpackInventory(inv) {
   if (legacy.length) console.info('[Correctif raretés] ' + legacy.length + ' objet(s) ré-étiqueté(s) vers la ligne actuelle de data.js');
   return out;
 }
-// Vrai si l'inventaire chargé contient des clés longues convertibles (ancien format / ancienne rareté) → on réenregistre aussitôt pour nettoyer le Firestore.
-let _repack = false;
+// ============================================================
+// SYNCHRONISATION SÛRE (v2.a2.15) — règle d'or : un objet d'inventaire ne doit JAMAIS disparaître.
+//  • Révision `rev` + transaction : on n'écrase jamais un cloud modifié ailleurs ; en cas de conflit, FUSION À 3 VOIES (base = dernière synchro de CET appareil) :
+//    cloud + (ce que cet appareil a changé) → les gains hors-ligne et ceux d'un autre appareil s'additionnent, les recyclages aussi.
+//  • Garde-fou : le résultat contient toujours AU MOINS tous les objets uniques du cloud ET du local (un objet n'est jamais retiré, seul son compteur varie).
+//  • `state.uid` : l'état local d'un AUTRE compte est ignoré (jamais mélangé) ; copie de sécurité locale avant.
+//  • Sauvegardes de secours dans le document du joueur (`backups.preMigration`, `.daily`, `.conflict`).
+//  • Aucune écriture cloud avant la 1re synchro réussie, ni si data.js n'est pas chargé.
+// Rien d'autre ne doit écrire `players/{uid}.state` : tout passe par syncState().
+// ============================================================
+const SCHEMA = 2, BASE_KEY = 'arcane-base', LOCALBK_KEY = 'arcane-localbackup';
+let _cloudLoaded = false, _syncing = false, _syncAgain = false, _dirty = false, _syncT = 0, _mut = 0, _base = null, _lastSync = null;
+// Vrai si l'inventaire contient des clés longues convertibles (ancien format / ancienne rareté).
 const needsRepack = inv => Object.keys(LOOT_BY_ID).length > 0 && Object.keys(inv || {}).some(k => k.includes('|') && (LOOT_ID[k] || (TEMP_RARITY_FIX && LOOT_BY_ID[slugOfLine(k)])));
-const serializeState = () => Object.assign({}, state, { inventory: packInventory(state.inventory) });
-const mergeCloudState = cs => { if (needsRepack(cs.inventory)) _repack = true; state = Object.assign(state, cs, { inventory: unpackInventory(cs.inventory) }); };
+const dataOk = () => Object.keys(LOOT_BY_ID).length > 0;
+const copyInv = inv => Object.assign({}, inv);
+const serializeStateOf = st => Object.assign({}, st, { inventory: packInventory(st.inventory) });
+const serializeState = () => serializeStateOf(state);
+const unpackState = cs => Object.assign({}, cs, { inventory: unpackInventory(cs.inventory) });
+const snapLocal = () => Object.assign({}, state, { inventory: copyInv(state.inventory), mjAdded: (state.mjAdded || []).slice() });
+const freshState = () => ({ version: CURRENT_VERSION, keys: MAX_KEYS, lastRegen: Date.now(), inventory: {}, chestsOpened: 0, fragments: 0, forceLegendary: false, mjActive: false, pseudo: '' });
+const snapBase = st => ({ uid: st.uid || '', rev: st.rev || 0, inv: copyInv(st.inventory), keys: st.keys || 0, fragments: st.fragments || 0, clickerClaimed: st.clickerClaimed || 0, chestsOpened: st.chestsOpened || 0 });
+function loadBase() { try { const b = JSON.parse(localStorage.getItem(BASE_KEY) || 'null'); if (b) b.inv = unpackInventory(b.inv); return b; } catch (e) { return null; } }
+function storeBase(b) { _base = b; try { localStorage.setItem(BASE_KEY, JSON.stringify(Object.assign({}, b, { inv: packInventory(b.inv) }))); } catch (e) {} }
+function ensureSuperset(inv, ref) { for (const k in (ref || {})) if (ref[k] > 0 && !(inv[k] > 0)) inv[k] = ref[k]; return inv; }
+
+// Fusion d'inventaires (clés longues). base = inventaire à la dernière synchro de cet appareil (ou null).
+// « aN » (alpha, ex. 2.a3.1) vaut 1000+N : 2.2.0 < 2.a2.17 < 2.a3.0 < 2.a3.1 (parseInt('a3') donnait 0 → alpha jugée plus ancienne que 2.2.0)
+const verPart = n => { const m = /^a(\d+)$/i.exec(String(n).trim()); return m ? 1000 + (+m[1]) : (parseInt(n) || 0); };
+const cmpVer = (a, b) => { const x = String(a || '0').split('.').map(verPart), y = String(b || '0').split('.').map(verPart); for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0); return 0; };
+const newerVer = (a, b) => cmpVer(a, b) >= 0 ? (a || '') : (b || '');
+function mergeInventories(base, local, cloud) {
+  const out = {}, keys = new Set([...Object.keys(local || {}), ...Object.keys(cloud || {})]);
+  keys.forEach(k => {
+    const l = local && local[k] > 0 ? local[k] : 0, c = cloud && cloud[k] > 0 ? cloud[k] : 0;
+    let m;
+    if (!l || !c) m = Math.max(l, c);                                       // présent d'un seul côté : on le garde (jamais de perte)
+    else if (base) { const b = base[k] > 0 ? base[k] : 0; m = Math.max(c + (l - b), 1); }                            // 3 voies (plancher 1 : un objet possédé d'un côté n'est jamais retiré)
+    else m = Math.max(l, c);                                                // pas de base connue : le plus grand
+    if (m > 0) out[k] = m;
+  });
+  return out;
+}
+// Fusion d'états complets (inventaire en clés longues). L = local, C = cloud.
+function mergeStates(base, L, C) {
+  const M = Object.assign({}, C);
+  M.inventory = mergeInventories(base && base.inv, L.inventory, C.inventory);
+  const delta = f => Math.max(0, (C[f] || 0) + ((L[f] || 0) - (base[f] || 0)));
+  M.chestsOpened = base ? delta('chestsOpened') : Math.max(L.chestsOpened || 0, C.chestsOpened || 0);
+  let keys = base ? delta('keys') : (C.keys || 0), frag = base ? delta('fragments') : (C.fragments || 0);   // sans base : le cloud fait foi (pas de clés gratuites sur appareil neuf)
+  if (base && keys > MAX_KEYS && Math.max(L.keys || 0, C.keys || 0) <= MAX_KEYS) keys = MAX_KEYS;          // double régénération
+  while (frag >= FRAGS_PER_KEY) { frag -= FRAGS_PER_KEY; keys++; }
+  M.keys = keys; M.fragments = frag;
+  M.clickerClaimed = Math.max(L.clickerClaimed || 0, C.clickerClaimed || 0);
+  M.patchSeen = newerVer(L.patchSeen, C.patchSeen);                        // dernier patchnote lu : le plus récent des deux
+  M.lastRegen = keys >= MAX_KEYS ? Date.now() : (base ? Math.min(L.lastRegen || Date.now(), C.lastRegen || Date.now()) : (C.lastRegen || Date.now()));
+  M.pseudo = C.pseudo || L.pseudo || '';
+  const seen = new Set(), adds = []; [].concat(C.mjAdded || [], L.mjAdded || []).forEach(a => { const id = (a && a.name) + '@' + (a && a.ts); if (!seen.has(id)) { seen.add(id); adds.push(a); } });
+  if (adds.length) M.mjAdded = adds;
+  M.forceLegendary = !!L.forceLegendary; M.mjActive = !!L.mjActive;
+  return M;
+}
+
+// ---- Moteur : lecture + fusion + écriture en UNE transaction ----
+async function syncState(reason) {
+  const u = window.auth?.currentUser;
+  if (!u || !window.runTransaction || !window.db) return false;
+  if (!dataOk()) { console.warn('[synchro] data.js non chargé : aucune écriture cloud'); return false; }
+  if (_syncing) { _syncAgain = true; return false; }
+  _syncing = true; clearTimeout(_syncT);
+  const mut0 = _mut, L0 = snapLocal();
+  try {
+    const ref = window.doc(window.db, 'players', u.uid); let res = null;
+    await window.runTransaction(window.db, async tx => {
+      const snap = await tx.get(ref), data = snap.exists() ? snap.data() : {}, now = Date.now();
+      const cs = data.state ? unpackState(data.state) : null;
+      const base = _base && _base.uid === u.uid ? _base : null, foreign = !!(L0.uid && L0.uid !== u.uid);
+      let merged, mode;
+      if (!cs) { merged = foreign ? freshState() : Object.assign({}, L0); mode = 'create'; }
+      else if (foreign) { merged = Object.assign({}, cs); mode = 'adopt'; }                       // état local d'un autre compte : ignoré
+      else if (base && (cs.rev || 0) === base.rev) { merged = Object.assign({}, cs, L0); mode = 'push'; }   // cloud inchangé depuis notre dernière synchro
+      else { merged = mergeStates(base, L0, cs); mode = 'merge'; }
+      if (data.pseudo) merged.pseudo = data.pseudo;
+      merged.inventory = Object.assign({}, merged.inventory);
+      if (cs) ensureSuperset(merged.inventory, cs.inventory);                                     // garde-fou : jamais moins d'objets uniques que le cloud
+      if (mode !== 'adopt' && !foreign) ensureSuperset(merged.inventory, L0.inventory);           // … ni que le local
+      merged.uid = u.uid; merged.rev = ((cs && cs.rev) || 0) + 1; merged.savedAt = now; merged.schema = SCHEMA;
+      const bk = {}, prev = data.backups || {};
+      if (cs && !prev.preMigration && (cs.schema !== SCHEMA || needsRepack(data.state.inventory))) bk.preMigration = { ts: now, state: data.state };   // copie BRUTE avant la 1re conversion
+      if (cs && (!prev.daily || now - (prev.daily.ts || 0) > 864e5)) bk.daily = { ts: now, state: data.state };                                   // instantané quotidien
+      if (mode === 'merge' && base) bk.conflict = { ts: now, cloud: data.state, local: serializeStateOf(L0) };                                      // dernier conflit
+      const body = { state: serializeStateOf(merged), lastUpdated: new Date().toISOString() }, fields = ['state', 'lastUpdated'];
+      if (merged.pseudo) { body.pseudo = merged.pseudo; fields.push('pseudo'); }
+      Object.keys(bk).forEach(k => fields.push('backups.' + k)); if (Object.keys(bk).length) body.backups = bk;
+      tx.set(ref, body, { mergeFields: fields });
+      res = { merged, mode, hadBase: !!base, foreign, clickerEarned: data.clicker && data.clicker.earned, backups: Object.keys(bk) };
+    });
+    if (res.foreign) { try {                                                                     // copie de sécurité locale de l'état de l'autre compte (3 max)
+      localStorage.setItem(LOCALBK_KEY + '-' + Date.now(), JSON.stringify(serializeStateOf(L0)));
+      Object.keys(localStorage).filter(k => k.startsWith(LOCALBK_KEY + '-')).sort().slice(0, -3).forEach(k => localStorage.removeItem(k)); } catch (e) {} }
+    let final = res.merged;
+    if (_mut !== mut0) final = mergeStates(snapBase(L0), snapLocal(), res.merged);               // le joueur a agi pendant la synchro : on rejoue ses actions
+    state = Object.assign({}, final);
+    storeBase(snapBase(res.merged)); _cloudLoaded = true; _dirty = (_mut !== mut0); _lastSync = { mode: res.mode, rev: res.merged.rev, backups: res.backups, at: Date.now() };
+    try { localStorage.setItem(LSKEY, JSON.stringify(serializeState())); } catch (e) {}
+    if (res.mode !== 'push') { if (typeof renderInventory === 'function') renderInventory(); if (typeof updateTimer === 'function') updateTimer(); }
+    if (res.mode === 'merge' && res.hadBase) showToast('☁ Progression fusionnée avec ton autre appareil', 4000);
+    syncLeaderboardDoc(); syncPushSchedule();
+    if (_dirty) scheduleSync();
+    return res;
+  } catch (e) { console.warn('[synchro] échec (hors-ligne ?) — la sauvegarde locale est conservée', e && (e.code || e.message)); _dirty = true; return false; }
+  finally { _syncing = false; if (_syncAgain) { _syncAgain = false; setTimeout(() => syncState('again'), 300); } }
+}
+function scheduleSync() { if (!window.auth?.currentUser || !_cloudLoaded) return; clearTimeout(_syncT); _syncT = setTimeout(() => syncState('save'), 1200); }
+// Reprise après hors-ligne / retour sur l'onglet / fermeture : on resynchronise dès qu'il y a du travail non envoyé
+window.addEventListener('online', () => { if (_dirty) syncState('online'); });
+document.addEventListener('visibilitychange', () => { if (_dirty && window.auth?.currentUser) syncState('visibility'); });
+window.addEventListener('pagehide', () => { if (_dirty && window.auth?.currentUser) syncState('pagehide'); });
+setInterval(() => { if (_dirty && window.auth?.currentUser && !_syncing) syncState('retry'); }, 60000);
+window.syncInfo = () => ({ dirty: _dirty, cloudLoaded: _cloudLoaded, rev: state.rev || 0, baseRev: _base ? _base.rev : null, uid: (state.uid || '').slice(0, 6), last: _lastSync });
 // Diagnostic à lancer dans la console (F12) : inventoryIdStats()
 window.inventoryIdStats = () => ({ objetsDansDataJs: (typeof loots !== 'undefined' ? loots.length : 0), identifiantsCompacts: Object.keys(LOOT_BY_ID).length, nonCompactes: (typeof loots !== 'undefined' ? loots.length : 0) - Object.keys(LOOT_BY_ID).length });
 
@@ -185,6 +321,122 @@ window.inventoryIdStats = () => ({ objetsDansDataJs: (typeof loots !== 'undefine
 // CLASSEMENT : mini-document public `leaderboard/{uid}` (pseudo + totaux) — le classement ne télécharge plus les documents joueurs complets.
 // Règles Firestore à ajouter : voir MEMOIRE.md « Règles Firestore ». Écriture seulement si une valeur a changé.
 // ============================================================
+// ============================================================
+// NOTIFICATIONS PUSH (Firebase Cloud Messaging) — mode d'emploi : NOTIFICATIONS.md
+// Le jeu enregistre dans Firestore `push/{uid}` : le(s) jeton(s) de l'appareil + les HEURES prévues (clés rechargées, clé du Clicker).
+// Un script GitHub Actions (scripts/send-push.js) envoie les notifications arrivées à échéance ; sw.js les affiche.
+// ============================================================
+const FCM_VAPID_KEY = 'BPkbzA8BIJAKUKVP4NTaGprmd8P445Ke39zEhMVofl1L7ix2HbIKM9pEFeIaf82qFqsCsoJwIw1U-b7QvwPGhEI';   // clé PUBLIQUE (Web Push), sans danger
+const FCM_CDN = 'https://www.gstatic.com/firebasejs/13.2.0/firebase-messaging.js';
+const pushDir = () => location.pathname.replace(/[^/]*$/, '');
+const pushOriginKey = () => (location.host + pushDir()).replace(/[^a-zA-Z0-9]/g, '_');     // un jeton par adresse (officiel / test)
+const pushBaseUrl = () => location.origin + pushDir();
+async function getFcmToken() {
+  const m = await import(FCM_CDN);
+  if (!(await m.isSupported())) throw new Error('unsupported');
+  const reg = await navigator.serviceWorker.ready;
+  return m.getToken(m.getMessaging(window.fbApp), { vapidKey: FCM_VAPID_KEY, serviceWorkerRegistration: reg });
+}
+async function savePushToken(token) {
+  const u = window.auth?.currentUser; if (!u) return;
+  await window.setDoc(window.doc(window.db, 'push', u.uid), { tokens: { [pushOriginKey()]: { t: token, url: pushBaseUrl(), ts: Date.now() } }, updatedAt: new Date().toISOString() }, { merge: true });
+}
+async function enablePush() {                           // à appeler depuis un CLIC (Options ou fenêtre d'invitation) ; renvoie true si activé
+  try {
+    if (!window.auth?.currentUser) throw new Error('login');
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) throw new Error('unsupported');
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') throw new Error('denied');
+    const token = await getFcmToken();
+    await savePushToken(token); localStorage.setItem('arcane-push-token', token); setPref('push', true);
+    showToast('🔔 Notifications activées !', 4000); syncPushSchedule(true);
+    return true;
+  } catch (e) {
+    if (e.message === 'denied') setPref('push', false);
+    const m = { login: 'Connecte-toi avec Google pour activer les notifications.', unsupported: "Notifications indisponibles ici. Sur iPhone : ajoute d'abord l'app à l'écran d'accueil (Partager → Sur l'écran d'accueil).", denied: 'Autorisation refusée : tu peux la modifier dans les réglages du navigateur.' };
+    showToast(m[e.message] || "Activation impossible pour le moment.", 6000); if (!m[e.message]) console.warn('push', e);
+    return false;
+  }
+}
+async function togglePush(cb) { if (!cb.checked) { await disablePush(); return; } if (!(await enablePush())) cb.checked = false; }
+async function disablePush() {
+  setPref('push', false); localStorage.removeItem('arcane-push-token');
+  try { const u = window.auth?.currentUser; if (u) await window.setDoc(window.doc(window.db, 'push', u.uid), { tokens: { [pushOriginKey()]: null }, keysAt: null, clickerAt: null, updatedAt: new Date().toISOString() }, { merge: true }); } catch (e) {}
+  try { const m = await import(FCM_CDN); await m.deleteToken(m.getMessaging(window.fbApp)); } catch (e) {}
+  showToast('🔕 Notifications désactivées');
+}
+// ACTIVÉES PAR DÉFAUT : à chaque connexion, si l'autorisation est déjà accordée on rafraîchit le jeton ; sinon on PROPOSE une fois (fenêtre d'invitation,
+// puis rappel après 7 jours). Le navigateur exige un clic du joueur pour demander l'autorisation : on ne peut pas l'accorder à sa place.
+// Tant que le joueur n'a pas désactivé lui-même (`push:false`), tout reste actif.
+const PUSH_ASK_KEY = 'arcane-push-asked';
+async function ensurePush(delay) {
+  if (!('Notification' in window) || !('serviceWorker' in navigator) || getPrefs().push === false) return;
+  if (Notification.permission === 'granted') {
+    try { const t = await getFcmToken(); if (t !== localStorage.getItem('arcane-push-token')) { await savePushToken(t); localStorage.setItem('arcane-push-token', t); } syncPushSchedule(true); }
+    catch (e) { console.warn('push', e); }
+  } else if (Notification.permission === 'default') maybeAskPush(delay);
+}
+function maybeAskPush(delay) {
+  const asked = +localStorage.getItem(PUSH_ASK_KEY) || 0; if (asked && Date.now() - asked < 7 * 864e5) return;
+  setTimeout(async () => {
+    try { const m = await import(FCM_CDN); if (!(await m.isSupported())) return; } catch (e) { return; }        // ex. iPhone sans installation : on ne harcèle pas
+    if (Notification.permission !== 'default' || document.hidden || !window.auth?.currentUser) return;
+    document.getElementById('push-modal').style.display = 'flex';
+  }, delay || 4000);
+}
+function pushPromptYes() { document.getElementById('push-modal').style.display = 'none'; localStorage.setItem(PUSH_ASK_KEY, Date.now()); enablePush(); }
+function pushPromptLater() { document.getElementById('push-modal').style.display = 'none'; localStorage.setItem(PUSH_ASK_KEY, Date.now()); }
+// ============================================================
+// INSTALLATION DE L'APPLICATION (PWA) — une invitation unique après la connexion, puis Menu › Installer (slot 6)
+//  - Chrome/Edge/Android : `window._bip` (événement beforeinstallprompt, capturé dans <head>) → vrai bouton « Installer »
+//  - iPhone/iPad (Safari) et autres : pas d'événement → étapes écrites (Partager › Sur l'écran d'accueil / menu du navigateur)
+// ============================================================
+const INSTALL_ASK_KEY = 'arcane-install-asked';
+const isStandalone = () => { try { return matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches || navigator.standalone === true || !!window._justInstalled; } catch (e) { return false; } };
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+function refreshInstallSlot() { const b = document.getElementById('install-slot'); if (b) b.style.display = isStandalone() ? 'none' : ''; }
+function openInstallModal() {
+  if (isStandalone()) { showToast('✅ L\'application est déjà installée'); return; }
+  const go = document.getElementById('inst-go'), st = document.getElementById('inst-steps');
+  if (window._bip) { go.style.display = ''; st.style.display = 'none'; }
+  else {
+    go.style.display = 'none'; st.style.display = '';
+    st.innerHTML = isIOS()
+      ? 'Sur iPhone / iPad (Safari) : touche <b>Partager</b> <span style="font-size:15px">⬆️</span> puis <b>« Sur l\'écran d\'accueil »</b>.'
+      : 'Ouvre le <b>menu ⋮</b> de ton navigateur puis choisis <b>« Installer l\'application »</b> ou <b>« Ajouter à l\'écran d\'accueil »</b>.';
+  }
+  localStorage.setItem(INSTALL_ASK_KEY, '1');
+  document.getElementById('install-modal').style.display = 'flex';
+}
+function closeInstallModal() { document.getElementById('install-modal').style.display = 'none'; localStorage.setItem(INSTALL_ASK_KEY, '1'); }
+async function installApp() {
+  const e = window._bip; if (!e) { openInstallModal(); return; }
+  try { e.prompt(); const c = await e.userChoice; window._bip = null; closeInstallModal(); if (c && c.outcome === 'accepted') showToast('📲 Installation en cours…'); }
+  catch (err) { console.warn('install', err); closeInstallModal(); }
+}
+function maybeAskInstall(delay, tries) {                                      // invitation automatique : une seule fois, jamais par-dessus une autre fenêtre
+  if (isStandalone() || localStorage.getItem(INSTALL_ASK_KEY)) return;
+  const canNative = !!window._bip, mobile = isIOS() || /android/i.test(navigator.userAgent);
+  if (!canNative && !mobile) return;                                         // ordinateur sans prise en charge : pas d'invitation (l'option reste dans le menu)
+  setTimeout(() => {
+    if (isStandalone() || localStorage.getItem(INSTALL_ASK_KEY) || !window.auth?.currentUser) return;
+    const busy = ['patch-modal', 'push-modal', 'install-modal', 'legal-modal', 'leaderboard-modal', 'options-modal'].some(id => Nav.shown(id)) || Nav.hasClass('sidebar', 'open') || document.hidden;
+    if (busy) { if ((tries || 0) < 8) maybeAskInstall(5000, (tries || 0) + 1); return; }
+    openInstallModal();
+  }, delay || 6000);
+}
+window.addEventListener('bip-ready', refreshInstallSlot); window.addEventListener('bip-done', refreshInstallSlot);
+document.addEventListener('DOMContentLoaded', refreshInstallSlot);
+try { matchMedia('(display-mode: standalone)').addEventListener('change', refreshInstallSlot); } catch (e) {}
+let _pushSig = '';
+async function syncPushSchedule(force) {                // heure à laquelle les clés seront toutes rechargées (null si déjà pleines)
+  const u = window.auth?.currentUser;
+  if (!u || getPrefs().push === false || !('Notification' in window) || Notification.permission !== 'granted') return;
+  const keysAt = state.keys < MAX_KEYS ? state.lastRegen + (MAX_KEYS - state.keys) * REGEN_MS : null;
+  const sig = String(keysAt ? Math.round(keysAt / 6e4) : 0); if (!force && sig === _pushSig) return; _pushSig = sig;
+  try { await window.setDoc(window.doc(window.db, 'push', u.uid), { keysAt, updatedAt: new Date().toISOString() }, { merge: true }); } catch (e) { _pushSig = ''; }
+}
+
 let _lbSig = '';
 async function syncLeaderboardDoc() {
   const u = window.auth?.currentUser; if (!u || !window.db || !state.pseudo) return;
@@ -198,48 +450,64 @@ async function syncLeaderboardDoc() {
   } catch (e) { _lbSig = ''; console.warn('Classement : écriture impossible (règles Firestore ?)', e.code || e); }
 }
 
-async function saveState() { 
-  localStorage.setItem(LSKEY, JSON.stringify(serializeState()));
-
-  if (window.auth?.currentUser) {
-    try {
-      const userDocRef = window.doc(window.db, "players", window.auth.currentUser.uid);
-      // mergeFields : le champ `state` est REMPLACÉ en entier (sinon les anciennes clés longues resteraient dans le document)
-      await window.setDoc(userDocRef, {
-        state: serializeState(),
-        lastUpdated: new Date().toISOString()
-      }, { mergeFields: ['state', 'lastUpdated'] });
-      syncLeaderboardDoc();
-    } catch (e) {
-      console.error("Erreur de sauvegarde cloud :", e);
-    }
-  }
+function saveState() {
+  _mut++; state.savedAt = Date.now();
+  try { localStorage.setItem(LSKEY, JSON.stringify(serializeState())); } catch (e) { console.warn('localStorage plein ou indisponible', e); }
+  _dirty = true; scheduleSync();                           // envoi au cloud différé (1,2 s) et fusionné : voir syncState()
 }
 
-async function loadState() {
+async function loadState() {                                // lecture LOCALE seulement ; le cloud est fusionné par loadGameDataFromCloud() dès que Firebase répond
+  _base = loadBase();
   const raw = localStorage.getItem(LSKEY);
   if (!raw) { saveState(); return; }
-  try {
-    const loc = JSON.parse(raw); if (needsRepack(loc.inventory)) _repack = true; loc.inventory = unpackInventory(loc.inventory); state = Object.assign(state, loc);
-  } catch (e) { saveState(); }
+  try { const loc = JSON.parse(raw); loc.inventory = unpackInventory(loc.inventory); state = Object.assign(state, loc); }
+  catch (e) { try { localStorage.setItem(LSKEY + '-corrompu', raw); } catch (x) {} console.error('Sauvegarde locale illisible : copie conservée', e); }   // on n'écrase pas une sauvegarde illisible
+}
 
-  if (window.auth?.currentUser) {
-    try {
-      const userDocRef = window.doc(window.db, "players", window.auth.currentUser.uid);
-      const docSnap = await window.getDoc(userDocRef);
-      if (docSnap.exists() && docSnap.data().state) {
-        mergeCloudState(docSnap.data().state);
-        if (typeof renderInventory === 'function') renderInventory();
-        if (typeof updateTimer === 'function') updateTimer();
-        console.log("Données chargées depuis le Cloud des Arcanes !");
-      }
-    } catch (e) {
-      console.error("Erreur de chargement cloud :", e);
-    }
-  }
-  applyVersionUpdate();
-  claimClickerFragments();
-  if (_repack) { _repack = false; saveState(); }
+// ============================================================
+// PATCHNOTES (contenu : patchnotes.js) — affiché UNE fois par version et par compte (state.patchSeen, synchronisé), puis via Menu › Patchnote.
+// Ordre à l'entrée : (pseudo si nouveau compte) → patchnote → invitation aux notifications.
+// ============================================================
+const patchPending = () => typeof PATCHNOTES !== 'undefined' && PATCHNOTES.length > 0 && cmpVer(state.patchSeen, PATCHNOTES[0].v) < 0;
+let _patchAuto = false, _entryDone = false;
+function richText(el, txt) {
+  String(txt).split(/(\*\*[^*]+\*\*)/).forEach(p => {
+    if (/^\*\*[^*]+\*\*$/.test(p)) { const b = document.createElement('strong'); b.textContent = p.slice(2, -2); el.append(b); }
+    else if (p) el.append(document.createTextNode(p));
+  });
+}
+function renderPatchnotes() {
+  const list = document.getElementById('patch-list'); list.textContent = '';
+  PATCHNOTES.forEach((n, i) => {
+    const d = document.createElement('details'); d.className = 'pv' + (i === 0 ? ' cur' : ''); if (i === 0) d.open = true;
+    const sm = document.createElement('summary'); sm.append(document.createTextNode('V' + n.v + ' — « ' + n.name + ' »'));
+    if (i === 0) { const bd = document.createElement('span'); bd.className = 'pv-badge'; bd.textContent = _patchAuto ? 'NOUVEAU' : 'ACTUELLE'; sm.append(bd); }
+    d.append(sm);
+    const body = document.createElement('div'); body.className = 'pv-body';
+    if (n.gift) { const g = document.createElement('div'); g.className = 'pv-gift'; g.textContent = '🎁 ' + n.gift; body.append(g); }
+    n.sections.forEach(sec => {
+      const s = document.createElement('div'), h = document.createElement('h4'), ul = document.createElement('ul'); s.className = 'pv-sec'; h.textContent = sec.t;
+      sec.items.forEach(it => { const li = document.createElement('li'); richText(li, it); ul.append(li); });
+      s.append(h, ul); body.append(s);
+    });
+    d.append(body); list.append(d);
+  });
+}
+function openPatchnotes(auto) {
+  if (typeof PATCHNOTES === 'undefined' || !PATCHNOTES.length) return;
+  _patchAuto = !!auto; renderPatchnotes();
+  document.getElementById('patch-ok').textContent = auto ? 'Compris !' : 'Fermer';
+  document.getElementById('patch-modal').style.display = 'flex';
+}
+function closePatchnotes() {
+  document.getElementById('patch-modal').style.display = 'none';
+  if (patchPending()) { state.patchSeen = PATCHNOTES[0].v; saveState(); }        // marqué comme lu
+  if (_patchAuto) { _patchAuto = false; ensurePush(1200); }                       // … puis l'invitation aux notifications
+}
+function afterEntry() {                                                           // appelée une fois l'app affichée ET le compte synchronisé
+  if (_entryDone) return; _entryDone = true;
+  setTimeout(() => { if (patchPending()) openPatchnotes(true); else ensurePush(); }, 900);
+  maybeAskInstall(7000);                                                          // … puis, une seule fois, l'invitation à installer l'application
 }
 
 // MISE À JOUR : une seule fois par joueur, quel que soit le nombre de versions sautées → clés remises à MAX_KEYS (jamais réduites).
@@ -282,7 +550,7 @@ function updateTimer(){
   const displayMax = Math.max(MAX_KEYS, state.keys);
   for(let i=0;i<displayMax;i++){
     const d=document.createElement('div');
-    d.className='key-icon '+(i<state.keys?'active':'inactive');
+    d.className='key-icon '+(i<state.keys?'active':'inactive')+(i===_glowIdx?' glow':'');
     d.innerHTML=`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>`;
     keysEl.appendChild(d);
   }
@@ -391,6 +659,7 @@ function createParticles(card, rarity){
 // ============================================================
 let isAnimating=false;
 function openChest(){
+  if(_authPending){ showToast('⏳ Synchronisation avec ton compte…'); return; }
   if(isAnimating||state.keys<=0) return;
   playClickSound();
   isAnimating=true;
@@ -408,7 +677,7 @@ function openChest(){
   setTimeout(()=>{
     const flash=document.getElementById('flash');
     flash.style.opacity='1';
-    if(navigator.vibrate) navigator.vibrate([80,30,120]);
+    if(navigator.vibrate && getPrefs().vibe!==false) navigator.vibrate([80,30,120]);
     playImpactSound();
 
     setTimeout(()=>{
@@ -514,6 +783,7 @@ const RECYCLE_FRAGS = { C:1, PC:2, R:3, TR:4, L:5, A:5 };
 const recycleGain = lootKey => RECYCLE_FRAGS[lootKey.split('|')[3]] || 1;
 function recycleItem(lootKey, e){
   e.stopPropagation();
+  if(_authPending){ showToast('⏳ Synchronisation avec ton compte…'); return; }
   if((state.inventory[lootKey]||0) < 2) return;
   const gain = recycleGain(lootKey);
   state.inventory[lootKey]--;
@@ -540,7 +810,7 @@ function renderInventory(){
       + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
       + 'Aventurier :&nbsp;<strong>' + escapeLeaderboardHtml(state.pseudo) + '</strong>'
       + '</div>'
-      + '<button class="share-btn" style="padding:4px 10px; font-size:11px; margin:0;" onclick="toggleProfilePanel()">⚙️ Profil</button>'
+      + '<button class="share-btn" style="padding:4px 10px; font-size:11px; margin:0;" onclick="toggleProfilePanel()">🎛️ Menu</button>'
       + '</div>'
     : '';
   const search=document.getElementById('search-input').value.toLowerCase();
@@ -683,11 +953,11 @@ function updateForceLegendary(){ state.forceLegendary=document.getElementById('f
 // TOAST
 // ============================================================
 let toastTimer=null;
-function showToast(msg){
+function showToast(msg, ms){
   const t=document.getElementById('toast');
   t.textContent=msg; t.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer=setTimeout(()=>t.classList.remove('show'),2800);
+  toastTimer=setTimeout(()=>t.classList.remove('show'),ms||2800);
 }
 
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeModal(); });
@@ -698,10 +968,11 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeModal(); });
 // INIT
 // ============================================================
 window.onload = function() {
-  // Pas de Service Worker en local (Live Server) : chemin /coffre_des_arcanes/ inexistant → erreur 404 et cache périmé en dev.
-  const isLocalDev = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
-  if ('serviceWorker' in navigator && !isLocalDev) {
-    navigator.serviceWorker.register('/coffre_des_arcanes/sw.js')
+  // Chemin RELATIF : le même code marche sur /coffre_des_arcanes/ et /coffre_des_arcanes_dev/ (sw.js ne met rien en cache en local).
+  if ('serviceWorker' in navigator) {
+    const hadController = !!navigator.serviceWorker.controller;       // vrai = une ancienne version tourne déjà dans cette page
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController) { const b = document.getElementById('update-banner'); if (b) b.style.display = 'flex'; } });
+    navigator.serviceWorker.register('sw.js')
       .then(reg => {
         console.log('SW enregistré', reg);
         // Vérification automatique des mises à jour du Service Worker
@@ -725,9 +996,11 @@ window.onload = function() {
   const welcome = document.getElementById('welcome-screen');
   
   // On s'appuie sur le state utilisateur ou le pseudo Google validé
-  if (state.username && state.username.length >= 2) {
-    // Joueur connecté : bypass écran d'accueil
-    if (welcome) welcome.style.display = 'none';
+  if (state.pseudo && state.pseudo.length >= 2) {
+    // Joueur déjà connu sur cet appareil : l'écran d'accueil est masqué par la classe `fast` (posée dans <head>) ;
+    // le Cloud est fusionné dès que Firebase répond → pendant ce court délai on bloque ouverture/recyclage (évite d'être écrasé par le Cloud).
+    _authPending = true; setTimeout(() => { _authPending = false; }, 6000);   // hors-ligne : on débloque au bout de 6 s
+    const ob = document.getElementById('open-btn'); if (ob) ob.disabled = true;
     bootApp();
   } else {
     // Nouveau joueur / Non connecté : afficher l'écran d'accueil, masquer #app
@@ -739,10 +1012,14 @@ window.onload = function() {
   }
 };
 
+let _booted = false, _authPending = false;
 function bootApp(){
+  if (_booted) { updateTimer(); document.getElementById('open-btn').disabled = state.keys <= 0; runPendingKeyFx(); return; }
+  _booted = true;
   updateTimer();
   setInterval(updateTimer, 1000);
   document.getElementById('open-btn').disabled = state.keys <= 0;
+  runPendingKeyFx();
   document.getElementById('card-area').style.display = 'none';
   document.getElementById('chest-wrap').style.display = 'flex';
 }
@@ -778,19 +1055,20 @@ async function submitCustomPseudo(){
   }
 
   bootApp();
+  afterEntry();
   showToast("✨ Bienvenue Mage " + pseudoVal + " !");
 }
 
 
 // <!-- FOOTER TEXTES ET LOGIQUE JURIDIQUE -->
 const LEGAL_TEXTS = {
-    mentions: {
+mentions: {
         title: "Mentions Légales",
-        body: "<p>L'application <strong>Le Coffre des Arcanes</strong> (Arcane Vault) est un outil interactif de simulation et de mini-jeux, édité par <strong>Moulecake</strong>.<br><strong>Contact :</strong> killpubs@gmail.com</p><p><strong>Hébergement :</strong> Ce site est hébergé par GitHub, Inc. (88 Colin P Kelly Jr St, San Francisco, CA 94107, USA) via GitHub Pages, et utilise les services d'infrastructure de Google / Firebase pour l'authentification.</p><p><strong>Propriété :</strong> Les contenus de règles, sorts et éléments de JDR s'appuient sur l'univers de référence de la 5e édition et demeurent la propriété de leurs créateurs respectifs.</p>"
+        body: "<p>L'application <strong>Le Coffre des Arcanes</strong> (Arcane Vault) est un outil interactif de simulation et de mini-jeux, édité par <strong>Moulecake</strong>.<br><strong>Contact :</strong> killpubs@gmail.com</p><p><strong>Hébergement :</strong> Ce site est hébergé par GitHub, Inc. (88 Colin P Kelly Jr St, San Francisco, CA 94107, USA) via GitHub Pages, et utilise les services d'infrastructure de Google / Firebase pour l'authentification.</p><p><strong>Propriété et Licences :</strong> Ce travail inclut du contenu extrait du System Reference Document (SRD) par Wizards of the Coast LLC, disponible sur <a href=\"https://www.dndbeyond.com/srd\" target=\"_blank\" rel=\"noopener noreferrer\">dndbeyond.com/srd</a>, et licencié sous Creative Commons Attribution 4.0 International (CC-BY-4.0).<br>Dungeons &amp; Dragons, D&amp;D et leurs logos associés sont des marques déposées de Wizards of the Coast LLC. <strong>Le Coffre des Arcanes</strong> est un produit indépendant, non affilié, endossé ou sponsorisé par Wizards of the Coast.</p>"
     },
     confidentialite: {
         title: "Confidentialité & Cookies",
-        body: "<p>Conformément au RGPD, nous veillons à la protection de vos données. L'application n'utilise <strong>aucun traceur publicitaire tiers</strong>.</p><p><strong>Données collectées :</strong> L'utilisation de Firebase Auth implique la gestion de votre identifiant de connexion. Votre progression et vos clés sont synchronisées via votre compte. Si vous activez les notifications push, un jeton technique est stocké pour l'envoi des alertes.</p><p><strong>Vos droits :</strong> Vous pouvez à tout moment effacer l'intégralité de vos données et réinitialiser votre profil directement depuis les paramètres de l'application.</p>"
+        body: "<p>Conformément au RGPD, nous veillons à la protection de vos données. L'application n'utilise <strong>aucun traceur publicitaire tiers</strong>.</p><p><strong>Données collectées :</strong> L'utilisation de Firebase Auth implique la gestion de votre identifiant de connexion. Votre progression et vos clés sont synchronisées via votre compte. Si vous activez les notifications (Options), un jeton technique de votre appareil et les heures prévues de vos rappels (clés rechargées, clé du Clicker) sont enregistrés dans votre compte et utilisés uniquement pour vous envoyer ces notifications, via le service Google Firebase Cloud Messaging. Vous pouvez les désactiver à tout moment dans Options (le jeton est alors supprimé).</p><p><strong>Vos droits :</strong> Vous pouvez à tout moment effacer l'intégralité de vos données et réinitialiser votre profil directement depuis les paramètres de l'application.</p>"
     },
     accessibilite: {
         title: "Accessibilité",
@@ -836,6 +1114,7 @@ if (typeof window.onAuthStateChanged === 'function') {
         userDisplay.style.display = "inline";
       }
       await loadGameDataFromCloud(user.uid);
+      _authPending = false;
 
       // Vérifier si le pseudo est déjà défini dans le state ou Firestore
       if (state.pseudo && state.pseudo.length >= 2) {
@@ -848,12 +1127,15 @@ if (typeof window.onAuthStateChanged === 'function') {
           appEl.style.opacity = '1';
         }
         bootApp();
+        afterEntry();                                            // patchnote (1 fois par version) puis invitation aux notifications
       } else {
         // Pas de pseudo défini : afficher la modale de saisie de pseudo bloquante
+        document.documentElement.classList.remove('fast');
         if (pseudoContainer) pseudoContainer.style.display = "flex";
       }
     } else {
       console.log("Mode Invité / Non connecté");
+      _authPending = false; document.documentElement.classList.remove('fast');   // pas connecté : on affiche l'écran d'accueil
       if (loginBtn) loginBtn.style.display = "block";
       if (loginBtn) loginBtn.innerText = "Se connecter avec Google";
       if (userDisplay) userDisplay.style.display = "none";
@@ -885,46 +1167,14 @@ document.getElementById("google-login-btn")?.addEventListener("click", () => {
   }
 });
 
-async function saveGameDataToCloud() {
-  if (!window.auth?.currentUser) return;
-  try {
-    const userDocRef = window.doc(window.db, "players", window.auth.currentUser.uid);
-    await window.setDoc(userDocRef, {
-      pseudo: state.pseudo || "",
-      state: serializeState(),
-      lastUpdated: new Date().toISOString()
-    }, { mergeFields: ['pseudo', 'state', 'lastUpdated'] });
-    console.log("Données sauvegardées dans les Arcanes du Cloud !");
-  } catch (e) {
-    console.error("Erreur lors de la sauvegarde Cloud :", e);
-  }
-}
+async function saveGameDataToCloud() { return syncState('manual'); }      // ancien nom conservé : tout passe par syncState()
 
 async function loadGameDataFromCloud(uid) {
   try {
-    const userDocRef = window.doc(window.db, "players", uid);
-    const docSnap = await window.getDoc(userDocRef);
-
-    if (docSnap.exists()) {
-      const data = docSnap.data();
-      console.log("Sauvegarde trouvée dans le Cloud :", data);
-      if (data.pseudo) {
-        state.pseudo = data.pseudo;
-      }
-      if (data.state) {
-        mergeCloudState(data.state);
-        if (data.pseudo && !state.pseudo) state.pseudo = data.pseudo;
-        if (typeof renderInventory === "function") renderInventory();
-        if (typeof updateTimer === "function") updateTimer();
-      }
-    } else {
-      console.log("Aucune sauvegarde trouvée. Première connexion !");
-      await saveGameDataToCloud();
-    }
+    const res = await syncState('login');                   // lit le cloud, fusionne avec le local (jamais d'écrasement), écrit le résultat
     applyVersionUpdate();
-    if (_repack) { _repack = false; saveState(); }
     syncLeaderboardDoc();
-    claimClickerFragments(docSnap.exists() ? docSnap.data().clicker?.earned : 0);
+    claimClickerFragments(res ? res.clickerEarned : 0);
   } catch (e) {
     console.error("Erreur lors du chargement des données Cloud :", e);
   }
@@ -1001,10 +1251,12 @@ async function openLeaderboardModal() {
       }
 
       const totalUnique = (typeof loots !== 'undefined' && loots.length) ? loots.length : 464;
+      const TOP_N = 10, me = (state && state.pseudo) ? String(state.pseudo) : '';
       let html = '';
 
       players.forEach((p, index) => {
         const rank = index + 1;
+        const extra = rank > TOP_N ? ' lb-extra' : '';
         const pct = totalUnique > 0 ? Math.round((p.discovered / totalUnique) * 100) : 0;
         let podiumClass = '';
         if (rank === 1) podiumClass = 'podium-1';
@@ -1017,7 +1269,7 @@ async function openLeaderboardModal() {
         else if (rank === 3) rankDisplay = '🥉 3';
 
         html += `
-          <div class="lb-row ${podiumClass}">
+          <div class="lb-row ${podiumClass}${extra}${me && p.pseudo === me ? ' lb-me' : ''}"${extra ? ' hidden' : ''}>
             <div class="lb-rank">${rankDisplay}</div>
             <div class="lb-pseudo" title="${escapeLeaderboardHtml(p.pseudo)}">${escapeLeaderboardHtml(p.pseudo)}</div>
             <div class="lb-score">${p.discovered} / ${totalUnique} obj.</div>
@@ -1026,7 +1278,16 @@ async function openLeaderboardModal() {
         `;
       });
 
+      if (players.length > TOP_N) html += '<button type="button" class="lb-more" id="lb-more">Voir le classement entier (' + players.length + ' mages)</button>';
       listContainer.innerHTML = html;
+      const more = document.getElementById('lb-more');
+      if (more) more.onclick = () => {                 // déplie / replie les rangs 11+ (le haut de la liste reste en place)
+        const open = more.dataset.open !== '1';
+        listContainer.querySelectorAll('.lb-extra').forEach(r => { r.hidden = !open; });
+        more.dataset.open = open ? '1' : '0';
+        more.textContent = open ? 'Réduire au Top 10' : 'Voir le classement entier (' + players.length + ' mages)';
+        if (!open) listContainer.scrollTop = 0;
+      };
     }
   } catch (err) {
     console.error("Erreur chargement leaderboard:", err);
@@ -1062,7 +1323,54 @@ function claimClickerFragments(cloudEarned) {
   while (state.fragments >= FRAGS_PER_KEY) { state.fragments -= FRAGS_PER_KEY; state.keys++; k++; }
   saveState(); updateTimer();
   if (k) document.getElementById('open-btn').disabled = false;
-  showToast('✦ Clicker : +' + d + ' fragment(s)' + (k ? ' → +' + k + ' clé(s) !' : ''));
+  showToast('✦ Clicker : +' + d + ' fragment(s)' + (k ? ' → +' + k + ' clé(s) !' : ''), k ? 7000 : 5000);
+  if (k) { _pendingKeyFx += k; if (_booted) setTimeout(runPendingKeyFx, 400); }
+}
+
+// ============================================================
+// ARRIVÉE D'UNE CLÉ GAGNÉE AU CLICKER : la clé d'or (5 éclats collés, joyau rouge) apparaît, puis vole se loger dans l'icône de clé
+// ============================================================
+let _pendingKeyFx = 0, _glowIdx = -1;
+function goldKeySvg(){
+  let sd = 7; const rnd = () => (sd = sd * 16807 % 2147483647) / 2147483647, f1 = n => n.toFixed(1);   // mêmes cassures que dans le Clicker
+  const P = a => a.map((p, i) => (i ? 'L' : 'M') + f1(p[0]) + ' ' + f1(p[1])).join('');
+  const zig = B => Array.from({ length: 9 }, (_, i) => [-2 + (i + (i > 0 && i < 8 ? (rnd() - .5) * .6 : 0)) * 5.5, B + (rnd() - .5) * 8]);
+  const cr = [70, 52, 36, 20].map(zig).map(z => '<path d="' + P(z) + '" fill="none" stroke="#241702" stroke-width="1"/><path d="' + P(z) + '" transform="translate(0 1)" fill="none" stroke="rgba(255,236,170,.7)" stroke-width=".5"/>').join('');
+  return '<svg viewBox="0 0 40 112" width="100%" height="100%"><defs><linearGradient id="kfg" gradientUnits="userSpaceOnUse" x1="2" y1="0" x2="38" y2="0"><stop offset="0" stop-color="#8a6a1d"/><stop offset=".3" stop-color="#fff1b0"/><stop offset=".55" stop-color="#e8c04a"/><stop offset="1" stop-color="#7a5a14"/></linearGradient>'
+    + '<radialGradient id="kfm" cx=".4" cy=".35" r=".75"><stop offset="0" stop-color="#fda4af"/><stop offset=".45" stop-color="#e11d48"/><stop offset="1" stop-color="#7f1030"/></radialGradient>'
+    + '<clipPath id="kfc"><circle cx="20" cy="92" r="19"/><rect x="15" y="6" width="10" height="78" rx="3"/><rect x="24" y="4" width="14" height="10" rx="1.5"/><rect x="24" y="22" width="10" height="8" rx="1.5"/><rect x="24" y="40" width="8" height="7" rx="1.5"/></clipPath></defs>'
+    + '<g fill="url(#kfg)" stroke="#fde68a" stroke-width=".9"><circle cx="20" cy="92" r="19"/><rect x="15" y="6" width="10" height="78" rx="3"/><rect x="24" y="4" width="14" height="10" rx="1.5"/><rect x="24" y="22" width="10" height="8" rx="1.5"/><rect x="24" y="40" width="8" height="7" rx="1.5"/></g>'
+    + '<g clip-path="url(#kfc)">' + cr + '</g><circle cx="20" cy="92" r="13.5" fill="none" stroke="#5b3f0c" stroke-width=".9" opacity=".85"/>'
+    + '<g transform="translate(20 92)"><circle r="9.4" fill="none" stroke="#5b3f0c" stroke-width="1.2"/><circle r="7.4" fill="url(#kfm)" stroke="#6b1020" stroke-width=".8"/><path d="M-7.4 0L0-7.4L7.4 0L0 7.4Z M-3.7-3.7L3.7 3.7M3.7-3.7L-3.7 3.7" fill="none" stroke="rgba(255,255,255,.32)" stroke-width=".5"/><ellipse cx="-2.4" cy="-3.1" rx="2" ry="1.1" fill="rgba(255,255,255,.8)" transform="rotate(-35 -2.4 -3.1)"/></g></svg>';
+}
+function runPendingKeyFx(){
+  const n = Math.min(_pendingKeyFx, 3); _pendingKeyFx = 0; if (!n) return;
+  const rm = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const icons = () => [...document.querySelectorAll('#keys-icons .key-icon')];
+  const run = i => {
+    const idx = Math.max(0, state.keys - n + i), target = icons()[idx]; if (!target) return;
+    const t = target.getBoundingClientRect(), cx = t.left + t.width / 2, cy = t.top + t.height / 2;
+    const glow = () => { _glowIdx = idx; updateTimer(); setTimeout(() => { if (_glowIdx === idx) { _glowIdx = -1; updateTimer(); } }, 2200); };
+    if (rm || !document.body.animate) { glow(); return; }
+    const H = 112 / 40 * 54, sx = innerWidth / 2 - 27, sy = Math.max(70, innerHeight * .32) - H / 2;   // taille de départ : 54 × 151 px
+    const k = document.createElement('div'); k.className = 'kfx'; k.style.cssText = 'width:54px;height:' + H + 'px'; k.innerHTML = goldKeySvg(); document.body.append(k);
+    const endS = 30 / H;
+    const appear = k.animate([{ transform: 'translate(' + sx + 'px,' + (sy + 40) + 'px) scale(.2) rotate(-25deg)', opacity: 0 }, { transform: 'translate(' + sx + 'px,' + sy + 'px) scale(1.15) rotate(6deg)', opacity: 1, offset: .55 }, { transform: 'translate(' + sx + 'px,' + sy + 'px) scale(1) rotate(0)', opacity: 1 }], { duration: 900, easing: 'cubic-bezier(.2,.9,.3,1.2)', fill: 'forwards' });
+    appear.onfinish = () => {
+      for (let g = 3; g >= 0; g--) {                     // traînée : 3 fantômes + la clé
+        const el = g ? k.cloneNode(true) : k; if (g) { el.style.opacity = ''; document.body.append(el); }
+        const fly = el.animate([{ transform: 'translate(' + sx + 'px,' + sy + 'px) scale(1) rotate(0)', opacity: g ? .5 - g * .12 : 1 },
+          { transform: 'translate(' + (sx + (cx - 27 - sx) * .35) + 'px,' + (sy - 50) + 'px) scale(.8) rotate(-14deg)', opacity: g ? .4 - g * .1 : 1, offset: .4 },
+          { transform: 'translate(' + (cx - 27) + 'px,' + (cy - H / 2) + 'px) scale(' + endS + ') rotate(0)', opacity: g ? 0 : 1 }], { duration: 850, delay: g * 70, easing: 'cubic-bezier(.55,0,.75,.35)', fill: 'forwards' });
+        fly.onfinish = () => { el.remove(); if (!g) {
+          const ring = document.createElement('div'); ring.className = 'kfx-ring'; ring.style.transform = 'translate(' + cx + 'px,' + cy + 'px)'; document.body.append(ring);
+          ring.animate([{ transform: 'translate(' + cx + 'px,' + cy + 'px) scale(.4)', opacity: 1 }, { transform: 'translate(' + cx + 'px,' + cy + 'px) scale(3)', opacity: 0 }], { duration: 700, easing: 'ease-out' }).onfinish = () => ring.remove();
+          glow(); if (i + 1 < n) setTimeout(() => run(i + 1), 250);
+        } };
+      }
+    };
+  };
+  run(0);
 }
 
 // --- PROFIL UTILISATEUR & GESTION DU COMPTE ---
@@ -1324,6 +1632,7 @@ async function executeLogout() {
   closeProfileActionModal();
   if (window.auth) {
     try {
+      if (_dirty) await syncState('logout');                  // rien ne doit rester non synchronisé avant de quitter le compte
       await window.signOut(window.auth);
       showToast('👋 Déconnexion réussie.');
       setTimeout(() => window.location.reload(), 1000);
@@ -1373,4 +1682,25 @@ function executeWipeData() {
 function closeProfileActionModal() {
   const modal = document.getElementById('profile-action-modal');
   if (modal) modal.style.display = 'none';
+}
+
+// ============================================================
+// RETOUR NATIF (◁) — chaque fenêtre est déclarée à Nav (nav.js) avec SA fonction de fermeture existante.
+// Ordre = ordre d'empilement : le plus profond en dernier. Une nouvelle fenêtre → ajouter une ligne ici.
+// ============================================================
+if (typeof Nav !== 'undefined') {
+  Nav.add('loot', { open: () => document.getElementById('card-area').style.display === 'block', close: resetToChest });
+  Nav.add('sidebar', { open: () => Nav.hasClass('sidebar', 'open'), close: closeSidebar });
+  Nav.add('profile', { open: () => Nav.hasClass('sidebar', 'open') && isProfileOpen, close: toggleProfilePanel });
+  Nav.add('profile-detail', { open: () => isProfileOpen && Nav.shown('profile-detail-view'), close: closeProfileDetail });
+  Nav.add('options', { open: () => Nav.shown('options-modal'), close: closeOptionsModal });
+  Nav.add('patch', { open: () => Nav.shown('patch-modal'), close: closePatchnotes });
+  Nav.add('leaderboard', { open: () => Nav.shown('leaderboard-modal'), close: closeLeaderboardModal });
+  Nav.add('legal', { open: () => Nav.shown('legal-modal'), close: closeLegalModal });
+  Nav.add('promo', { open: () => Nav.shown('promo-modal'), close: closePromoCodeModal });
+  Nav.add('profile-action', { open: () => Nav.shown('profile-action-modal'), close: closeProfileActionModal });
+  Nav.add('install', { open: () => Nav.shown('install-modal'), close: closeInstallModal });
+  Nav.add('push', { open: () => Nav.shown('push-modal'), close: pushPromptLater });
+  Nav.add('mj-code', { open: () => Nav.hasClass('modal', 'show'), close: closeModal });
+  Nav.add('mj-panel', { open: () => Nav.hasClass('mj-panel', 'show'), close: closeMJPanel });
 }
