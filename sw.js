@@ -33,7 +33,8 @@ self.addEventListener('install', event => {
         // On sécurise chaque ajout un par un pour éviter le crash global
         return Promise.all(
           FILES_TO_CACHE.map(url => {
-            return cache.add(url).catch(err => {
+            // cache:'reload' = on ignore le cache HTTP du navigateur (GitHub Pages : max-age=600) → jamais d'anciens fichiers rangés dans le nouveau cache
+            return cache.add(new Request(url, { cache: 'reload' })).catch(err => {
               console.warn(`[Service Worker] Fichier introuvable ignoré du cache : ${url}`, err);
             });
           })
