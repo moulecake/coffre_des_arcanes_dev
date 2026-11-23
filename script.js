@@ -401,9 +401,12 @@ function openInstallModal() {
   if (window._bip) { go.style.display = ''; st.style.display = 'none'; }
   else {
     go.style.display = 'none'; st.style.display = '';
+    const ua = navigator.userAgent;                                           // on dit POURQUOI le bouton natif n'est pas proposé
     st.innerHTML = isIOS()
-      ? 'Sur iPhone / iPad (Safari) : touche <b>Partager</b> <span style="font-size:15px">⬆️</span> puis <b>« Sur l\'écran d\'accueil »</b>.'
-      : 'Ouvre le <b>menu ⋮</b> de ton navigateur puis choisis <b>« Installer l\'application »</b> ou <b>« Ajouter à l\'écran d\'accueil »</b>.';
+      ? 'Sur iPhone / iPad (Safari), l\'installation directe n\'existe pas : touche <b>Partager</b> <span style="font-size:15px">⬆️</span> puis <b>« Sur l\'écran d\'accueil »</b>.'
+      : /firefox|fxios/i.test(ua)
+        ? 'Firefox ne propose pas l\'installation directe. Ouvre son <b>menu ⋮</b> puis <b>« Installer »</b> / <b>« Ajouter à l\'écran d\'accueil »</b>, ou utilise <b>Chrome</b> ou <b>Edge</b>.'
+        : 'Ton navigateur ne propose pas l\'installation pour l\'instant. <b>L\'application est peut-être déjà installée sur cet appareil</b> : cherche-la dans tes applications ou sur ton écran d\'accueil. Sinon, ouvre le <b>menu ⋮</b> puis <b>« Installer l\'application »</b> ou <b>« Ajouter à l\'écran d\'accueil »</b>.';
   }
   localStorage.setItem(INSTALL_ASK_KEY, '1');
   document.getElementById('install-modal').style.display = 'flex';
@@ -411,8 +414,15 @@ function openInstallModal() {
 function closeInstallModal() { document.getElementById('install-modal').style.display = 'none'; localStorage.setItem(INSTALL_ASK_KEY, '1'); }
 async function installApp() {
   const e = window._bip; if (!e) { openInstallModal(); return; }
-  try { e.prompt(); const c = await e.userChoice; window._bip = null; closeInstallModal(); if (c && c.outcome === 'accepted') showToast('📲 Installation en cours…'); }
-  catch (err) { console.warn('install', err); closeInstallModal(); }
+  try {
+    e.prompt(); const c = await e.userChoice; window._bip = null;               // l'événement ne sert qu'une fois ; Chrome en renverra un plus tard
+    closeInstallModal(); refreshInstallSlot();
+    showToast(c && c.outcome === 'accepted' ? '📲 Installation en cours…' : 'Installation annulée — retrouve-la dans Menu › Installer');
+  } catch (err) { console.warn('install', err); closeInstallModal(); }
+}
+function installClick() {                                                    // bouton du menu : la fenêtre NATIVE directement si le navigateur l'autorise, sinon la fenêtre d'explication
+  if (isStandalone()) { showToast('✅ L\'application est déjà installée'); return; }
+  if (window._bip) installApp(); else openInstallModal();
 }
 function maybeAskInstall(delay, tries) {                                      // invitation automatique : une seule fois, jamais par-dessus une autre fenêtre
   if (isStandalone() || localStorage.getItem(INSTALL_ASK_KEY)) return;
