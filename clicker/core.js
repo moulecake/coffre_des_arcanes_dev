@@ -22,6 +22,8 @@ const fFull = (v, kind, rate) => {
 let S = { eth: 0, sg: 0, b: {}, seen: Date.now() };
 try { Object.assign(S, JSON.parse(localStorage.getItem(KEY) || "{}")); } catch (e) {}
 const save = () => { Stats.flush(); S.seen = Date.now(); localStorage.setItem(KEY, JSON.stringify(S)); };
+// v2.a3.6 : MIGRATION de l'apprentissage des sorts (S.spV < 2 → seul S.sp est remis à zéro ; bâtiments, Éther, Sagesse, fragments, stats intacts). Avant tout accès cloud.
+const SP_MIGRATED = Prog.migrate(S);                     // (la sauvegarde suit dans DOMContentLoaded : `save()` dépend de `dayKey`, défini plus bas)
 
 // ---- Fragments de clés : EFFORT ACTIF uniquement (clic/sort < 10 s). 5 min d'effort = 1 fragment (5 fragments = 1 clé du Coffre).
 // 10-15 min tryhard ≈ 2-3 fragments · plafond 9/jour (≈ 1,8 clé) · le farm idle ne donne rien À CE NIVEAU (le flux passif = micro-fragments, ci-dessous). `fr.earned` est cumulatif : le Coffre
@@ -167,12 +169,9 @@ async function pushSchedule(force) {
 //  • `S.uid` : l'état local appartient à un compte ; s'il est différent du compte connecté, il est ignoré (jamais mélangé).
 //  • Aucune écriture cloud tant que le chargement du cloud n'a pas réussi (`cloudReady`) ; chaque écriture est une TRANSACTION qui refuse de
 //    remplacer un cloud plus avancé (autre appareil) : on recharge alors le cloud au lieu de l'écraser.
-const progScore = X => {
-  if (!X) return 0;
-  const b = Object.values(X.b || {}).reduce((a, v) => a + (v || 0), 0), sp = X.sp && X.sp.learned ? Object.keys(X.sp.learned).length : 0;
-  return b * 1000 + sp * 100000 + ((X.g && X.g.n) || 0) * 10 + ((X.fr && X.fr.earned) || 0) * 1000;
-};
-let cloudT = 0, cloudReady = false, cloudUid = "";
+//  • v2.a3.6 : `progScore(X, Y)` ne compte les sorts appris / examens que si X et Y ont la même version d'apprentissage `spV` (logique pure : clicker/progress.js).
+const progScore = (X, Y) => Prog.score(X, Y);
+let cloudT = 0, cloudReady = false, cloudUid = "", spReload = 0;
 async function cloudSave(force) {
   pushSchedule(force);
   const u = window.auth && window.auth.currentUser, n = Date.now(); if (!u || !cloudReady || cloudUid !== u.uid || (!force && n - cloudT < 3e4)) return; cloudT = n;
@@ -182,10 +181,11 @@ async function cloudSave(force) {
     await window.runTransaction(window.db, async tx => {
       const cur = await tx.get(ref), C = cur.exists() && cur.data().clicker; let R = null;
       if (C && C.json) { try { R = JSON.parse(C.json); } catch (e) {} }
-      if (R) Stats.mergeFrom(S, R);                                                 // stats : max par clé, jamais de régression (même si l'autre appareil est plus avancé)
-      if (R && progScore(R) > progScore(S)) throw new Error("STALE");                  // le cloud est plus avancé : on ne l'écrase pas
+      if (R) { Stats.mergeFrom(S, R); if (Prog.fixSp(S, S, R)) spReload = 1; }      // stats : max par clé, jamais de régression ; sp : la version d'apprentissage la plus haute gagne, célébrations en union
+      if (R && progScore(R, S) > progScore(S, R)) throw new Error("STALE");                  // le cloud est plus avancé : on ne l'écrase pas
       tx.set(ref, body(), { merge: true });
     });
+    if (spReload) { spReload = 0; Spells.init(); }
   } catch (e) {
     if (e && e.message === "STALE") { cloudReady = false; cloudLoad(u); }                // autre appareil plus avancé → on le récupère
     else console.warn("cloudSave", e);
@@ -197,14 +197,14 @@ async function cloudLoad(u) {
     if (st) { CK = { fr: st.fragments || 0, claimed: st.clickerClaimed || 0 }; lastT = lastE = -1; }   // lecture seule : segments de la clé
     if (CHANNEL.ptu && !st) { toast("PTU : choisis d'abord ton compte PTU depuis le Coffre"); return; }   // le compte PTU est créé par le Coffre (copie du live ou départ à zéro) ; le clicker n'écrit rien avant
     let R = null; if (c && c.json) { try { R = JSON.parse(c.json); } catch (e) {} }
-    const foreign = !!(S.uid && S.uid !== u.uid), lp = foreign ? -1 : progScore(S), cp = R ? progScore(R) : -1;
-    Stats.flush(); const keepSt = foreign ? null : Stats.pick(S);                       // stats locales à réappliquer si l'état cloud remplace S
-    if (R && (cp > lp || (cp === lp && (R.seen || 0) > (S.seen || 0)))) {                // le cloud est plus avancé (ou égal et plus récent)
+    const foreign = !!(S.uid && S.uid !== u.uid), base = Prog.decide(S, R, foreign);
+    Stats.flush(); const keepSt = foreign ? null : Stats.pick(S), L0 = foreign ? { spV: Prog.SPV, sp: Prog.emptySp(), pend: [], pdone: [] } : { spV: S.spV, sp: S.sp, pend: S.pend, pdone: S.pdone };   // stats et apprentissage locaux à réappliquer si l'état cloud remplace S
+    if (base === "cloud") {                                                              // le cloud est plus avancé (ou égal et plus récent)
       const fr = mergeFr(foreign ? {} : S.fr || {}, R.fr || {});
-      Object.keys(S).forEach(k => delete S[k]); Object.assign(S, R); S.fr = fr; if (keepSt) Stats.mergeFrom(S, keepSt); Spells.init(); toast("☁ Progression synchronisée");
-    } else if (foreign) {                                                                // compte sans sauvegarde, état local d'un AUTRE compte : on repart à zéro
-      Object.keys(S).forEach(k => delete S[k]); Object.assign(S, { eth: 0, sg: 0, b: {}, seen: Date.now() }); Spells.init();
-    } else if (R) { S.fr = mergeFr(S.fr || {}, R.fr || {}); Stats.mergeFrom(S, R); }
+      Object.keys(S).forEach(k => delete S[k]); Object.assign(S, R); S.fr = fr; if (keepSt) Stats.mergeFrom(S, keepSt); Prog.migrate(S); Prog.fixSp(S, L0, R); Spells.init(); toast("☁ Progression synchronisée");
+    } else if (base === "reset") {                                                       // compte sans sauvegarde, état local d'un AUTRE compte : on repart à zéro
+      Object.keys(S).forEach(k => delete S[k]); Object.assign(S, { eth: 0, sg: 0, b: {}, seen: Date.now() }); Prog.migrate(S); Spells.init();
+    } else if (R) { S.fr = mergeFr(S.fr || {}, R.fr || {}); Stats.mergeFrom(S, R); if (Prog.fixSp(S, L0, R)) Spells.init(); }
     S.uid = u.uid; if (!(S.g && S.g.need > 0)) { S.g = { n: 0, t: "norm", need: 0, got: 0 }; nextPage(false); }
     lastT = lastE = -1; save(); cloudReady = true; cloudUid = u.uid; cloudSave(true);
   } catch (e) { console.warn("cloudLoad", e); }
@@ -506,8 +506,8 @@ function tick() {
 
 // ---- Valeur complète au toucher / survol (v2.a3.5) : un appui bref sur un compteur ouvre une bulle (valeur exacte, abrégée, scientifique) ; 4 s ou appui suivant = fermée ----
 function initNumTip() {
-  const tip = $("numtip"), SEL = "#eth,#sg,#eth2,#sg2,#ethps,#sgps";
-  const G = { eth: () => fFull(S.eth, "E"), eth2: () => fFull(S.eth, "E"), sg: () => fFull(S.sg, "S"), sg2: () => fFull(S.sg, "S"), ethps: () => fFull(Passives.calc().ethPS, "E", 1), sgps: () => fFull(Passives.calc().sgPS, "S", 1) };
+  const tip = $("numtip"), SEL = "#eth,#sg,#eth2,#sg2,#ethps,#sgps,#acW";
+  const G = { eth: () => fFull(S.eth, "E"), eth2: () => fFull(S.eth, "E"), sg: () => fFull(S.sg, "S"), sg2: () => fFull(S.sg, "S"), acW: () => fFull(S.sg, "S"), ethps: () => fFull(Passives.calc().ethPS, "E", 1), sgps: () => fFull(Passives.calc().sgPS, "S", 1) };
   let tm = 0, cur = null; const hit = t => t && t.closest && t.closest(SEL), hide = () => { clearTimeout(tm); tip.classList.remove("on"); cur = null; };
   document.addEventListener("pointerdown", e => { if (!hit(e.target)) hide(); }, true);
   document.addEventListener("click", e => {
@@ -531,9 +531,10 @@ const LEX = [
   ["Surchauffe", "Trop de clics par seconde et le Voile se bloque : pause égale à la limite en secondes. Le Grimoire, lui, sombre dans le chaos."],
   ["Taxe", "Prix d'un changement de sorts fait juste après un effort (moins de 15 s) : payer en Éther, en Sagesse, ou subir 30 s de sorts actifs bloqués."],
   ["Cours", "Apprendre un sort coûte de la Sagesse et du temps réel. Le cours continue même quand tu es absent."],
-  ["École", "Une des 8 écoles de magie. Chacune compte 4 sorts, du rang 1 au rang 4."],
-  ["Rang", "Niveau d'un sort, de 1 à 4. Le rang suivant s'ouvre quand le précédent est maîtrisé."],
-  ["Emplacement", "Une case de la barre de sorts, sous le Voile ou sous le Grimoire. Le sort qui l'occupe agit."],
+  ["École", "Une des 8 écoles de magie. Chacune compte un sort par rang."],
+  ["Rang", "Ton niveau d'avancement à l'Amphithéâtre. Tu peux apprendre les sorts jusqu'à ton rang ; le suivant s'ouvre en réussissant l'examen."],
+  ["Examen", "Épreuve de l'Académie qui ouvre le rang suivant : apprends les 8 sorts du rang, remplis les conditions, paie les frais et patiente (ça continue hors ligne)."],
+  ["Emplacement", "Une case de la barre de sorts, sous le Voile ou sous le Grimoire. Tu en as autant que ton rang ; le sort qui l'occupe agit."],
   ["Deck", "Ensemble de sorts nommé, à équiper d'un coup (8 decks au maximum)."],
   ["Passif / Actif", "Un sort passif agit en permanence tant qu'il est équipé. Un sort actif se lance au toucher, puis se recharge."],
   ["Recharge", "Temps d'attente avant de relancer un sort actif. L'ombre qui tourne sur la case en donne l'avancement."],
@@ -561,9 +562,10 @@ addEventListener("DOMContentLoaded", () => {
   const showIntro = () => { introTab("A"); $("introNo").checked = !!S.introSeen; $("intro").hidden = false; $("introGo").focus(); };
   const closeIntro = () => { S.introSeen = $("introNo").checked; save(); cloudSave(true); $("intro").hidden = true; };
   $("introGo").onclick = closeIntro; $("help").onclick = showIntro; addEventListener("keydown", ev => { if (ev.key === "Escape" && !$("intro").hidden) closeIntro(); });
-  if (!S.introSeen) setTimeout(showIntro, 500);
+  // La célébration en attente (pli de l'Académie) s'affiche EN PREMIER ; l'accueil vient ensuite.
+  setTimeout(() => { if (SP_MIGRATED) { toast("Apprentissage des sorts remis à zéro — Sagesse, Éther et bâtiments conservés"); save(); cloudSave(true); } Academy.setAfter(() => { if (!S.introSeen) setTimeout(showIntro, 300); }); Academy.celebrate(); }, 400);
   // EFFORT : tout appui sur la page (achats, sorts, decks, onglets…) compte, sauf aide/son/retour. Capture + passif = aucun coût perceptible.
-  addEventListener("pointerdown", ev => { const t = ev.target; if (!t || !t.closest || t.closest("#intro,#help,#snd,a.back,#eth,#sg,#eth2,#sg2,#ethps,#sgps,#numtip")) return; const n = Date.now(); if ((t.closest("#orb") && n < hot) || (t.closest("#tome") && n < hotG)) return; Spells.effort(); }, { capture: true, passive: true });   // (pas d'effort crédité pendant une pause de surchauffe)
+  addEventListener("pointerdown", ev => { const t = ev.target; if (!t || !t.closest || t.closest("#intro,#help,#snd,a.back,#eth,#sg,#eth2,#sg2,#ethps,#sgps,#numtip,#acW")) return; const n = Date.now(); if ((t.closest("#orb") && n < hot) || (t.closest("#tome") && n < hotG)) return; Spells.effort(); }, { capture: true, passive: true });   // (pas d'effort crédité pendant une pause de surchauffe)
   // Retour natif (◁) : ferme la fenêtre du dessus (nav.js) — mêmes actions que leurs boutons de fermeture
   if (typeof Nav !== "undefined") {
     Nav.add("intro", { open: () => !$("intro").hidden, close: closeIntro });

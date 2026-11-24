@@ -55,14 +55,14 @@ const Spells = (() => {
     ["con3", "Cercle de Téléportation", "A", "X", 240, "Remet à zéro le sort actif au plus long CD équipé."],
     ["con4", "Invocation d'Avatar Arcanique", "A", "X", 300, "Voile et Grimoire à pleine puissance (×3) pendant 10 s."]
   ].map(([id, n, t, pn, cd, d]) => ({ id, k: id.slice(0, 3), r: +id[3], n, t, pn, cd, d }));
-  const byId = Object.fromEntries(SP.map(s => [s.id, s])), COST = [75, 750, 7500, 75000], TIME = [30, 300, 1800, 10800];
+  const byId = Object.fromEntries(SP.map(s => [s.id, s])), COST = Prog.COST, TIME = Prog.TIME;     // v2.a3.6 : prix et durées dans clicker/progress.js (★ réglages)
   const hue = k => "hsl(" + SCH.find(s => s[0] === k)[2] + " 75% 68%)";
   const gl = (k, z = 20) => "<svg viewBox='0 0 24 24' width='" + z + "' height='" + z + "' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linejoin='round'>" + SCH.find(s => s[0] === k)[3] + "</svg>";
   const ft = s => { s = Math.max(0, Math.ceil(s)); return s >= 3600 ? Math.floor(s / 3600) + "h" + String(Math.floor(s % 3600 / 60)).padStart(2, "0") : Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
 
-  const sp = () => S.sp || (S.sp = { learned: {}, eq: { V: [], G: [] }, lock: {}, cd: {}, course: null });
+  const sp = () => S.sp || (S.sp = Prog.emptySp());
   const lvl = k => SP.filter(s => s.k === k && sp().learned[s.id]).length;
-  const nSlots = () => Math.max(1, Math.min(4, ...SCH.map(s => lvl(s[0]))));   // 1 → 4 slots selon le plus faible niveau d'école
+  const nSlots = () => Prog.slots(sp());   // v2.a3.6 : emplacements par panneau = rang débloqué par examen (1 → 4 ; l'ancien « école la plus faible » a disparu)
   const eqIds = () => [...sp().eq.V, ...sp().eq.G].filter(Boolean), has = id => eqIds().includes(id);
 
   // ---- Modificateurs (passifs équipés + effets temporaires) ----
@@ -74,7 +74,7 @@ const Spells = (() => {
     div2: P(["offlineSg", "*", 1.2], ["fragOff", "*", 1.2]), div4: P(["study", "*", .75]), tra1: P(["frag", "*", 1.15]), tra4: P(["ether", "*", 1.25], ["scribe", "*", 1.25], ["frag", "*", 1.25]),
     con1: P(["ethCost", "*", .95], ["sgCost", "*", .95]), con2: P(["famil", "+", 1])
   };
-  let ml = [], dirty = 1, fxs = [], mirror = 0, presc = 0, clicks = 0, cur = 0, pp = "V", si = 0, lastAct = 0, lastEffort = 0, ed = null;   // lastAct = action récente (Taxe) ; lastEffort = tout appui (fragments d'effort)
+  let ml = [], dirty = 1, fxs = [], mirror = 0, presc = 0, clicks = 0, pp = "V", si = 0, lastAct = 0, lastEffort = 0, ed = null;   // lastAct = action récente (Taxe) ; lastEffort = tout appui (fragments d'effort)
   const ap = (r, m) => m[1] === "*" ? r * m[2] : m[1] === "+" ? r + m[2] : Math.max(r, m[2]);
   const mod = (k, d) => {
     if (dirty) { dirty = 0; ml = []; eqIds().forEach(id => PM[id] && ml.push(...PM[id]())); }
@@ -110,6 +110,7 @@ const Spells = (() => {
     if (n < (sp().pen || 0)) { sfx("deny"); toast("Taxe en cours — sorts actifs bloqués " + Math.ceil((sp().pen - n) / 1e3) + " s"); return; }
     if (n < (sp().cd[s.id] || 0)) { sfx("deny"); return; }
     if (ACT[s.id]() === false) { toast("Aucun sort en recharge à réinitialiser"); return; }
+    { const t = sp().tut || (sp().tut = Prog.norm(sp()).tut); t.cast = 1; t.castIds[s.id] = 1; }                       // conditions d'examen (tutoriel)
     Stats.add("cast", 1); Stats.addIn("cast", s.id, 1); Stats.ms("cast");
     sp().cd[s.id] = n + s.cd * 1e3 * mod("cd", 1); const ix = SCH.findIndex(x => x[0] === s.k); sfx(s.k === "evo" ? "zap" : s.k === "nec" ? "rumble" : "chime", 1 + ix * .09);
     if (window.schoolFx) schoolFx(s.k, p, s);
@@ -169,7 +170,7 @@ const Spells = (() => {
     if (id && !ed && ["V", "G"].some(p => E[p].some((x, i) => x === id && L[p + i] && !(p === pp && i === si)))) return toast("Sort verrouillé dans un autre emplacement");
     const run = () => {
       if (id) for (const p of ["V", "G"]) E[p].forEach((x, i) => { if (x === id) E[p][i] = null; });
-      E[pp][si] = id; if (!ed) { dirty = 1; bars(); Stats.add("chg", 1); } pickR(); save();
+      E[pp][si] = id; if (!ed) { dirty = 1; bars(); Stats.add("chg", 1); if (id) sp().tut.fill[pp + si] = 1; } pickR(); save(); if (window.Academy) Academy.refresh();
     };
     taxe(run, !ed && !!E[pp][si] && E[pp][si] !== id);                      // remplacer/retirer = changement
   };
@@ -199,7 +200,7 @@ const Spells = (() => {
     sides(d).forEach(p => { for (let i = 0; i < n; i++) { if (sp().lock[p + i]) continue; const id = d[p][i]; N[p][i] = id && L[id] ? id : null; } });
     N.G.forEach((id, i) => { if (id && N.V.includes(id) && !sp().lock["G" + i]) N.G[i] = null; });      // pas de doublon (Voile prioritaire)
     const change = ["V", "G"].some(p => E[p].some((id, i) => id && N[p][i] !== id));
-    taxe(() => { sp().eq = N; dirty = 1; bars(); Stats.add("chgDeck", 1); save(); toast("Deck « " + d.name + " » équipé"); }, change);
+    taxe(() => { sp().eq = N; dirty = 1; bars(); Stats.add("chgDeck", 1); sp().tut.equip = 1; ["V", "G"].forEach(q => N[q].forEach((x, i) => { if (x) sp().tut.fill[q + i] = 1; })); save(); toast("Deck « " + d.name + " » équipé"); }, change);
   };
   const dkR = () => {
     const el = $("dklist"); el.innerHTML = "";
@@ -224,58 +225,44 @@ const Spells = (() => {
     $("dkadd").onclick = () => {
       if (D().length >= 8) return toast("8 decks maximum");
       const d = { name: ($("dkname").value.trim() || "Deck " + (D().length + 1)).slice(0, 20), t: $("dkt").value, V: [], G: [] };
-      snap(d); D().push(d); Stats.add("deckN", 1); Stats.ms("deck"); $("dkname").value = ""; save(); dkR();
+      snap(d); D().push(d); sp().tut.deck = 1; Stats.add("deckN", 1); Stats.ms("deck"); $("dkname").value = ""; save(); dkR();
     };
   };
 
-  // ---- Amphithéâtre ----
+  // ---- Amphithéâtre (règles ; l'interface = clicker/academy.js) ----
+  // Cours : un seul à la fois (jamais pendant un examen), rang apprenable ≤ rang débloqué (CONCEPTION_SORTS.md §3). Durée × mod("study") (div4) ; les examens, eux, ne sont pas réduits.
   const learn = s => {
     const L = sp().learned, c = COST[s.r - 1];
     if (L[s.id]) return toast("Déjà maîtrisé");
+    if (sp().exam) return toast("Un examen est en cours");
     if (sp().course) return toast("Un cours est déjà en cours");
-    if (s.r > 1 && !L[s.k + (s.r - 1)]) return toast("Maîtrise d'abord le rang précédent");
+    if (s.r > (sp().rank | 0 || 1)) return toast("Réussis d'abord l'examen du rang " + (s.r - 1));
     if (S.sg < c) return toast("Sagesse insuffisante");
-    S.sg -= c; sp().course = { id: s.id, end: Date.now() + TIME[s.r - 1] * 1e3 * mod("study", 1) }; save(); if (window.cloudSave) cloudSave(true); updLes(Date.now());
+    const n = Date.now(); S.sg -= c; sp().course = { id: s.id, t0: n, end: n + TIME[s.r - 1] * 1e3 * mod("study", 1) }; save(); if (window.cloudSave) cloudSave(true); if (window.Academy) Academy.refresh();
   };
-  const tabsR = () => {
-    const t = $("tabs"); t.innerHTML = "";
-    SCH.forEach((s, i) => {
-      const b = document.createElement("button"); b.className = "tb" + (i === cur ? " on" : ""); b.style.color = hue(s[0]);
-      b.innerHTML = gl(s[0], 18) + "<span>" + s[1] + "</span>"; b.onclick = () => { cur = i; tabsR(); buildLes(); }; t.append(b);
-    });
-  };
-  const buildLes = () => {
-    const k = SCH[cur][0], el = $("lessons"); el.innerHTML = "";
-    SP.filter(s => s.k === k).forEach(s => {
-      const d = document.createElement("div"); d.className = "bld les"; d.id = "l_" + s.id;
-      d.innerHTML = "<i style='color:" + hue(k) + "'>" + gl(k) + "</i><div><b>" + s.n + "</b> <em>Rang " + s.r + " · " + (s.t === "A" ? "Actif" : "Passif") + "</em><small>" + s.d + "</small></div><span class='px'></span>";
-      d.onclick = () => learn(s); el.append(d);
-    });
-    updLes(Date.now());
-  };
-  const updLes = n => {
-    const L = sp().learned, c = sp().course, k = SCH[cur][0], l = lvl(k);
-    SP.filter(s => s.k === k).forEach(s => {
-      const d = $("l_" + s.id); if (!d) return;
-      const done = L[s.id], run = c && c.id === s.id, next = s.r === l + 1;
-      d.hidden = s.r > l + 1;                                                   // teasing N+1
-      d.classList.toggle("can", !!done || !!run || (!c && next && S.sg >= COST[s.r - 1]));
-      d.querySelector(".px").textContent = done ? "✓ Maîtrisé" : run ? ft((c.end - n) / 1e3) : next ? fN(COST[s.r - 1]) + " Sg · " + ft(TIME[s.r - 1] * mod("study", 1)) : "🔒";
-    });
-    $("course").textContent = c ? "Cours en cours : " + byId[c.id].n + " — " + ft((c.end - n) / 1e3) : "Aucun cours en cours";
+  const examInfo = n => { Stats.flush(); const st = S.st || {}; return { conds: Prog.conds(sp(), st, n), can: Prog.canExam(sp(), st, S.sg, n), price: Prog.EX.price[n - 1], dur: Prog.EX.dur[n - 1], learned: Prog.doneAt(sp(), n) }; };
+  const startExam = n => {                                      // paie les frais, lance le minuteur (timestamp absolu : continue hors ligne)
+    const ci = examInfo(n).can; if (!ci.ok) return ci;
+    S.sg -= Prog.EX.price[n - 1]; Prog.startExam(sp(), Date.now(), n); Stats.add("examPay", 1); Stats.ms("examStart" + n); save(); if (window.cloudSave) cloudSave(true); if (window.Academy) Academy.refresh(); return ci;
   };
 
   const tick = (dt, n) => {
     const c = sp().course;
-    if (c && n >= c.end) { sp().learned[c.id] = 1; sp().course = null; dirty = 1; Stats.add("learn", 1); Stats.ms("learn"); toast("Cours terminé : " + byId[c.id].n); bars(); buildLes(); save(); if (window.cloudSave) cloudSave(true); }
+    if (c && n >= c.end) {
+      sp().learned[c.id] = 1; sp().course = null; dirty = 1; Stats.add("learn", 1); Stats.ms("learn"); const r = byId[c.id].r; toast("Cours terminé : " + byId[c.id].n);
+      if (r === (sp().rank | 0 || 1) && Prog.doneAt(sp(), r) === 8) setTimeout(() => toast("Les 8 sorts du rang " + r + " sont appris : l'examen t'attend"), 2600);
+      bars(); save(); if (window.cloudSave) cloudSave(true); if (window.Academy) Academy.refresh();
+    }
+    const ex = Prog.finishExam(S, n);                                         // examen terminé (même hors ligne : timestamp absolu)
+    if (ex) { dirty = 1; Stats.add("exam", 1); Stats.ms("exam" + ex); Stats.snap("exam" + ex); bars(); save(); if (window.cloudSave) cloudSave(true); toast("Examen du rang " + ex + " validé — un pli de l'Académie t'attend"); if (window.Academy) Academy.refresh(); }
     if (has("tra1")) { const x = Math.min(S.sg, .2 * Passives.calc().sgPS * dt); S.sg -= x; S.eth += x * 20; Stats.add("eth", x * 20); }
-    fxs = fxs.filter(f => f.u > n); sp().fx = fxs; sp().st = [mirror, presc, clicks]; tickBars(n); updLes(n);
+    fxs = fxs.filter(f => f.u > n); sp().fx = fxs; sp().st = [mirror, presc, clicks]; tickBars(n); if (window.Academy) Academy.tick(n);
   };
   const init = () => {
     const o = sp(); fxs = (o.fx || []).filter(f => f.u > Date.now()); [mirror, presc, clicks] = o.st || [0, 0, 0];   // effets actifs persistants
-    tabsR(); buildLes(); bars(); dkInit();
+    bars(); dkInit(); if (window.Academy) Academy.init();
     document.querySelectorAll(".gear[data-p]").forEach(g => g.onclick = () => pick(g.dataset.p));
     $("pclose").onclick = closePick; $("pick").onclick = e => { if (e.target.id === "pick") closePick(); };
   };
-  return { glyph: gl, hue, cast, SCH, mod, init, tick, onClick, force, forced, touch, effort, active, has, learn, SP, applyDeck, D, taxe };
+  return { glyph: gl, hue, cast, SCH, mod, init, tick, onClick, force, forced, touch, effort, active, has, learn, SP, applyDeck, D, taxe, sp, byId, examInfo, startExam, COST, TIME, ft };
 })();

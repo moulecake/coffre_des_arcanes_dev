@@ -2,7 +2,7 @@
 // le Cache Storage est PARTAGÉ par toute l'origine, chaque version ne doit donc jamais supprimer le cache de l'autre.
 const IS_PTU = !(self.location.hostname === 'moulecake.github.io' && /^[/]coffre_des_arcanes[/]/.test(self.location.pathname));
 const CACHE_PREFIX = IS_PTU ? 'ptu-arcane-vault-cache-' : 'arcane-vault-cache-';
-const CACHE_NAME = CACHE_PREFIX + 'v2.a3.5';
+const CACHE_NAME = CACHE_PREFIX + 'v2.a3.6';
 // Chemin de base DÉDUIT de l'emplacement du Service Worker (scope) : aucun préfixe de dépôt écrit en dur
 // → fonctionne à l'identique sur /coffre_des_arcanes/ (officiel) et /coffre_des_arcanes_dev/ (test) sans rien changer.
 const BASE = self.registration.scope;                     // ex. https://moulecake.github.io/coffre_des_arcanes/
@@ -21,8 +21,10 @@ const FILES_TO_CACHE = [
   BASE + 'clicker/style.css',
   BASE + 'clicker/core.js',
   BASE + 'clicker/passives.js',
+  BASE + 'clicker/progress.js',
   BASE + 'clicker/stats.js',
   BASE + 'clicker/spells.js',
+  BASE + 'clicker/academy.js',
   BASE + 'android-chrome-192x192.png',
   BASE + 'android-chrome-512x512.png',
   BASE + 'apple-touch-icon.png',

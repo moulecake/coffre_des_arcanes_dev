@@ -25,8 +25,10 @@
 </script>
 <!-- Ordre : spells (hooks) > passives (bâtiments) > core (state, boucle) -->
 <script src="../nav.js" defer></script>
+<script src="progress.js" defer></script>
 <script src="stats.js" defer></script>
 <script src="spells.js" defer></script>
+<script src="academy.js" defer></script>
 <script src="passives.js" defer></script>
 <script src="core.js" defer></script>
 </head>
@@ -202,9 +204,9 @@
       <span class="dk-t"><small>Forger</small><b>Mes Decks</b></span>
     </button>
   </div>
-  <div class="tabs" id="tabs"></div>
-  <div class="hint" id="course"></div>
-  <div class="blds" id="lessons"></div>
+  <div id="acTop"></div>
+  <div class="ac-gridw"><table class="ac-gr" id="acGr"></table></div>
+  <div class="ac-dt" id="acDt"></div>
 </section>
 <div id="intro" hidden><div class="pbox intro" role="dialog" aria-modal="true" aria-labelledby="introT">
   <svg class="intro-emb" viewBox="0 0 120 56" aria-hidden="true"><defs><linearGradient id="ieg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8b5cf6"/><stop offset="1" stop-color="#38bdf8"/></linearGradient><linearGradient id="ieb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff1b0"/><stop offset="1" stop-color="#b8892a"/></linearGradient></defs>
@@ -255,6 +257,9 @@
   <div class="phead"><b class="taxh"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><defs><linearGradient id="txg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff1b0"/><stop offset=".55" stop-color="#d4af37"/><stop offset="1" stop-color="#8a6a1d"/></linearGradient></defs><circle cx="12" cy="12" r="9.4" fill="url(#txg)" stroke="#5b3f0c" stroke-width="1"/><circle cx="12" cy="12" r="6.6" fill="none" stroke="#8a5a14" stroke-width=".8" stroke-dasharray="1.6 1.6"/><path d="M12 7.2v9.6M14.6 9.4c-.4-1-1.4-1.6-2.6-1.6-1.6 0-2.6.8-2.6 2 0 3 5.4 1.6 5.4 4.4 0 1.2-1.2 2-2.8 2-1.3 0-2.4-.6-2.8-1.7" fill="none" stroke="#5b3f0c" stroke-width="1.5" stroke-linecap="round"/></svg>Taxe d'adaptation</b></div>
   <div class="hint" id="gtxt"></div><div class="blds" id="gbtns"></div>
 </div></div>
+<div id="acEx" hidden><div class="pbox ac-exbox" role="dialog" aria-modal="true" aria-label="Examen"><div class="phead"><b>Académie des Arcanes</b><button id="acExC" aria-label="Fermer">✕</button></div><div id="acExB"></div></div></div>
+<div id="acInfo" hidden><div class="pbox ac-infobox" role="dialog" aria-modal="true"><b id="acInfoT"></b><p id="acInfoP"></p><button class="ac-go" id="acInfoOk">COMPRIS</button></div></div>
+<div id="acCele" hidden><div id="acCeleB" class="ac-celeb" role="dialog" aria-modal="true"></div></div>
 <div id="numtip" role="status" aria-live="polite"></div>
 <div id="toast"></div>
 </body>

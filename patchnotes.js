@@ -7,6 +7,20 @@
 // ============================================================
 const PATCHNOTES = [
   {
+    v: '2.a3.6', name: 'Les Examens de l’Académie', date: '2026-11-24',
+    gift: 'Cadeau de mise à jour : 3 clés offertes !',
+    sections: [
+      { t: '🎁 Nouveautés', items: [
+        '**Rangs et examens** : les sorts s’ouvrent désormais par rang. Apprends les 8 sorts d’un rang, remplis les conditions, passe l’examen de l’Académie : le rang suivant s’ouvre, avec un emplacement de plus au Voile et au Grimoire. Les examens 1 à 3 sont disponibles (le 4 arrive avec les sorts de rang 5).',
+        '**Nouvel Amphithéâtre** : une grille des 8 écoles par rang, des sorts « ternes » qui s’illuminent pendant leur cours, et une fenêtre d’examen avec ses conditions (touche le « i » pour comprendre chacune).',
+        '**Pli de l’Académie** : un examen terminé, même pendant ton absence, t’attend à ton retour avec sa petite cérémonie.'
+      ] },
+      { t: '⚠ Important', items: [
+        '**Apprentissage remis à zéro** : tous les sorts sont à réapprendre, avec de nouveaux prix. **Ta Sagesse, ton Éther, tes bâtiments, tes fragments et ton inventaire du Coffre sont conservés.**'
+      ] }
+    ]
+  },
+  {
     v: '2.a3.5', name: 'Le Lexique de l’Académie', date: '2026-11-24',
     gift: 'Cadeau de mise à jour : 3 clés offertes !',
     sections: [
