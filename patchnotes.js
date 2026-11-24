@@ -7,6 +7,19 @@
 // ============================================================
 const PATCHNOTES = [
   {
+    v: '2.a3.20', name: 'Plus de clignotements', date: '2026-11-24',
+    gift: 'Cadeau de mise à jour : 3 clés offertes !',
+    sections: [
+      { t: '🎁 Nouveautés', items: [
+        '**Barre d’effets** : fini le clignotement, les effets actifs restent stables et seul le compte à rebours bouge.',
+        '**Mots soulignés** : touche un mot en pointillé dans une description de sort pour voir sa définition.',
+        '**Flottants teintés** : sous un multiplicateur, les gains sont plus gros et prennent la couleur de l’école.',
+        '**Obéissance** : une page fantôme se détache du Grimoire à chaque clic (pure décoration).',
+        '**Profil** : ton badge d’école s’affiche dans le Coffre.'
+      ] }
+    ]
+  },
+  {
     v: '2.a3.19', name: 'Le Rang V', date: '2026-11-26',
     gift: 'Cadeau de mise à jour : 3 clés offertes !',
     sections: [

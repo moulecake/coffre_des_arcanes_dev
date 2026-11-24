@@ -16,26 +16,39 @@ window.Hud = (() => {
     return s.n + " — " + s.d + (real ? "\nEffet réel : " + real + spe : "") + (act > 0 ? "\nInactif encore " + Math.ceil(act / 1e3) + " s (recharge d'activation)" : "");
   };
   // ---- Barre d'effets actifs (une par panneau) + pastilles d'état des passifs
-  const pill = (cls, h, glyph, txt, sub) => "<span class='fxp " + cls + "' style='--h:" + h + "'>" + (glyph || "") + "<b>" + txt + "</b>" + (sub ? "<em>" + sub + "</em>" : "") + "</span>";
+  const pill = (key, cls, h, glyph, txt, sub) => ({ key, cls, h, glyph: glyph || "", txt, sub: sub || "" });   // DESCRIPTEUR : la barre est mise à jour par clé (aucune reconstruction → plus de clignotement)
   const gl = (k, z) => Spells.glyph(k, z);
-  let cache = { V: "", G: "", amp: "" };
+  let cache = { amp: "" };
   const mulOf = (fx, key) => { let p = 1; fx.forEach(e => e.m.forEach(m => { if (m[0] === key && m[1] === "*") p *= m[2]; })); return p; };
   const countOf = (fx, key) => fx.filter(e => e.m.some(m => m[0] === key && m[1] === "*")).length;
   const row = (p, st, now) => {
-    let h = ""; const stack = [];
+    const out = [], stack = [];
     st.fxs.filter(e => { const s = byId[e.tag]; return s && (s.pn === p || s.pn === "X"); }).forEach(e => {
       const s = byId[e.tag], m = e.m.find(x => x[1] === "*") || e.m[0], left = Math.max(0, Math.ceil((e.u - now) / 1e3));
-      h += pill("fx", hn(s.k), gl(s.k, 14), s.n.length > 18 ? s.n.slice(0, 17) + "…" : s.n, (m[1] === "*" ? "×" + fr(m[2]) : "+" + fr(m[2])) + " · " + left + " s");
+      out.push(pill("t:" + e.tag, "fx", hn(s.k), gl(s.k, 14), s.n.length > 18 ? s.n.slice(0, 17) + "…" : s.n, (m[1] === "*" ? "×" + fr(m[2]) : "+" + fr(m[2])) + " · " + left + " s"));
     });
     const key = p === "V" ? "ether" : "sg";
-    if (countOf(st.fxs, key) >= 2) stack.push(pill("stack", 45, "", (p === "V" ? "ÉTHER" : "SAGESSE") + " ×" + fr(mulOf(st.fxs, key)), "effets cumulés"));
-    if (p === "V" && countOf(st.fxs, "click") >= 2) stack.push(pill("stack", 45, "", "CLICS ×" + fr(mulOf(st.fxs, "click")), "effets cumulés"));
-    h = stack.join("") + h;
-    if (p === "V" && st.eq.indexOf("evo4") >= 0) { const e = st.evo4; h += pill("pas", hn("evo"), gl("evo", 14), "Météore", (st.clicks % e.every) + " / " + e.every + " clics"); }
-    if (p === "V" && st.mirror > 0) h += pill("arm", hn("ill"), gl("ill", 14), "Image Miroir armé", "×" + fr(st.mirrorX) + (st.mirror > 1 ? " · " + st.mirror + " charges" : ""));
-    if (p === "G" && st.presc > 0) h += pill("arm", hn("div"), gl("div", 14), "Prescience", st.presc + " page" + (st.presc > 1 ? "s" : "") + " rare" + (st.presc > 1 ? "s" : ""));
-    if (st.eq.indexOf("abj1") >= 0) h += pill("pas", hn("abj"), gl("abj", 14), p === "V" ? "Voile" : "Grimoire", fr(p === "V" ? st.cps : st.cpsG) + " clics/s");
-    return h;
+    if (countOf(st.fxs, key) >= 2) stack.push(pill("s:" + key, "stack", 45, "", (p === "V" ? "ÉTHER" : "SAGESSE") + " ×" + fr(mulOf(st.fxs, key)), "effets cumulés"));
+    if (p === "V" && countOf(st.fxs, "click") >= 2) stack.push(pill("s:click", "stack", 45, "", "CLICS ×" + fr(mulOf(st.fxs, "click")), "effets cumulés"));
+    const all = stack.concat(out);
+    if (p === "V" && st.eq.indexOf("evo4") >= 0) { const e = st.evo4; all.push(pill("p:evo4", "pas", hn("evo"), gl("evo", 14), "Météore", (st.clicks % e.every) + " / " + e.every + " clics")); }
+    if (p === "V" && st.mirror > 0) all.push(pill("a:mirror", "arm", hn("ill"), gl("ill", 14), "Image Miroir armé", "×" + fr(st.mirrorX) + (st.mirror > 1 ? " · " + st.mirror + " charges" : "")));
+    if (p === "G" && st.presc > 0) all.push(pill("a:presc", "arm", hn("div"), gl("div", 14), "Prescience", st.presc + " page" + (st.presc > 1 ? "s" : "") + " rare" + (st.presc > 1 ? "s" : "")));
+    if (st.eq.indexOf("abj1") >= 0) all.push(pill("p:abj1", "pas", hn("abj"), gl("abj", 14), p === "V" ? "Voile" : "Grimoire", fr(p === "V" ? st.cps : st.cpsG) + " clics/s"));
+    return all;
+  };
+  // Mise à jour PAR CLÉ : une pastille existante ne change que son texte (compte à rebours) ; une nouvelle apparaît en fondu ; une disparue s'efface en fondu. Rien n'est reconstruit.
+  const sync = (el, list) => {
+    const have = {}; [...el.children].forEach(c => { have[c.dataset.k] = c; });
+    const keep = new Set(list.map(d => d.key));
+    Object.keys(have).forEach(k => { if (!keep.has(k) && !have[k].classList.contains("out")) { const c = have[k]; c.classList.add("out"); setTimeout(() => c.remove(), 220); } });
+    list.forEach((d, i) => {
+      let c = have[d.key];
+      if (c && c.classList.contains("out")) { c.remove(); c = null; }
+      if (!c) { c = document.createElement("span"); c.className = "fxp new " + d.cls; c.dataset.k = d.key; c.style.setProperty("--h", d.h); c.innerHTML = d.glyph + "<b></b><em></em>"; setTimeout(() => c.classList.remove("new"), 400); }
+      const b = c.querySelector("b"), em = c.querySelector("em"); if (c._t !== d.txt) { c._t = d.txt; b.textContent = d.txt; } if (c._s !== d.sub) { c._s = d.sub; em.textContent = d.sub; em.hidden = !d.sub; }
+      if (el.children[i] !== c) el.insertBefore(c, el.children[i] || null);
+    });
   };
   const badge = (id, st, now) => {                                      // petit texte sous l'icône d'un emplacement
     const act = Spells.activIn(id); if (act > 0) return Math.ceil(act / 1e3) > 99 ? Math.ceil(act / 6e4) + "′" : Math.ceil(act / 1e3) + "s";
@@ -47,7 +60,7 @@ window.Hud = (() => {
   };
   const tick = n => {
     const st = Spells.hudState(n);
-    ["V", "G"].forEach(p => { const el = $("fx" + p); if (!el) return; const h = row(p, st, n); if (h !== cache[p]) { cache[p] = h; el.innerHTML = h; } });
+    ["V", "G"].forEach(p => { const el = $("fx" + p); if (el) sync(el, row(p, st, n)); });
     document.querySelectorAll(".sl[data-id]").forEach(b => { let g = b.querySelector(".bdg"); if (!g) { g = document.createElement("s"); g.className = "bdg"; b.append(g); } const t = badge(b.dataset.id, st, n); if (g.textContent !== t) { g.textContent = t; b.classList.toggle("has-bdg", !!t); } b.classList.toggle("lockd", Spells.activIn(b.dataset.id) > 0); });
     // aura d'amplification (§13) : anneau doré autour du panneau tant qu'un multiplicateur temporaire est actif
     const aV = Math.max(mulOf(st.fxs, "ether"), mulOf(st.fxs, "click")), aG = mulOf(st.fxs, "sg"), key = aV + "|" + aG;
@@ -74,5 +87,7 @@ window.Hud = (() => {
     $("acAwayOk").onclick = () => { el.hidden = true; if (cb) cb(); };
     if (typeof Nav !== "undefined" && !showAway.nav) { showAway.nav = 1; Nav.add("acAway", { open: () => !$("acAway").hidden, close: () => { $("acAway").hidden = true; } }); }
   };
-  return { title, tick, showAway, modTxt };
+  // Teinte (hue de l'école) d'un multiplicateur temporaire actif sur le panneau p (flottants plus gros et teintés) ; null = aucun
+  const tint = (p, now) => { const st = Spells.hudState(now), e = st.fxs.find(x => { const s = byId[x.tag]; return s && (s.pn === p || s.pn === "X") && x.m.some(m => m[1] === "*" && m[2] > 1 && (m[0] === "click" || m[0] === "ether" || m[0] === "sg")); }); return e ? hn(byId[e.tag].k) : null; };
+  return { title, tick, showAway, modTxt, tint };
 })();

@@ -9,7 +9,7 @@
 // ============================================================
 // Adresse propre : on masque « index.html » dans la barre d'adresse (affichage seulement).
 if (/index\.html$/.test(location.pathname)) history.replaceState(null, "", location.pathname.replace(/index\.html$/, "") + location.search + location.hash);
-const CURRENT_VERSION = "2.a3.19";
+const CURRENT_VERSION = "2.a3.20";
 document.querySelectorAll('[id="app-version"]').forEach(e => { e.textContent = CURRENT_VERSION; });   // 2 pieds de page (accueil + app)
 
 // DROP RATES — C:40 | PC:25 | R:20 | TR:8 | L:5 | A:2
@@ -1468,6 +1468,20 @@ function refreshProfileHero() {
     n.textContent = state.pseudo || 'Mage Anonyme';
     if (sub) sub.textContent = disc + (total ? ' / ' + total : '') + ' objets découverts';
     if (bar) bar.style.width = (total ? Math.round(disc / total * 100) : 0) + '%';
+  } catch (e) {}
+  refreshSchoolBadge();
+}
+// Badge d'école (clicker) : lu dans la sauvegarde locale du clicker (sp.school / sp.rank), affiché une fois l'école choisie (rang ≥ 2)
+const SCHOOL_BADGE = { evo: ['Évocation', 25, 'M13 2L4 14h7l-1 8 9-12h-7z'], enc: ['Enchantement', 320, 'M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16z'], ill: ['Illusion', 190, 'M4 4l7 5-3 4 4 7M20 4l-7 5 3 4-4 7'], nec: ['Nécromancie', 350, 'M16 3a9 9 0 1 0 5 12A7 7 0 0 1 16 3zM6 20L20 6'], abj: ['Abjuration', 215, 'M12 2l8 5v10l-8 5-8-5V7z'], div: ['Divination', 270, 'M2 12c4-7 16-7 20 0-4 7-16 7-20 0zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z'], tra: ['Transmutation', 45, 'M6 3h12M6 21h12M7 3c0 6 10 6 10 12v6M17 3c0 6-10 6-10 12v6'], con: ['Conjuration', 150, 'M12 3a9 9 0 1 1-9 9M12 7a5 5 0 1 1-5 5M12 11a1 1 0 1 1-1 1'] };
+function refreshSchoolBadge() {
+  try {
+    const el = document.getElementById('pf-school'); if (!el) return;
+    const c = JSON.parse(localStorage.getItem(CHANNEL.lsk('coffre-clicker')) || '{}'), sp = c.sp || {}, b = SCHOOL_BADGE[sp.school];
+    if (!b) { el.hidden = true; return; }
+    const rk = Math.max(1, Math.min(6, sp.rank | 0)), ro = ['I', 'II', 'III', 'IV', 'V', 'VI'][rk - 1], b2 = SCHOOL_BADGE[sp.school2];
+    el.style.setProperty('--h', b[1]);
+    el.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path class="pf-sc-hex" d="M12 1.5l9 5.2v10.6l-9 5.2-9-5.2V6.7z"/><path class="pf-sc-gl" d="' + b[2] + '"/></svg><span>' + b[0] + (b2 ? ' · ' + b2[0] : '') + ' — Rang ' + ro + '</span>';
+    el.title = 'Spécialité du clicker' + (b2 ? ' (double spécialité)' : '') + ' — Rang ' + ro; el.hidden = false;
   } catch (e) {}
 }
 

@@ -608,3 +608,16 @@ body.ac-shake{animation:acShk .09s linear infinite}@keyframes acShk{0%{transform
 @media(prefers-reduced-motion:reduce){.fxp,.fxp.arm,.pane.amp{animation:none}}
 
 .fxrow{flex:none;align-items:flex-start;align-content:flex-start}.fxp{align-self:flex-start}
+
+/* v2.a3.20 : fin du clignotement de la barre d'effets — aucune animation en boucle ; fondu à l'apparition / disparition, halo FIXE (intensité = puissance de l'amplification) */
+.fxp{animation:none;transition:opacity .2s,transform .2s}.fxp.new{animation:fxIn .3s both}.fxp.out{opacity:0;transform:scale(.94)}.fxp.arm{animation:none;box-shadow:0 0 12px hsl(var(--h) 85% 60%/.45)}.fxp em[hidden]{display:none}
+.pane{transition:box-shadow .5s}.pane.amp{animation:none;box-shadow:0 0 0 1px rgba(212,175,55,calc(.2 + var(--amp,0)*.35)),0 0 calc(14px + var(--amp,0)*22px) rgba(212,175,55,calc(.12 + var(--amp,0)*.28))}
+
+/* v2.a3.20 : mots clés soulignés (bulle de définition), flottants teintés sous multiplicateur, page doublée d'Obéissance */
+.kw{text-decoration:underline dotted rgba(212,175,55,.8);text-underline-offset:3px;cursor:help}.kw:focus-visible{outline:1px solid #d4af37;outline-offset:2px;border-radius:3px}
+#kwTip{position:fixed;z-index:9999;padding:9px 12px;border-radius:12px;background:linear-gradient(160deg,rgba(30,22,48,.96),rgba(14,10,26,.97));border:1px solid rgba(212,175,55,.45);box-shadow:0 10px 30px rgba(0,0,0,.6),0 0 18px rgba(212,175,55,.15);backdrop-filter:blur(10px);font:12px/1.4 system-ui,sans-serif;color:#e6dfd0;opacity:0;pointer-events:none;transform:translateY(4px);transition:opacity .15s,transform .15s}
+#kwTip.on{opacity:1;transform:none}#kwTip b{display:block;margin-bottom:2px;font:700 12px Cinzel,serif;color:#f5d98a;letter-spacing:.04em}
+.fl.x{font-size:19px;color:hsl(var(--h) 90% 72%)!important;text-shadow:0 0 10px hsl(var(--h) 90% 55%),0 0 3px #000}
+.pgd{position:absolute;left:50%;top:44%;width:62px;height:82px;margin:-41px 0 0 -31px;border-radius:3px 7px 7px 3px;background:linear-gradient(120deg,rgba(245,217,138,.55),rgba(190,150,70,.25));border:1px solid rgba(245,217,138,.6);box-shadow:0 0 14px rgba(245,217,138,.35);pointer-events:none;animation:pgd .65s ease-out forwards}
+@keyframes pgd{from{transform:translate(0,0) rotate(0);opacity:.8}to{transform:translate(34px,-30px) rotate(var(--r,6deg)) scale(1.1);opacity:0}}
+@media (prefers-reduced-motion:reduce){.pgd{display:none}}

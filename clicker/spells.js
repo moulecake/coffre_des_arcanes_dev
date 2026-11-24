@@ -231,7 +231,7 @@ const Spells = (() => {
     mk("<i class='psi psi-x'>" + ICON.minus + "</i><div><b>Retirer le sort</b><small>Vide l'emplacement sélectionné</small></div>", () => equip(null));
     const base = SP.filter(s => L[s.id] && (s.pn === pp || s.pn === "X")), shown = base.filter(s => spOk(s, pkF)); fcount($("pfilt"), shown.length, base.length);
     shown.forEach(s => {
-      const d = mk("<i class='psi' style='--h:" + SCH.find(x => x[0] === s.k)[2] + "'>" + gl(s.k, 20) + "</i><div><b>" + s.n + "</b> <span class='ps-tg " + (s.t === "A" ? "act" : "pas") + "'>" + (s.t === "A" ? "Actif · Recharge " + Math.round(Fx.cdOf(s.id, s.cd, sch(s.k))) + " s" : "Passif") + "</span><small>" + s.d + "</small></div>", () => equip(s.id));
+      const d = mk("<i class='psi' style='--h:" + SCH.find(x => x[0] === s.k)[2] + "'>" + gl(s.k, 20) + "</i><div><b>" + s.n + "</b> <span class='ps-tg " + (s.t === "A" ? "act" : "pas") + "'>" + (s.t === "A" ? "Actif · Recharge " + Math.round(Fx.cdOf(s.id, s.cd, sch(s.k))) + " s" : "Passif") + "</span><small>" + (window.Lex ? Lex.mark(s.d) : s.d) + "</small></div>", () => equip(s.id));
       if (inT(s.id)) d.classList.add("eq");
     });
     if (list.children.length === 1) list.insertAdjacentHTML("beforeend", "<div class='hint'>" + (base.length ? "Aucun sort ne correspond à ta recherche." : "Aucun sort appris pour ce panneau — inscris-toi à l'Amphithéâtre.") + "</div>");

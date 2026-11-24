@@ -803,3 +803,10 @@ html.ptu .live-only { display: none !important; }
 .pf-caret{transition:transform .25s;color:var(--text-dim)}.pf-c-wipe[open] .pf-caret{transform:rotate(180deg)}
 .pf-c-wipe[open] summary{margin-bottom:8px}.pf-c-wipe[open]{gap:10px}
 @media (prefers-reduced-motion:reduce){.pf-btn,.pf-back,.pf-caret{transition:none}}
+
+/* v2.a3.20 : badge d'école du clicker dans le profil */
+.pf-school{display:inline-flex;align-items:center;gap:6px;align-self:flex-start;max-width:100%;padding:2px 9px 2px 3px;border-radius:99px;background:hsl(var(--h) 55% 18%/.7);border:1px solid hsl(var(--h) 70% 55%/.55);box-shadow:0 0 12px hsl(var(--h) 80% 50%/.25);font:600 10px 'Cinzel',serif;letter-spacing:.04em;color:hsl(var(--h) 90% 82%)}
+.pf-school[hidden]{display:none}.pf-school svg{flex:none;width:20px;height:20px;overflow:visible;filter:drop-shadow(0 0 4px hsl(var(--h) 90% 60%))}
+.pf-school .pf-sc-hex{fill:hsl(var(--h) 60% 30%);stroke:hsl(var(--h) 85% 68%);stroke-width:1.2;stroke-linejoin:round}.pf-school .pf-sc-gl{fill:none;stroke:hsl(var(--h) 100% 90%);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;transform:scale(.56);transform-origin:12px 12px}
+.pf-school span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pf-school span{white-space:normal!important;line-height:1.25}.pf-school{border-radius:14px}

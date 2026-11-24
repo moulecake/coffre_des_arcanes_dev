@@ -269,9 +269,9 @@ const ptIn = (e, p) => {                               // point d'un clic dans l
   if (e.detail === 0 || (!e.clientX && !e.clientY)) { const t = e.currentTarget && e.currentTarget.getBoundingClientRect ? e.currentTarget.getBoundingClientRect() : r; return { x: t.left + t.width / 2 - r.left, y: t.top + t.height / 2 - r.top }; }
   return { x: e.clientX - r.left, y: e.clientY - r.top };
 };
-const fl = (e, txt, col) => {
+const fl = (e, txt, col, hue) => {
   const p = e.currentTarget.closest(".pane"), q = ptIn(e, p), s = document.createElement("span");
-  s.className = "fl"; s.textContent = txt; s.style.cssText = "left:" + q.x + "px;top:" + q.y + "px;color:" + col;
+  s.className = hue == null ? "fl" : "fl x"; if (hue != null) s.style.setProperty("--h", hue); s.textContent = txt; s.style.cssText = "left:" + q.x + "px;top:" + q.y + "px;color:" + col;
   if (FLN >= 10) return;                               // plafond de flottants simultanés (rafale de clics après un lag = pas d'explosion de nœuds)
   FLN++; p.append(s); setTimeout(() => { s.remove(); FLN--; }, 900);
 };
@@ -358,7 +358,7 @@ function clickV(e) {
   Stats.click("V"); if (!Spells.immune()) heat += 10; const over = heat >= Fx.cap(M("cps", CPS_PALIERS[0])); if (over) { Stats.add("ovV", 1); hotMs = M("cps", CPS_PALIERS[0]) * 1000 * M("pause", 1); hot = n + hotMs; }   // surchauffe : pause = limite en secondes (5 cps → 5 s · 10 → 10 s · 15 → 15 s)
   const m = Spells.onClick(), g = Passives.calc().clickV * M("click", 1) * m; S.eth += g; Stats.add("eth", g);
   { const ch = M("chain", 0); if (ch > 0) { const g2 = g * ch; S.eth += g2; Stats.add("eth", g2); Stats.add("imp", ch); } }          // Chaîne d'Éclairs : impulsions supplémentaires
-  sfx(over ? "rumble" : "zap"); ripple(e, over ? 1.8 : m > 1 ? 1.5 : 1); fl(e, "+" + fE(g), "#a78bfa");
+  sfx(over ? "rumble" : "zap"); ripple(e, over ? 1.8 : m > 1 ? 1.5 : 1); fl(e, "+" + fE(g), "#a78bfa", Hud.tint("V", n));
   if (m > 1) critFx(e, "ill", "CRITIQUE ×" + m);        // Image Miroir : glyphe d'Illusion
 }
 // ---- Grimoire : double page · glyphes révélés par la jauge · page 3D · runes envolées · pages Nécrotique/Dorée · curseur Plume ----
@@ -418,6 +418,12 @@ function critFx(e, k, txt) {
   el.innerHTML = Spells.glyph(k, 54) + "<b>" + txt + "</b>"; pt.p.append(el); setTimeout(() => el.remove(), 900);
 }
 
+// enc4 « Obéissance » : page doublée — purement cosmétique (l'effet reste un ×1,2/×1,3 constant, aucun tirage) : une seconde page se détache du Grimoire à chaque clic
+function pageDbl() {
+  if (!Spells.hudState(Date.now()).eq.includes("enc4") || matchMedia("(prefers-reduced-motion:reduce)").matches) return;
+  const p = document.querySelector(".pane.grimoire"), el = document.createElement("i"); if (!p || p.querySelectorAll(".pgd").length >= 3) return;
+  el.className = "pgd"; el.style.setProperty("--r", (Math.random() * 16 - 8).toFixed(1) + "deg"); p.append(el); setTimeout(() => el.remove(), 700);
+}
 let heatG = 0, hotG = 0, hotGMs = 10000, lastDenyG = 0;
 function clickG(e) {
   const nG = Date.now();
@@ -425,7 +431,7 @@ function clickG(e) {
   Stats.click("G"); heatG += 10;
   if (heatG >= Fx.cap(M("cpsG", CPS_GRIMOIRE))) { Stats.add("ovG", 1); hotGMs = M("cpsG", CPS_GRIMOIRE) * 1000; hotG = nG + hotGMs; startChaos(); }       // trop de clics/s : chaos (pause = limite en secondes)
   const c = Passives.calc(), pt = S.g.t, g = c.pageClick * pageX() * M("sg", 1) * Spells.onClickG();
-  Spells.touch(); clkPt = paneXY(e); gainSg(g, true); sfx("paper"); fl(e, "+" + fN(g) + " Sg", pt === "gold" ? "#d4af37" : pt === "red" ? "#e11d48" : "#f5d98a");
+  Spells.touch(); clkPt = paneXY(e); gainSg(g, true); sfx("paper"); fl(e, "+" + fN(g) + " Sg", pt === "gold" ? "#d4af37" : pt === "red" ? "#e11d48" : "#f5d98a", Hud.tint("G", nG)); pageDbl();
 }
 
 // ---- Chaos du Grimoire (anti-autoclic) : le livre noircit, des tentacules sortent des bords ; SVG recalculé à chaque image PENDANT la pause seulement ----
@@ -551,6 +557,22 @@ const LEX = [
   ["Fragment", "5 fragments = 1 clé du Coffre. L'effort en donne, et le flux passif d'Éther distille aussi des micro-fragments."],
   ["Hors ligne", "Quand tu es absent, tes bâtiments continuent de produire, dans la limite de 8 heures."]
 ];
+// Mots clés soulignés en pointillé dans les descriptions de sorts : un appui ouvre une mini-bulle de définition (§14)
+const KW = [[/impulsions?/, "Impulsion"], [/effort/, "Effort"], [/taxe(?: d'adaptation)?/, "Taxe"], [/surchauffe/, "Surchauffe"], [/page (?:dorée|nécrotique)/, "Page"], [/hors ligne/, "Hors ligne"], [/recharge/, "Recharge"]];
+const KWRE = new RegExp("(?<![\p{L}])(" + KW.map(k => k[0].source).join("|") + ")(?![\p{L}])", "giu");
+window.Lex = {
+  mark: t => String(t).replace(KWRE, w => { const k = KW.find(x => new RegExp("^(?:" + x[0].source + ")$", "iu").test(w)); return k ? "<u class='kw' data-k='" + k[1] + "' tabindex='0'>" + w + "</u>" : w; }),
+  open: el => {
+    const d = LEX.find(x => x[0] === el.dataset.k); if (!d) return; let b = $("kwTip");
+    if (!b) { b = document.createElement("div"); b.id = "kwTip"; b.setAttribute("role", "tooltip"); document.body.append(b); }
+    b.innerHTML = "<b>" + d[0] + "</b><span>" + d[1] + "</span>"; b.classList.add("on"); const r = el.getBoundingClientRect(), w = Math.min(280, innerWidth - 24);
+    b.style.width = w + "px"; b.style.left = Math.max(12, Math.min(innerWidth - w - 12, r.left + r.width / 2 - w / 2)) + "px"; b.style.top = "0px";
+    const h = b.offsetHeight, below = r.bottom + 8 + h < innerHeight; b.style.top = (below ? r.bottom + 8 : Math.max(8, r.top - h - 8)) + "px";
+  },
+  close: () => { const b = $("kwTip"); if (b) b.classList.remove("on"); }
+};
+document.addEventListener("click", e => { const k = e.target.closest && e.target.closest(".kw"); if (k) { e.preventDefault(); e.stopPropagation(); Lex.open(k); } else Lex.close(); }, true);
+addEventListener("scroll", () => Lex.close(), true);
 function introTab(t) {
   const lex = t === "L"; $("introHome").hidden = lex; $("introLex").hidden = !lex; $("itA").setAttribute("aria-selected", String(!lex)); $("itL").setAttribute("aria-selected", String(lex));
   $("introGo").textContent = lex ? "Fermer" : "Commencer l'aventure"; $("introLex").scrollTop = 0;
