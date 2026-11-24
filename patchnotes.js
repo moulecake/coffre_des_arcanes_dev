@@ -7,6 +7,16 @@
 // ============================================================
 const PATCHNOTES = [
   {
+    v: '2.a3.10', name: 'La Taxe revue', date: '2026-11-25',
+    gift: 'Cadeau de mise à jour : 3 clés offertes !',
+    sections: [
+      { t: '⚖ Équilibrage', items: [
+        '**Taxe d’adaptation** : elle ne se déclenche plus que si tu **retires vraiment** un sort. Remplir un emplacement vide ou déplacer un sort est gratuit, comme changer plus de 45 s après ton dernier effort (demi-tarif entre 15 et 45 s).',
+        'Le prix dépend du **rang** des sorts changés. Tu vois ce que tu retires et ce que tu ajoutes, et tu paies en **Éther et Sagesse** ou en **attendant** (sorts actifs bloqués).'
+      ] }
+    ]
+  },
+  {
     v: '2.a3.9', name: 'Banc d’essai', date: '2026-11-25',
     gift: 'Cadeau de mise à jour : 3 clés offertes !',
     sections: [

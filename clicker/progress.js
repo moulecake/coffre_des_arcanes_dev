@@ -101,7 +101,17 @@ const ProgLib = (() => {
     if (S.pdone.includes(k) || S.pend.some(e => e && e.k === k)) return false;
     S.pend = mergePend(S.pend, [{ k, t: "spe", ts: now || 0 }]); return true;
   }
-  return { SPV, COST, TIME, EX, SCHOOLS, chooseSchool, schoolMul, resetLearning, proposeSpe, emptySp, norm, migrate, score, decide, fixSp, mergePend, mergeDone, pending, ack, slots, doneAt, canLearn, conds, canExam, startExam, finishExam };
+  // ---- Taxe d'adaptation (v2.a3.10, §15.3) : changer des sorts juste après un effort. Base = RANG des sorts, jamais le revenu. ----
+  // w = 3^(rang−1) ; S = Σ w des sorts retirés + ajoutés ; temps = 8 s × S^0,85 (plafond 15 min) ; Sagesse = 10 % des PRIX D'APPRENTISSAGE retirés + ajoutés ; Éther = Sagesse × 0,2.
+  // Gratuit : aucun sort retiré (emplacement vide rempli / déplacement) ou dernier effort > 45 s ; demi-tarif entre 15 et 45 s ; plein tarif < 15 s. Escalade par fréquence : PRÉVUE, DÉSACTIVÉE (TAXE.esc).
+  const TAXE = { esc: false, free: 45e3, full: 15e3, k: 8, p: .85, cap: 900, sg: .1, eth: .2 };
+  const taxe = (removed, added, ago) => {
+    if (!removed.length) return { free: true, why: "vide" };
+    if (ago > TAXE.free) return { free: true, why: "repos" };
+    const all = removed.concat(added), mul = ago < TAXE.full ? 1 : .5, S = all.reduce((a, id) => a + 3 ** (rankOf(id) - 1), 0), base = all.reduce((a, id) => a + COST[rankOf(id) - 1], 0) * TAXE.sg;
+    return { free: false, mul, S, time: Math.min(TAXE.cap, TAXE.k * Math.pow(S, TAXE.p)) * mul, sg: base * mul, eth: base * TAXE.eth * mul, removed, added };
+  };
+  return { SPV, COST, TIME, EX, TAXE, taxe, SCHOOLS, chooseSchool, schoolMul, resetLearning, proposeSpe, emptySp, norm, migrate, score, decide, fixSp, mergePend, mergeDone, pending, ack, slots, doneAt, canLearn, conds, canExam, startExam, finishExam };
 })();
 const Prog = ProgLib;
 if (typeof module !== "undefined") module.exports = ProgLib;

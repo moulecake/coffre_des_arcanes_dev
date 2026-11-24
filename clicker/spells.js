@@ -129,18 +129,23 @@ const Spells = (() => {
     b.querySelector("b").textContent = r > 0 && r <= 9e3 ? Math.ceil(r / 1e3) : "";          // chiffres : 9 dernières secondes
   });
 
-  // ---- Taxe (ex-« Gold Sink », nom interne) : changer un sort juste après un effort (< 15 s) = payer ou subir 30 s de blocage des sorts actifs. La clé de sauvegarde `sp().pen` est conservée telle quelle. ----
-  const taxe = (fn, change) => {
-    if (!change || Date.now() - lastAct > 15e3) return fn();                // hors action / Académie : gratuit
-    const c = Passives.calc(), ce = Math.ceil(50 + 90 * c.ethPS), cs = Math.ceil(20 + 90 * c.sgPS), g = $("gbtns"); g.innerHTML = "";
-    $("gtxt").textContent = "Tu agis en ce moment : changer ton équipement de sorts maintenant coûte une taxe. Choisis comment la régler.";
+  // ---- Taxe d'adaptation (§15, v2.a3.10) : changer des sorts juste après un effort. Détection par ENSEMBLE de sorts (ordre et déplacements ignorés) : seuls les sorts réellement RETIRÉS ou AJOUTÉS comptent.
+  // Barème et gratuités : Prog.taxe (progress.js, testé). La clé de sauvegarde `sp().pen` (blocage des sorts actifs) est conservée telle quelle. ----
+  const TAXE_LOG = window.TAXE_LOG = [];                                           // JOURNAL DE DIAGNOSTIC TEMPORAIRE (à retirer avec la démo) : cause de chaque demande de Taxe, pour trouver le bug « demandée alors que je n'ai rien touché »
+  const fdur = s => { s = Math.max(1, Math.ceil(s)); return s >= 60 ? Math.floor(s / 60) + " min" + (s % 60 ? " " + (s % 60) + " s" : "") : s + " s"; };
+  const nm = ids => ids.length ? ids.map(i => byId[i].n).join(", ") : "—";
+  const taxe = (fn, before, after, src) => {
+    const now = Date.now(), ago = now - lastAct, removed = before.filter(x => after.indexOf(x) < 0), added = after.filter(x => before.indexOf(x) < 0), q = Prog.taxe(removed, added, ago);
+    const rec = { t: new Date(now).toTimeString().slice(0, 8), src: src || "?", ago: Math.round(ago / 100) / 10, removed, added, free: q.free, why: q.free ? q.why : "taxe", S: q.S }; TAXE_LOG.push(rec); if (TAXE_LOG.length > 30) TAXE_LOG.shift(); console.info("[Taxe]", JSON.stringify(rec));
+    if (q.free) return fn();
+    const ce = Math.ceil(q.eth), cs = Math.ceil(q.sg), tm = Math.ceil(q.time), g = $("gbtns"); g.innerHTML = "";
+    $("gtxt").innerHTML = "Tu retires : <b>" + nm(removed) + "</b><br>Tu ajoutes : <b>" + nm(added) + "</b><br>Ta dernière action date de " + Math.round(ago / 1e3) + " s : <b>" + (q.mul < 1 ? "demi-tarif" : "plein tarif") + "</b>. Choisis comment régler la taxe.";
     const add = (h, f, ok) => {
       const d = document.createElement("div"); d.className = "ps" + (ok ? "" : " off"); d.innerHTML = h;
       d.onclick = () => { if (!ok) return; $("gate").hidden = true; f(); fn(); }; g.append(d);
     };
-    add("<i>💠</i><div><b>Payer " + fE(ce) + "</b></div>", () => { S.eth -= ce; Stats.add("taxe", 1); Stats.add("taxeE", 1); Stats.ms("taxe"); }, S.eth >= ce);
-    add("<i>📖</i><div><b>Payer " + fN(cs) + " Sg</b></div>", () => { S.sg -= cs; Stats.add("taxe", 1); Stats.add("taxeS", 1); Stats.ms("taxe"); }, S.sg >= cs);
-    add("<i>⏳</i><div><b>Pénalité : sorts actifs bloqués 30 s</b></div>", () => { sp().pen = Date.now() + 3e4; Stats.add("taxe", 1); Stats.add("taxeT", 1); Stats.ms("taxe"); }, true);
+    add("<i>💠</i><div><b>Payer " + fE(ce) + " + " + fN(cs) + " Sg</b><small>Éther ET Sagesse ensemble</small></div>", () => { S.eth -= ce; S.sg -= cs; Stats.add("taxe", 1); Stats.add("taxeP", 1); Stats.ms("taxe"); }, S.eth >= ce && S.sg >= cs);
+    add("<i>⏳</i><div><b>Attendre : sorts actifs bloqués " + fdur(tm) + "</b><small>Les passifs restent actifs</small></div>", () => { sp().pen = Math.max(sp().pen || 0, Date.now() + tm * 1e3); Stats.add("taxe", 1); Stats.add("taxeT", 1); Stats.ms("taxe"); }, true);
     const x = document.createElement("div"); x.className = "ps"; x.innerHTML = "<i>✕</i><div><b>Annuler</b></div>"; x.onclick = () => { $("gate").hidden = true; }; g.append(x);
     Stats.add("taxeAsk", 1); $("gate").hidden = false;
   };
@@ -159,7 +164,9 @@ const Spells = (() => {
       if (id) for (const p of ["V", "G"]) E[p].forEach((x, i) => { if (x === id) E[p][i] = null; });
       E[pp][si] = id; if (!ed) { dirty = 1; bars(); Stats.add("chg", 1); if (id) sp().tut.fill[pp + si] = 1; } pickR(); save(); if (window.Academy) Academy.refresh();
     };
-    taxe(run, !ed && !!E[pp][si] && E[pp][si] !== id);                      // remplacer/retirer = changement
+    if (ed) return run();                                                    // pré-construction d'un deck : jamais de Taxe
+    const V = E.V.slice(), G = E.G.slice(), PP = { V, G }; if (id) for (const q of ["V", "G"]) PP[q].forEach((x, i) => { if (x === id) PP[q][i] = null; }); PP[pp][si] = id;
+    taxe(run, eqIds(), [...V, ...G].filter(Boolean), "equip");               // remplacer / retirer : seuls les sorts réellement retirés ou ajoutés comptent
   };
   const pickR = () => {
     const L = sp().learned, n = nSlots(), sl = $("pslots"), list = $("plist"), E = eq(); sl.innerHTML = list.innerHTML = "";
@@ -186,8 +193,7 @@ const Spells = (() => {
     const n = nSlots(), L = sp().learned, E = sp().eq, N = { V: E.V.slice(), G: E.G.slice() };
     sides(d).forEach(p => { for (let i = 0; i < n; i++) { if (sp().lock[p + i]) continue; const id = d[p][i]; N[p][i] = id && L[id] ? id : null; } });
     N.G.forEach((id, i) => { if (id && N.V.includes(id) && !sp().lock["G" + i]) N.G[i] = null; });      // pas de doublon (Voile prioritaire)
-    const change = ["V", "G"].some(p => E[p].some((id, i) => id && N[p][i] !== id));
-    taxe(() => { sp().eq = N; dirty = 1; bars(); Stats.add("chgDeck", 1); sp().tut.equip = 1; ["V", "G"].forEach(q => N[q].forEach((x, i) => { if (x) sp().tut.fill[q + i] = 1; })); save(); toast("Deck « " + d.name + " » équipé"); }, change);
+    taxe(() => { sp().eq = N; dirty = 1; bars(); Stats.add("chgDeck", 1); sp().tut.equip = 1; ["V", "G"].forEach(q => N[q].forEach((x, i) => { if (x) sp().tut.fill[q + i] = 1; })); save(); toast("Deck « " + d.name + " » équipé"); }, eqIds(), [...N.V, ...N.G].filter(Boolean), "deck");
   };
   const dkR = () => {
     const el = $("dklist"); el.innerHTML = "";

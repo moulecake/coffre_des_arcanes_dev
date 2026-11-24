@@ -122,3 +122,24 @@ console.log("progress.test.js : " + n + " vérifications OK");
   ok2(P.score(big(), { spV: 3, sp: P.emptySp() }) === P.score({ spV: 2, b: { anc: 9 }, sp: P.emptySp() }, { spV: 3 }), "score : sorts ignorés quand les spV diffèrent");
   console.log("  (+" + m + " vérifications spécialité/reset)");
 }
+
+// ===== v2.a3.10 : Taxe d'adaptation (§15.3) — barème exact du tableau =====
+{
+  let m = 0; const ok3 = (c, msg) => { assert(c, msg); n++; m++; }, nr = (a, b, msg, tol = .5) => { assert(Math.abs(a - b) <= tol, msg + " (" + a + " ≠ " + b + ")"); n++; m++; };
+  const full = (rm, ad) => P.taxe(rm, ad, 5e3);                      // dernier effort il y a 5 s = plein tarif
+  let q = full(["evo1"], ["enc1"]); ok3(!q.free && q.S === 2 && q.mul === 1, "R1↔R1 : S = 2"); nr(q.time, 14.4, "R1 : ≈ 14 s", .1); nr(q.sg, 40e3, "R1 : 40 K Sg", 1); nr(q.eth, 8e3, "Éther = Sagesse × 0,2", 1);
+  q = full(["evo2"], ["enc2"]); ok3(q.S === 6, "R2 : S = 6"); nr(q.time, 36.7, "R2 : ≈ 37 s", .2); nr(q.sg, 1.6e6, "R2 : 1,6 M Sg", 1);
+  q = full(["evo3"], ["enc3"]); ok3(q.S === 18, "R3 : S = 18"); nr(q.time, 93.4, "R3 : ≈ 1 min 33", .3); nr(q.sg, 16e6, "R3 : 16 M Sg", 1);
+  q = full(["evo4"], ["enc4"]); ok3(q.S === 54, "R4 : S = 54"); nr(q.time, 237, "R4 : ≈ 3 min 57", 1); nr(q.sg, 60e6, "R4 : 60 M Sg", 1);
+  q = full(["evo4"], ["enc1"]); ok3(q.S === 28, "R4↔R1 : S = 28"); nr(q.time, 136, "R4↔R1 : ≈ 2 min 16", 1); nr(q.sg, 30.02e6, "R4↔R1 : ≈ 30 M Sg", 1e3);
+  q = full(["evo2", "enc2", "ill2", "nec2"], ["abj2", "div2", "tra2", "con2"]); ok3(q.S === 24, "deck de 4 sorts R2 changés : S = 24 (4 retirés + 4 ajoutés)"); nr(q.sg, 6.4e6, "deck R2 : 6,4 M Sg (tableau §15.3)", 1);
+  const r4 = ["evo4", "enc4", "ill4", "nec4", "abj4", "div4", "tra4", "con4"], r4b = r4.map(x => x + "");
+  q = full(r4, r4b); ok3(q.S === 8 * 27 * 2 && q.time === 900, "deck de 8 sorts R4 : plafond 15 min"); nr(q.sg, 480e6, "deck R4 : 480 M Sg", 1);
+  // gratuités et demi-tarif
+  ok3(P.taxe([], ["evo1"], 1e3).free && P.taxe([], ["evo1"], 1e3).why === "vide", "emplacement vide rempli : gratuit même à chaud");
+  ok3(P.taxe(["evo1"], ["enc1"], 46e3).free && P.taxe(["evo1"], ["enc1"], 46e3).why === "repos", "dernier effort > 45 s : gratuit");
+  const h = P.taxe(["evo1"], ["enc1"], 30e3), f = P.taxe(["evo1"], ["enc1"], 10e3); ok3(h.mul === .5 && nr(h.time, f.time / 2, "demi-tarif : temps /2", 1e-6) === undefined && Math.abs(h.sg - f.sg / 2) < 1e-6, "15–45 s : demi-tarif (temps et Sagesse)");
+  ok3(P.taxe(["evo1"], ["enc1"], 14999).mul === 1 && P.taxe(["evo1"], ["enc1"], 15001).mul === .5 && P.taxe(["evo1"], ["enc1"], 45001).free, "seuils 15 s / 45 s");
+  ok3(P.TAXE.esc === false, "escalade par fréquence désactivée");
+  console.log("  (+" + m + " vérifications Taxe)");
+}
