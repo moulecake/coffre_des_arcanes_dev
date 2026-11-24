@@ -7,6 +7,15 @@
 // ============================================================
 const PATCHNOTES = [
   {
+    v: '2.a3.9', name: 'Banc d’essai', date: '2026-11-25',
+    gift: 'Cadeau de mise à jour : 3 clés offertes !',
+    sections: [
+      { t: '🛠 Coulisses', items: [
+        '**Version de test** : outils de démonstration pour les examens (réservés aux essais).'
+      ] }
+    ]
+  },
+  {
     v: '2.a3.8', name: 'Le Diplôme', date: '2026-11-25',
     gift: 'Cadeau de mise à jour : 3 clés offertes !',
     sections: [

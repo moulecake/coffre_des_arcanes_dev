@@ -74,15 +74,15 @@ ok(P.canExam(sp, { eth: 3e8, sg: 2e9 }, 8e8, 3).why === "conds", "examen 3 : 3 s
 
 // 7. Déroulement : inscription, fin hors ligne, célébration, rang + emplacement
 S = { spV: 2, sp: P.emptySp(), pend: [], pdone: [] }; P.startExam(S.sp, 1000, 1);
-ok(S.sp.exam.end === 1000 + 120e3, "durée examen 1 = 2 min");
-ok(P.finishExam(S, 1000 + 119e3) === 0 && S.sp.rank === 1, "pas fini");
-ok(P.finishExam(S, 9e9) === 1 && S.sp.rank === 2 && S.sp.exam === null && S.sp.exDone[1] === 1000 + 120e3, "fini hors ligne : rang 2");
+ok(S.sp.exam.end === 1000 + P.EX.dur[0] * 1e3, "durée examen 1 = EX.dur[0]");
+ok(P.finishExam(S, 1000 + P.EX.dur[0] * 1e3 - 1e3) === 0 && S.sp.rank === 1, "pas fini");
+ok(P.finishExam(S, 9e9) === 1 && S.sp.rank === 2 && S.sp.exam === null && S.sp.exDone[1] === 1000 + P.EX.dur[0] * 1e3, "fini hors ligne : rang 2");
 eq(P.pending(S).map(e => e.k), ["exam:1"], "célébration en attente"); ok(P.slots(S.sp) === 2, "2 emplacements");
 ok(P.finishExam(S, 9e9) === 0 && S.pend.length === 1, "idempotent");
 
 // 8. Prix et temps
 ok(P.COST.join() === "200000,8000000,80000000,300000000" && P.TIME.join() === "30,300,1800,10800", "table de prix §3.4");
-ok(P.EX.price.join() === "2000000,80000000,800000000,3000000000" && P.EX.dur.join() === "120,1200,7200,28800", "examens §3.4");
+ok(P.EX.price.join() === "2000000,80000000,800000000,3000000000" && P.EX.durOrig.join() === "120,1200,7200,28800" && P.EX.dur.length === 4, "examens §3.4 (durées d'origine ; EX.dur = 1 min en test)");
 console.log("progress.test.js : " + n + " vérifications OK");
 
 // ===== v2.a3.7 : spécialité, réinitialisation (spV incrémenté), proposition aux joueurs rang ≥ 2 =====

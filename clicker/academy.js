@@ -51,6 +51,38 @@ window.Academy = (() => {
 
   const tone = (f0, f1, d, v = .08, type = "sawtooth") => { if (!SOUND) return; try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime; o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t + d); g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.001, t + d); o.connect(g); g.connect(ac.destination); o.start(); o.stop(t + d); } catch (e) {} };
   const tension = (sec) => { if (!SOUND) return null; try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime; o.type = "sawtooth"; o.frequency.setValueAtTime(70, t); o.frequency.exponentialRampToValueAtTime(260, t + sec); g.gain.setValueAtTime(.0001, t); g.gain.linearRampToValueAtTime(.06, t + sec * .9); o.connect(g); g.connect(ac.destination); o.start(); return () => { try { g.gain.cancelScheduledValues(ac.currentTime); g.gain.setTargetAtTime(.0001, ac.currentTime, .03); o.stop(ac.currentTime + .15); } catch (e) {} }; } catch (e) { return null; } };   // grondement qui monte tant qu'on maintient
+  // === DEMO-BEGIN : panneau de test (v2.a3.9) — TEMPORAIRE, À RETIRER AVANT LES BÊTA-TESTEURS (voir MEMOIRE.md « À RETIRER ») ===
+  const AC_DEMO = true;
+  const demoHtml = () => "<div class='ac-demo'><span>Démo :</span><button data-d='learn'>Apprendre les sorts du rang</button><button data-d='next'>Valider la condition suivante</button><button data-d='all'>Tout valider</button><button data-d='sg'>Sagesse ×10</button><button data-d='eth'>Éther ×10</button><button data-d='back'>Simuler : rouvrir le clicker après validation</button><button data-d='rst'>Réinitialiser</button></div>";
+  const demoOk = (c, n) => {                                              // valide UNE condition (sauf l'école : elle se choisit pour de vrai)
+    const t = sp().tut; Stats.flush();
+    if (c.id === "fill") (n === 1 ? ["V0", "G0"] : ["V0", "V1", "G0", "G1"]).forEach(k => { t.fill[k] = 1; });
+    else if (c.id === "cast") t.cast = 1; else if (c.id === "deck") t.deck = 1; else if (c.id === "equip") t.equip = 1;
+    else if (c.id === "cast3") ["evo1", "evo2", "evo3"].forEach(i => { t.castIds[i] = 1; });
+    else if (c.id === "eth") S.st.eth = Math.max(S.st.eth || 0, c.need); else if (c.id === "sg") S.st.sg = Math.max(S.st.sg || 0, c.need);
+    else return false; return true;
+  };
+  const demoBind = n => {
+    document.querySelectorAll(".ac-demo button").forEach(b => b.onclick = () => {
+      const d = b.dataset.d, info = Spells.examInfo(n);
+      if (d === "learn") { Spells.SP.filter(x => x.r === n).forEach(x => { sp().learned[x.id] = 1; }); sp().course = null; Spells.invalidate(); toast("Démo : sorts du rang " + n + " appris"); }
+      else if (d === "next") { const c = info.conds.find(x => !x.ok); if (!c) toast("Démo : tout est validé"); else if (!demoOk(c, n)) toast("Choisis d'abord ta spécialité (bouton « Choisir mon école »)"); }
+      else if (d === "all") { info.conds.forEach(c => demoOk(c, n)); if (info.conds.some(c => c.id === "spe" && !c.ok)) toast("Il manque la spécialité (bouton « Choisir mon école »)"); }
+      else if (d === "sg") { S.sg = Math.max(S.sg, 1) * 10; toast("Démo : Sagesse ×10"); }
+      else if (d === "eth") { S.eth = Math.max(S.eth, 1) * 10; toast("Démo : Éther ×10"); }
+      else if (d === "back") {                                              // rejoue la célébration du dernier examen validé (comme à la réouverture du clicker)
+        const last = Math.max(0, ...Object.keys(sp().exDone).map(Number)); if (!last) return toast("Valide d'abord un examen");
+        const k = "exam:" + last; S.pdone = (S.pdone || []).filter(x => x !== k); if (!(S.pend || []).some(e => e.k === k)) S.pend.push({ k, t: "exam", n: last, ts: Date.now() });
+        celOpen = 0; snooze.clear(); closeExam(); refresh(); celebrate(); return;
+      } else if (d === "rst") {                                             // retour à « examen 1 non validé » (les sorts du rang 1 restent appris, l'école aussi)
+        const p = sp(); p.rank = 1; p.exam = null; p.exDone = {}; p.course = null; p.tut = Prog.emptySp().tut; Object.keys(p.learned).forEach(i => { if (+i[3] > 1) delete p.learned[i]; });
+        p.eq.V.length = Math.min(p.eq.V.length, 1); p.eq.G.length = Math.min(p.eq.G.length, 1); p.decks.forEach(dk => { ["V", "G"].forEach(q => { if (dk[q]) dk[q].length = Math.min(dk[q].length, 1); }); });
+        S.pend = (S.pend || []).filter(e => e.t !== "exam"); S.pdone = (S.pdone || []).filter(x => x.indexOf("exam:") !== 0); S.lock = 0; S.spV = (S.spV || 2) + 1;      /* spV+1 : sans cela le cloud (plus avancé) annulerait ce retour en arrière */ Spells.invalidate(); Spells.init(); toast("Démo : examen 1 remis à zéro");
+      }
+      save(); if (window.cloudSave) cloudSave(true); refresh();
+    });
+  };
+  // === DEMO-END ===
   const hold = (btn, ms, done, snd) => {                                    // appui maintenu (souris, doigt, Espace/Entrée) : barre qui se remplit, `done` à 100 %
     let raf = 0, t0 = 0, off = null; const stop = () => { cancelAnimationFrame(raf); raf = 0; t0 = 0; btn.style.setProperty("--p", 0); if (off) { off(); off = null; } };
     const step = t => { if (!t0) t0 = t; const p = Math.min(100, (t - t0) / ms * 100); btn.style.setProperty("--p", p); if (p >= 100) { raf = 0; if (off) { off(); off = null; } done(); return; } raf = requestAnimationFrame(step); };
@@ -138,7 +170,8 @@ window.Academy = (() => {
     const row = (c, l, p) => "<div class='ac-row " + c + "'><span>" + l + "</span>" + Array.from({ length: 4 }, (_, i) => "<span class='ac-sl " + (i < R ? "f" : "lock") + (done && i === n ? " new" : "") + "'>" + (i < R ? "✦" : ic.lock) + "</span>").join("") + "</div>";
     if (done) h += "<button class='ac-go sec' id='acRev2'>REVOIR MON DIPLÔME</button>";
     h += "<div class='ac-slots'>" + row("v", "VOILE") + row("g", "GRIMOIRE") + "</div>";
-    body.innerHTML = h; last = {};
+    if (AC_DEMO) h += demoHtml();                                                  // DEMO (temporaire)
+    body.innerHTML = h; last = {}; if (AC_DEMO) demoBind(n);
     body.querySelectorAll(".ac-info[data-i]").forEach(b => b.onclick = () => { const t = ctext(info.conds[+b.dataset.i], n); $("acInfoT").textContent = t[0]; $("acInfoP").textContent = t[1]; $("acInfo").hidden = false; $("acInfoOk").focus(); });
     const sg = $("acSpeGo"); if (sg) sg.onclick = openSpe; const r2 = $("acRev2"); if (r2) r2.onclick = () => diploma(n, null);
     const go = $("acGo"); if (go) go.onclick = () => { const r = Spells.startExam(n); if (r.ok) { tone(220, 110, .25, .09, "triangle"); tone(1500, 700, .12, .04, "square"); buzz2(30); toast("Inscription validée : l'épreuve commence"); } };

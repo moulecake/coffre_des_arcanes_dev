@@ -1,9 +1,10 @@
 # MEMOIRE — Le Coffre des Arcanes (ex-Arcane Vault) + Clicker
 
 > Handoff pour le Claude qui continue le dev. À lire en premier, à mettre à jour à la fin de chaque étape.
-> Dernière mise à jour : 2026-11-24. **Version : v2.a3.8** (code à jour = dossier de travail, pas le zip de handoff). Langue de travail : français. Utilisateur : MJ de JDR D&D, non-dev, colle les blocs à la main.
+> Dernière mise à jour : 2026-11-24. **Version : v2.a3.9** (code à jour = dossier de travail, pas le zip de handoff). Langue de travail : français. Utilisateur : MJ de JDR D&D, non-dev, colle les blocs à la main.
 
 ## ⏰ RAPPELS (à traiter par Claude dès qu'on est à la date)
+- **À RETIRER AVANT LES BÊTA-TESTEURS (code de test temporaire, v2.a3.9+)** : (1) `clicker/academy.js` : tout le bloc `// === DEMO-BEGIN … DEMO-END ===` + `AC_DEMO` + les 2 lignes `if (AC_DEMO)` dans `exam()` ; (2) `clicker/style.css` : bloc `DEMO-BEGIN … DEMO-END` ; (3) `clicker/progress.js` : `EX.dur` doit redevenir `EX.durOrig` (`[120, 1200, 7200, 28800]`) ; (4) 2.a3.11+ : les durées de test de la triche (`CHEAT.lock`, `CHEAT.cd` forcés dans le bloc DEMO) ; (5) 2.a3.10+ : le journal de diagnostic de la Taxe (`TAXE_LOG`, `console.info("[Taxe]")`).
 - **À partir du 2026-12-01** (repoussé d'une semaine par l'utilisateur le 2026-11-24, tous les alphatesteurs n'ont pas encore rechargé) : supprimer le correctif temporaire des raretés dans `script.js` (bloc `TEMP_RARITY_FIX` + sa branche dans `unpackInventory`, voir le commentaire « À SUPPRIMER APRÈS LE 2026-11-24 ») après avoir demandé à l'utilisateur si tous les alphatesteurs ont rechargé depuis la correction C/PC de `data.js`. Rappeler aussi : supprimer le bloc `#sync-modal` commenté dans `index.html` et décider du repli `players` du classement (à retirer une fois les règles Firestore resserrées).
 
 ## 0. Points à trancher AVANT de coder
