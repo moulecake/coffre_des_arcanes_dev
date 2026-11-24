@@ -63,9 +63,9 @@ sp.tut.fill = { V0: 1, G0: 1 }; sp.tut.cast = 1; ok(P.canExam(sp, { eth: 999999,
 ok(P.canExam(sp, stOk, 1.9e6, 1).why === "poor", "Sagesse insuffisante pour les frais (2 M)");
 ok(P.canExam(sp, stOk, 2e6, 1).ok === true, "examen 1 possible");
 let sp2 = P.emptySp(); learnAll(sp2, 1); sp2.school = "evo"; delete sp2.learned.con1; sp2.tut.fill = { V0: 1, G0: 1 }; sp2.tut.cast = 1; ok(P.canExam(sp2, stOk, 1e9, 1).why === "spells", "7 sorts sur 8 : refusé");
-ok(P.canExam(sp, stOk, 1e9, 2).why === "future" && P.canExam(sp, stOk, 1e9, 5).why === "sealed", "futur / scellé (examen 5)");
+ok(P.canExam(sp, stOk, 1e9, 2).why === "future" && P.canExam(sp, stOk, 1e9, 6).why === "sealed", "futur / scellé (examen 6)");
 sp.exam = { n: 1, end: 9 }; ok(P.canExam(sp, stOk, 1e9, 1).why === "busy", "examen en cours");
-eq(P.conds(P.emptySp(), st0, 5), [], "examen 5 sans conditions (scellé)");
+eq(P.conds(P.emptySp(), st0, 6), [], "examen 6 sans conditions (scellé)");
 sp = P.emptySp(); sp.rank = 2; learnAll(sp, 2); sp.tut.fill = { V0: 1, G0: 1, V1: 1, G1: 1 }; sp.tut.deck = 1;
 ok(P.canExam(sp, { eth: 5e7, sg: 2e8 }, 8e7, 2).ok === true && P.canExam(sp, { eth: 5e7, sg: 2e8 - 1 }, 8e7, 2).why === "conds", "examen 2 : seuils 50 mL / 2·10⁸");
 sp.tut.fill.G1 = 0; ok(P.canExam(sp, { eth: 5e7, sg: 2e8 }, 8e7, 2).why === "conds", "examen 2 : 4 emplacements requis");
@@ -81,7 +81,7 @@ eq(P.pending(S).map(e => e.k), ["exam:1:2"], "célébration en attente (clé = e
 ok(P.finishExam(S, 9e9) === 0 && S.pend.length === 1, "idempotent");
 
 // 8. Prix et temps
-ok(P.COST.join() === "200000,8000000,80000000,300000000" && P.TIME.join() === "30,300,1800,10800", "table de prix §3.4");
+ok(P.COST.slice(0, 4).join() === "200000,8000000,80000000,300000000" && P.COST[4] === 1.2e9 && P.TIME[4] === 21600 && P.TIME.slice(0, 4).join() === "30,300,1800,10800", "table de prix §3.4");
 ok(P.EX.price.slice(0, 4).join() === "2000000,80000000,800000000,3000000000" && P.EX.durOrig.slice(0, 4).join() === "120,1200,7200,28800" && P.EX.dur.length === 5, "examens §3.4 (durées d'origine ; EX.dur = 1 min en test ; le 5 = valeurs provisoires)");
 console.log("progress.test.js : " + n + " vérifications OK");
 
@@ -199,7 +199,7 @@ console.log("progress.test.js : " + n + " vérifications OK");
   sp.decks = [{ name: "x", t: "H", V: ["evo1", "evo2", "evo3", null], G: ["enc1", "enc2", "enc3", "enc4"] }]; ok5(P.canExam(sp, big, 1e12, 4).why === "conds", "deck incomplet (3 + 4) refusé");
   sp.decks = [full()]; ok5(P.canExam(sp, { ...big, ovV: 0 }, 1e12, 4).why === "conds", "sans surchauffe déclenchée : refusé");
   ok5(P.canExam(sp, big, 1e12, 4).ok === true, "examen 4 possible"); ok5(P.canExam(sp, big, 2.9e9, 4).why === "poor", "frais 3 Md de Sagesse");
-  ok5(P.canExam(sp, big, 1e12, 5).why === "sealed", "examen 5 scellé");
+  ok5(P.canExam(sp, big, 1e12, 6).why === "sealed", "examen 6 scellé");
   // validation de l'examen 4 : rang 5, célébration, seconde spécialité proposée
   const S = { spV: 2, sp, pend: [], pdone: [] }; P.startExam(sp, 0, 4); ok5(P.finishExam(S, 1e9) === 4 && sp.rank === 5 && P.slots(sp) === 5 && sp.exDone[4], "examen 4 validé : rang 5, 5 emplacements");
   ok5(P.proposeSpe2(S, 1) === true && P.pending(S).some(e => e.t === "spe2") && P.proposeSpe2(S, 1) === false, "seconde école proposée une seule fois");
@@ -209,4 +209,19 @@ console.log("progress.test.js : " + n + " vérifications OK");
   P.ack(S, S.pend.find(e => e.t === "spe2").k); ok5(P.proposeSpe2(S, 9) === false, "acquittée : ne revient pas");
   const sp0 = P.emptySp(); sp0.school = "evo"; ok5(P.chooseSchool2(sp0, "abj", 1) === false, "interdit avant l'examen 4");
   console.log("  (+" + m + " vérifications examen 4 / seconde spécialité)");
+}
+
+
+// ===== v2.a3.19 : examen 5 jouable (conditions provisoires), rang 6 atteignable =====
+{
+  let m = 0; const ok6 = (c, msg) => { assert(c, msg); n++; m++; };
+  const sp = P.emptySp(); sp.rank = 5; learnAll(sp, 4); ["evo", "enc", "ill", "nec", "abj", "div", "tra", "con"].forEach(k => { sp.learned[k + "5"] = 1; }); sp.school = "evo";
+  const st = { eth: 3e9, sg: 4e10 }, d5 = { name: "d", t: "H", V: ["evo1", "evo2", "evo3", "evo4", "evo5"], G: ["enc1", "enc2", "enc3", "enc4", "enc5"] };
+  ok6(P.conds(sp, st, 5).map(c => c.id).join() === "deck5,cast5,eth,sg", "examen 5 : deck 5+5, 5 sorts actifs lancés, Éther, Sagesse");
+  ok6(P.canExam(sp, st, 1e13, 5).why === "conds", "examen 5 : conditions manquantes");
+  sp.decks = [d5]; sp.tut.castIds = { a: 1, b: 1, c: 1, d: 1, e: 1 }; ok6(P.canExam(sp, st, 1e13, 5).ok === true, "examen 5 possible");
+  ok6(P.canExam(sp, st, 1e13, 6).why === "sealed", "examen 6 scellé");
+  const S = { spV: 2, sp, pend: [], pdone: [] }; P.startExam(sp, 0, 5); ok6(P.finishExam(S, 1e9) === 5 && sp.rank === 6 && P.slots(sp) === 5, "examen 5 validé : rang 6, toujours 5 emplacements (pas d'emplacement 6)");
+  ok6(P.doneAt(sp, 5) === 8, "les 8 sorts du rang 5 comptent");
+  console.log("  (+" + m + " vérifications examen 5)");
 }

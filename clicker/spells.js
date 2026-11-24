@@ -53,7 +53,16 @@ const Spells = (() => {
     ["con1", "Portail Mineur", "P", "X", 0, "−5% de coût des bâtiments."],
     ["con2", "Invocation de Familier", "P", "V", 0, "Un familier frappe le Voile : 1 impulsion par seconde."],
     ["con3", "Cercle de Téléportation", "A", "X", 240, "Remet à zéro le sort actif au plus long CD équipé."],
-    ["con4", "Invocation d'Avatar Arcanique", "A", "X", 300, "Voile et Grimoire à pleine puissance (×3) pendant 10 s."]
+    ["con4", "Invocation d'Avatar Arcanique", "A", "X", 300, "Voile et Grimoire à pleine puissance (×3) pendant 10 s."],
+    // ---- Rang 5 (§7) ----
+    ["evo5", "Chaîne d'Éclairs", "A", "V", 150, "20 s : chaque clic du Voile déclenche 1 impulsion supplémentaire."],
+    ["enc5", "Sceau de Prospérité", "A", "G", 180, "30 s : les bâtiments du Grimoire coûtent 20 % de Sagesse en moins."],
+    ["ill5", "Double Reflet", "A", "X", 120, "Le prochain clic de CHAQUE panneau compte ×5."],
+    ["nec5", "Légion de Squelettes", "P", "G", 0, "Le scribe spectral grandit : +3 % de tes pages/s (s'ajoute au Squelette Scribe), actif hors ligne."],
+    ["abj5", "Égide Totale", "P", "X", 0, "Après une surchauffe du Voile, la pause dure 50 % moins longtemps."],
+    ["div5", "Veillée Prophétique", "P", "X", 0, "Hors ligne : +3 h de plafond et +20 % d'Éther (plafond global : 12 h)."],
+    ["tra5", "Pierre Philosophale", "P", "X", 0, "Hors ligne : 10 % de la Sagesse produite devient de l'Éther (×20)."],
+    ["con5", "Pacte d'Exemption", "P", "X", 0, "La Taxe d'adaptation coûte 50 % de moins."]
   ].map(([id, n, t, pn, cd, d]) => ({ id, k: id.slice(0, 3), r: +id[3], n, t, pn, cd, d }));
   const byId = Object.fromEntries(SP.map(s => [s.id, s])), COST = Prog.COST, TIME = Prog.TIME;     // v2.a3.6 : prix et durées dans clicker/progress.js (★ réglages)
   const hue = k => "hsl(" + SCH.find(s => s[0] === k)[2] + " 75% 68%)";
@@ -74,7 +83,7 @@ const Spells = (() => {
 
   // ---- Modificateurs (passifs équipés + effets temporaires) : valeurs « base / spécialité » dans clicker/effects.js (pur, testé) ----
   const sch = k => Fx.sf(sp(), k);                                                        // facteur de spécialité de l'école k : 1 = choisie · 0,5 = seconde · 0 = autre
-  let ml = [], dirty = 1, fxs = [], mirror = 0, presc = 0, clicks = 0, pp = "V", si = 0, lastAct = 0, lastEffort = 0, ed = null, immune = 0;   // lastAct = action récente (Taxe) ; lastEffort = tout appui (fragments d'effort) ; mirror = charges d'Image Miroir ; immune = fin de l'immunité de surchauffe (abj3)
+  let ml = [], dirty = 1, fxs = [], mirror = 0, presc = 0, clicks = 0, pp = "V", si = 0, lastAct = 0, lastEffort = 0, ed = null, immune = 0, dblV = 0, dblG = 0;   // lastAct = action récente (Taxe) ; lastEffort = tout appui (fragments d'effort) ; mirror = charges d'Image Miroir ; immune = fin de l'immunité de surchauffe (abj3)
   const rebuild = () => { ml = []; const nowA = Date.now(), A = sp().act || {}; eqIds().filter(id => !((A[id] || 0) > nowA)).forEach(id => ml.push(...Fx.PM(id, sch(byId[id].k), { lvl: lvl("abj"), paliers: CPS_PALIERS, cpsG: CPS_GRIMOIRE }))); };
   const modFor = ex => { const Lm = []; eqIds().filter(id => ex.indexOf(id) < 0).forEach(id => Lm.push(...Fx.PM(id, sch(byId[id].k), { lvl: lvl("abj"), paliers: CPS_PALIERS, cpsG: CPS_GRIMOIRE }))); return (k, d) => Fx.mod(Lm, [], 0, k, d); };   // modificateurs SANS les sorts `ex` et sans effets temporaires (hors ligne par tranches)
   // ---- Préparation hors ligne (§16) et activation des sorts d'achat (§17) : à chaque changement d'équipement ----
@@ -107,6 +116,9 @@ const Spells = (() => {
       const n = Date.now(), a = A("con3"), L = eqIds().filter(id => byId[id].t === "A" && id !== "con3").map(id => [id, (sp().cd[id] || 0) - n]).filter(x => x[1] > 0).sort((x, y) => y[1] - x[1]).slice(0, a.n);
       if (!L.length) return false; L.forEach(x => { sp().cd[x[0]] = 0; });
     },
+    evo5: () => { const a = A("evo5"); fx([["chain", "+", a.imp]], a.dur, "evo5"); },
+    enc5: () => { const a = A("enc5"); fx([["sgCost", "*", 1 - a.cut]], a.dur, "enc5"); },
+    ill5: () => { const a = A("ill5"); dblV = dblG = a.mult; },
     con4: () => { const a = A("con4"); fx([["ether", "*", a.mult], ["click", "*", a.mult], ["sg", "*", a.mult]], a.dur, "con4"); }
   };
   const cast = (s, p) => {
@@ -122,7 +134,8 @@ const Spells = (() => {
     save(); if (window.cloudSave) cloudSave();
     const pane = document.querySelector(p === "V" ? ".voile" : ".grimoire"); pane.classList.add("wave"); setTimeout(() => pane.classList.remove("wave"), 700);
   };
-  const onClick = () => { lastAct = lastEffort = Date.now(); let m = 1; if (mirror > 0) { mirror--; m = A("ill2").mult; } if (has("evo4")) { const e = Fx.ACT("evo4", sch("evo")); if (++clicks % e.every === 0) fx([["ether", "*", 2], ["click", "*", 2]], e.dur, "evo4"); } return m; };
+  const onClick = () => { lastAct = lastEffort = Date.now(); let m = 1; if (mirror > 0) { mirror--; m = A("ill2").mult; } if (dblV) { m = Math.max(m, dblV); dblV = 0; } if (has("evo4")) { const e = Fx.ACT("evo4", sch("evo")); if (++clicks % e.every === 0) fx([["ether", "*", 2], ["click", "*", 2]], e.dur, "evo4"); } return m; };
+  const onClickG = () => { if (dblG) { const m = dblG; dblG = 0; return m; } return 1; };                // Double Reflet : prochain clic du Grimoire
   const force = () => presc > 0 && (presc--, true), forced = () => presc, touch = () => { lastAct = lastEffort = Date.now(); }, effort = () => { lastEffort = Date.now(); }, active = () => Date.now() - lastEffort < 1e4;
 
   // ---- Barres de sorts ----
@@ -154,6 +167,7 @@ const Spells = (() => {
   const taxe = (fn, before, after, src) => {
     const now = Date.now(), ago = now - lastAct, removed = before.filter(x => after.indexOf(x) < 0), added = after.filter(x => before.indexOf(x) < 0), q = Prog.taxe(removed, added, ago);
     const rec = { t: new Date(now).toTimeString().slice(0, 8), src: src || "?", ago: Math.round(ago / 100) / 10, removed, added, free: q.free, why: q.free ? q.why : "taxe", S: q.S }; TAXE_LOG.push(rec); if (TAXE_LOG.length > 30) TAXE_LOG.shift(); console.info("[Taxe]", JSON.stringify(rec));
+    if (!q.free) { const tm = Math.max(0, mod("taxe", 1)); if (tm !== 1) { q.time *= tm; q.sg *= tm; q.eth *= tm; } }          // Pacte d'Exemption
     if (q.free) { fn(); return onEq(added, removed); }
     const ce = Math.ceil(q.eth), cs = Math.ceil(q.sg), tm = Math.ceil(q.time), g = $("gbtns"); g.innerHTML = "";
     $("gtxt").innerHTML = "Tu retires : <b>" + nm(removed) + "</b><br>Tu ajoutes : <b>" + nm(added) + "</b><br>Ta dernière action date de " + Math.round(ago / 1e3) + " s : <b>" + (q.mul < 1 ? "demi-tarif" : "plein tarif") + "</b>. Choisis comment régler la taxe.";
@@ -171,7 +185,7 @@ const Spells = (() => {
   const eq = () => ed || sp().eq, lk = (p, i) => !ed && sp().lock[p + i];
   const inT = id => { const E = eq(); return E.V.includes(id) || E.G.includes(id); };
   // ---- Recherche et filtres de sorts (v2.a3.16) : mot-clé (nom, effet, école, rang, actif/passif, hors ligne) + type + école. Partagés par le sélecteur et la palette des decks. ----
-  const OFFL = new Set(["enc2", "enc4", "nec1", "nec2", "abj2", "div2", "tra1", "tra4", "con2"]);        // passifs qui produisent aussi hors ligne (étiquette informative)
+  const OFFL = new Set(["enc2", "enc4", "nec1", "nec2", "abj2", "div2", "tra1", "tra4", "con2", "nec5", "div5", "tra5"]);        // passifs qui produisent aussi hors ligne (étiquette informative)
   const nz = s => String(s).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");     // sans accents ni casse
   const PNAME = { V: "voile", G: "grimoire", X: "voile grimoire" }, HAY = {};
   const hay = s => HAY[s.id] || (HAY[s.id] = nz([s.n, s.d, SCH.find(x => x[0] === s.k)[1], s.t === "A" ? "actif" : "passif", PNAME[s.pn], OFFL.has(s.id) ? "hors ligne" : "", "rang " + s.r].join(" ")));
@@ -311,7 +325,7 @@ const Spells = (() => {
   const resetLearning = () => {                                  // dernier recours : sorts/rang/examens/école à zéro, spV+1, rien n'est remboursé
     Prog.resetLearning(S); fxs = []; mirror = presc = clicks = 0; immune = 0; dirty = 1; Stats.add("reset", 1); Stats.ms("reset"); init(); save(); if (window.cloudSave) cloudSave(true); if (window.Academy) Academy.refresh();
   };
-  const examInfo = n => { Stats.flush(); const st = S.st || {}; return { conds: Prog.conds(sp(), st, n), can: Prog.canExam(sp(), st, S.sg, n, S.lock || 0, Date.now()), price: Prog.EX.price[n - 1], dur: Prog.EX.dur[n - 1], learned: Prog.doneAt(sp(), n) }; };
+  const examInfo = n => { Stats.flush(); const st = S.st || {}; return { conds: Prog.conds(sp(), st, n), can: Prog.canExam(sp(), st, S.sg, n, S.lock || 0, Date.now()), price: (Prog.EX.price[n - 1] || 0), dur: (Prog.EX.dur[n - 1] || 60), learned: Prog.doneAt(sp(), n) }; };
   const startExam = n => {                                      // paie les frais, lance le minuteur (timestamp absolu : continue hors ligne)
     const ci = examInfo(n).can; if (!ci.ok) return ci;
     S.sg -= Prog.EX.price[n - 1]; Prog.startExam(sp(), Date.now(), n); Stats.add("examPay", 1); Stats.ms("examStart" + n); save(); if (window.cloudSave) cloudSave(true); if (window.Academy) Academy.refresh(); return ci;
@@ -328,7 +342,7 @@ const Spells = (() => {
     if (ex) { dirty = 1; Stats.add("exam", 1); Stats.ms("exam" + ex); Stats.snap("exam" + ex); bars(); save(); if (window.cloudSave) cloudSave(true); if (window.Academy) Academy.examDone(ex); }
     { const b = mod("burn", 0); if (b > 0) { const x = Math.min(S.sg, b * Passives.calc().sgPS * dt); S.sg -= x; S.eth += x * 20; Stats.add("eth", x * 20); } }
     { const A = sp().act || {}, eqs = eqIds(); for (const k in A) { if (eqs.indexOf(k) < 0) delete A[k]; else if (A[k] <= n) { delete A[k]; dirty = 1; toast(byId[k].n + " est maintenant actif"); } } }          // fin de la recharge d'activation
-    fxs = fxs.filter(f => f.u > n); sp().fx = fxs; sp().st = [mirror, presc, clicks]; tickBars(n); if (window.Academy) Academy.tick(n); if (window.Hud) Hud.tick(n);
+    fxs = fxs.filter(f => f.u > n); sp().fx = fxs; sp().st = [mirror, presc, clicks, dblV, dblG]; tickBars(n); if (window.Academy) Academy.tick(n); if (window.Hud) Hud.tick(n);
   };
   // ---- Raccourcis clavier (§18.2, secret du jeu, PC seulement) : Voile = touches 1-5, Grimoire = 6-9 puis 0 (event.code : AZERTY et QWERTY, Maj toléré) ; comme un appui sur l'emplacement ; compte comme effort ----
   let kbd = 0;
@@ -341,11 +355,11 @@ const Spells = (() => {
   });
   const init = () => {
     if (!kbd) { kbd = 1; keys(); }
-    const o = sp(); fxs = (o.fx || []).filter(f => f.u > Date.now()); [mirror, presc, clicks] = o.st || [0, 0, 0];   // effets actifs persistants
+    const o = sp(); fxs = (o.fx || []).filter(f => f.u > Date.now()); [mirror, presc, clicks, dblV, dblG] = (o.st || [0, 0, 0, 0, 0]).map(x => x || 0);   // effets actifs persistants
     bars(); dkInit(); if (window.Academy) Academy.init();
     document.querySelectorAll(".gear[data-p]").forEach(g => g.onclick = () => pick(g.dataset.p));
     $("pclose").onclick = closePick; $("pick").onclick = e => { if (e.target.id === "pick") closePick(); };
   };
-  return { glyph: gl, hue, cast, SCH, mod, init, tick, onClick, force, forced, touch, effort, active, has, learn, SP, applyDeck, D, taxe, sp, byId, examInfo, startExam, COST, TIME, ft, quote, chooseSchool, chooseSchool2, resetLearning, OFFL, sch, modFor, loadsAt, byIdN: id => byId[id].n, activIn: id => Math.max(0, ((sp().act || {})[id] || 0) - Date.now()), idleNames: () => eqIds().filter(id => !OFFL.has(id)).map(id => byId[id].n),
+  return { glyph: gl, hue, cast, SCH, mod, init, tick, onClick, onClickG, force, forced, touch, effort, active, has, learn, SP, applyDeck, D, taxe, sp, byId, examInfo, startExam, COST, TIME, ft, quote, chooseSchool, chooseSchool2, resetLearning, OFFL, sch, modFor, loadsAt, byIdN: id => byId[id].n, activIn: id => Math.max(0, ((sp().act || {})[id] || 0) - Date.now()), idleNames: () => eqIds().filter(id => !OFFL.has(id)).map(id => byId[id].n),
     hudState: now => ({ fxs: fxs.filter(e => e.u > now), eq: eqIds(), mirror, mirrorX: Fx.ACT("ill2", sch("ill")).mult, presc, clicks, evo4: Fx.ACT("evo4", sch("evo")), cps: mod("cps", CPS_PALIERS[0]), cpsG: mod("cpsG", CPS_GRIMOIRE) }), sch, invalidate: () => { dirty = 1; }, immune: () => Date.now() < immune, augure: () => has("div1") ? Fx.augure(sch("div")) : 0 };
 })();

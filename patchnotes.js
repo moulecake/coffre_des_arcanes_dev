@@ -7,6 +7,17 @@
 // ============================================================
 const PATCHNOTES = [
   {
+    v: '2.a3.19', name: 'Le Rang V', date: '2026-11-26',
+    gift: 'Cadeau de mise à jour : 3 clés offertes !',
+    sections: [
+      { t: '🎁 Nouveautés', items: [
+        '**8 sorts de rang 5** : Chaîne d’Éclairs, Sceau de Prospérité, Double Reflet, Légion de Squelettes, Égide Totale, Veillée Prophétique, Pierre Philosophale et Pacte d’Exemption. Chacun a son bonus de spécialité.',
+        '**Examen du rang V** : il est ouvert. Il ouvre le rang VI (dont les sorts arrivent bientôt).',
+        '**Plafond hors ligne** : 12 heures au maximum, quels que soient tes sorts.'
+      ] }
+    ]
+  },
+  {
     v: '2.a3.18', name: 'Se préparer avant de partir', date: '2026-11-26',
     gift: 'Cadeau de mise à jour : 3 clés offertes !',
     sections: [

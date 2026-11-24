@@ -3,7 +3,7 @@
 // Les RÈGLES sont dans clicker/progress.js (pures) et clicker/spells.js (learn, startExam, examInfo). DA = maquettes/sorts.html (classes préfixées ac-).
 window.Academy = (() => {
   const $ = id => document.getElementById(id), sp = () => Spells.sp(), SCH = Spells.SCH, byId = Spells.byId, gl = Spells.glyph;
-  const rk = () => sp().rank | 0 || 1, ROM = ["", "I", "II", "III", "IV", "V"];
+  const rk = () => sp().rank | 0 || 1, ROM = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX"];
   const OFFL = Spells.OFFL;                                                                  // passifs qui produisent aussi hors ligne (liste unique, dans spells.js)
   const PN = { V: "Voile", G: "Grimoire", X: "Voile & Grimoire" };
   const ic = {
@@ -21,7 +21,9 @@ window.Academy = (() => {
     abj1: "Bouclier d'Éther : +2 clics/s au Voile et au Grimoire", abj2: "Glyphe de Warding : hors ligne plafonné à 12 h", abj3: "Disjonction de Mordenkainen : recharge 40 s et 5 s d'immunité", abj4: "Sanctuaire Absolu : −22 % de recharge",
     div1: "Augure : tu vois les 2 prochaines pages", div2: "Vision du Passé : +30 %, Éther hors ligne inclus", div3: "Prescience : 7 pages rares, recharge 120 s", div4: "Vision de l'Avenir : −35 % de temps de cours",
     tra1: "Alchimie Mineure : ne brûle que 10 % de la Sagesse", tra2: "Fonte des Runes : ×4 pendant 40 s", tra3: "Transmutation de Plomb en Or : 20 s, recharge 95 s", tra4: "Philosophie de la Matière : ×1,35, Bougie et Homoncule inclus",
-    con1: "Portail Mineur : −8 % de coût", con2: "Invocation de Familier : 2 familiers", con3: "Cercle de Téléportation : remet 2 sorts à zéro, recharge 190 s", con4: "Invocation d'Avatar Arcanique : 14 s de pleine puissance"
+    con1: "Portail Mineur : −8 % de coût", con2: "Invocation de Familier : 2 familiers", con3: "Cercle de Téléportation : remet 2 sorts à zéro, recharge 190 s", con4: "Invocation d'Avatar Arcanique : 14 s de pleine puissance",
+    evo5: "Chaîne d'Éclairs : 28 s, 2 impulsions par clic, recharge 120 s", enc5: "Sceau de Prospérité : −30 % de coût pendant 40 s, recharge 140 s", ill5: "Double Reflet : ×7, recharge 95 s",
+    nec5: "Légion de Squelettes : +5 % de tes pages/s", abj5: "Égide Totale : pause de surchauffe −65 %", div5: "Veillée Prophétique : +5 h de plafond hors ligne et Éther +30 %", tra5: "Pierre Philosophale : rendement ×30 au lieu de ×20", con5: "Pacte d'Exemption : Taxe −65 %"
   };
   let speMode = 1, miniDead = false, cg = { init: 0, vis: 0, hide: 0, next: 0 }, dipClose = null, navDone = 0, selK = null, snooze = new Set(), uid = 0, sel = null, exN = 0, last = {}, tEx = 0, celOpen = 0, onCele = null;
   const EYE = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'><path d='M2 12c4-7 16-7 20 0-4 7-16 7-20 0z'/><circle cx='12' cy='12' r='3' fill='currentColor'/></svg>";
@@ -61,8 +63,9 @@ window.Academy = (() => {
     if (c.id === "fill") (n === 1 ? ["V0", "G0"] : ["V0", "V1", "G0", "G1"]).forEach(k => { t.fill[k] = 1; });
     else if (c.id === "cast") t.cast = 1; else if (c.id === "deck") t.deck = 1; else if (c.id === "equip") t.equip = 1;
     else if (c.id === "cast3") ["evo1", "evo2", "evo3"].forEach(i => { t.castIds[i] = 1; });
+    else if (c.id === "cast5") ["evo1", "evo2", "evo3", "enc3", "tra2"].forEach(i => { t.castIds[i] = 1; });
     else if (c.id === "ov") S.st.ovV = Math.max(1, S.st.ovV || 0);
-    else if (c.id === "deck4") { const L = sp().learned, V = Spells.SP.filter(x => L[x.id] && (x.pn === "V" || x.pn === "X")).slice(0, 4).map(x => x.id), G = Spells.SP.filter(x => L[x.id] && (x.pn === "G" || x.pn === "X") && V.indexOf(x.id) < 0).slice(0, 4).map(x => x.id); if (V.length < 4 || G.length < 4) { toast("Apprends d'abord les sorts du rang"); return true; } sp().decks.push({ name: "Deck complet", t: "H", V, G }); }
+    else if (c.id === "deck4" || c.id === "deck5") { const N = c.id === "deck5" ? 5 : 4; const L = sp().learned, V = Spells.SP.filter(x => L[x.id] && (x.pn === "V" || x.pn === "X")).slice(0, N).map(x => x.id), G = Spells.SP.filter(x => L[x.id] && (x.pn === "G" || x.pn === "X") && V.indexOf(x.id) < 0).slice(0, N).map(x => x.id); if (V.length < N || G.length < N) { toast("Apprends d'abord les sorts du rang"); return true; } sp().decks.push({ name: "Deck complet", t: "H", V, G }); }
     else if (c.id === "eth") S.st.eth = Math.max(S.st.eth || 0, c.need); else if (c.id === "sg") S.st.sg = Math.max(S.st.sg || 0, c.need);
     else return false; return true;
   };
@@ -124,11 +127,11 @@ window.Academy = (() => {
 
   // ---------- Grille : 8 écoles × rangs (rang suivant grisé, au-delà masqué, rang 5 = « ??? ») ----------
   const grid = () => {
-    const R = rk(), maxR = Math.min(5, R + 1), L = sp().learned, c = sp().course; let h = "<tr><th></th>" + Array.from({ length: maxR }, (_, r) => "<th>RANG " + (r + 1) + "</th>").join("") + "</tr>";
+    const R = rk(), maxR = Math.min(6, R + 1), L = sp().learned, c = sp().course; let h = "<tr><th></th>" + Array.from({ length: maxR }, (_, r) => "<th>RANG " + (r + 1) + "</th>").join("") + "</tr>";
     SCH.forEach(s => {
       h += "<tr><td class='ac-sch'><div class='ac-sn' style='--h:" + s[2] + "'>" + med(s[0]) + "<div>" + s[1].toUpperCase() + (sp().school === s[0] ? "<em>Spécialité</em>" : "") + "</div></div></td>";
       for (let r = 0; r < maxR; r++) {
-        if (r === 4) { h += "<td><div class='ac-t ac-mystery' style='--h:" + s[2] + "'>???</div></td>"; continue; }
+        if (r === 5) { h += "<td><div class='ac-t ac-mystery' style='--h:" + s[2] + "'>???</div></td>"; continue; }
         const x = byId[s[0] + (r + 1)], lock = r + 1 > R, done = !!L[x.id], lng = !!c && c.id === x.id, inner = gl(s[0], 26) + "<span class='ac-ty'>" + (x.t === "A" ? "ACTIF" : "") + "</span>" + (lock ? "" : "<span class='ac-nm'>" + x.n + "</span>");
         h += "<td><button class='ac-t" + (lock ? " locked" : "") + (done ? " learned" : "") + (lng ? " learning" : "") + (sel === x.id ? " sel" : "") + "' style='--h:" + s[2] + "' data-id='" + x.id + "' aria-label='" + (lock ? "Sort verrouillé" : x.n) + "'><span class='ac-in dull'>" + inner + "</span><span class='ac-in lit' style='clip-path:inset(0 " + (done ? 0 : 100) + "% 0 0)'>" + inner + "</span><span class='ac-ck'>" + ic.ok + "</span>" + (lock ? "<span class='ac-lk'>" + ic.lock + "</span>" : "") + "</button></td>";
       }
@@ -163,6 +166,8 @@ window.Academy = (() => {
     equip: ["Avoir équipé un deck", "Équipe un de tes decks depuis le menu Decks."],
     cast3: ["3 sorts actifs différents lancés", "Lance au moins 3 sorts actifs différents."],
     deck4: ["Un deck complet", "Enregistre un deck dont TOUS les emplacements sont remplis : 4 au Voile et 4 au Grimoire (bouton « Mes Decks »)."],
+    deck5: ["Un deck complet (5 + 5)", "Enregistre un deck dont TOUS les emplacements sont remplis : 5 au Voile et 5 au Grimoire (bouton « Mes Decks »)."],
+    cast5: ["5 sorts actifs différents lancés", "Lance au moins 5 sorts actifs différents."],
     ov: ["Avoir déclenché une surchauffe", "Frappe le Voile trop vite, au-delà de sa limite de clics par seconde, jusqu'à la surchauffe. C'est le meilleur moyen d'apprendre à la maîtriser."]
   };
   const ctext = (c, n) => c.id === "eth" ? [fE(c.need) + " d'Éther cumulé", "Total d'Éther gagné depuis le début : " + fE(c.need) + ". Touche le compteur d'Éther pour voir la valeur exacte."] :
@@ -312,7 +317,7 @@ window.Academy = (() => {
     el.innerHTML = "<div class='ac-rays ac-gold'></div><div class='ac-confetti'>" + cf + "</div><div class='ac-dwrap'><div class='ac-dpl" + (rm ? " rm" : "") + "'><div class='ac-dcorner tl'></div><div class='ac-dcorner tr'></div><div class='ac-dcorner bl'></div><div class='ac-dcorner br'></div>" +
       "<div class='ac-dh'>ACADÉMIE DES ARCANES</div><div class='ac-dsub'>Collège des Hautes Études Magiques</div><div class='ac-dt1'>DIPLÔME DE RANG " + ROM[n] + "</div><div class='ac-dline'></div>" +
       "<p class='ac-dtx'>Il est certifié que <b class='ac-nm'>" + nm.replace(/</g, "&lt;") + "</b>" + (sc ? ", disciple de l'école de <b style='color:hsl(" + h + " 80% 38%)'>" + sc[1] + "</b>," : "") + " a satisfait avec honneur à l'examen du rang " + n + " et se voit conférer le droit d'accéder aux enseignements supérieurs.</p>" +
-      "<div class='ac-dseal'>" + seal(n) + "</div><ul class='ac-unl'><li>✦ Emplacement " + (n + 1) + " au Voile et au Grimoire</li><li>✦ Sorts du rang " + (n + 1) + " désormais étudiables</li>" + (n === 4 ? "<li>✦ Seconde spécialité à choisir (moitié d'efficacité)</li>" : "") + "</ul>" +
+      "<div class='ac-dseal'>" + seal(n) + "</div><ul class='ac-unl'><li>✦ Emplacement " + (n + 1) + " au Voile et au Grimoire</li><li>✦ " + (n >= 5 ? "Rang " + (n + 1) + " atteint : ses sorts arrivent bientôt" : "Sorts du rang " + (n + 1) + " désormais étudiables") + "</li>" + (n === 4 ? "<li>✦ Seconde spécialité à choisir (moitié d'efficacité)</li>" : "") + "</ul>" +
       "<div class='ac-sigl'><svg class='ac-sig' viewBox='0 0 240 64' aria-hidden='true'><path d='M8 46c8-32 18-36 22-14 3 15-7 25-11 13 15 7 23-27 35-19 8 6-6 23 4 21 12-2 14-25 26-17 8 6-4 21 6 19 14-2 22-15 34-10 10 4 18 6 32-6M10 56c40-7 120-9 214-2'/></svg><span>Signature du candidat</span></div>" +
       "<button class='ac-dbtn' id='acDbtn'>PARAPHER ET POURSUIVRE</button></div></div>";
     el.scrollTop = 0; buzz2([30, 30, 30]); tone(180, 90, .6, .1);

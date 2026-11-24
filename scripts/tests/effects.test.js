@@ -76,4 +76,15 @@ ok(F.awaySlices(0, [{ id: "a", delay: 60 }], sliceOf([1, 2])).eth === 0 && F.awa
 { const c = { ethPS: 100, sgPS: 50 }, MM = (k, d) => d; const sl = F.awaySlices(3600, [], (ex, len) => F.awayRaw(c, len, MM)); ok(sl.eth === F.away(c, 3600, MM).eth && sl.sg === F.away(c, 3600, MM).sg, "tranche unique = Fx.away"); }
 // 8. Activation des sorts d'achat (§17)
 ok(F.activ("enc1", 0) === 600 && F.activ("enc1", 1) === 300 && F.activ("con1", 0) === 600 && F.activ("evo1", 1) === 0, "activation : 10 min (5 min en spé) pour enc1/con1, aucune pour les autres");
+
+// 9. Rang 5 (§7 ; colonne « Spé » inventée, à valider)
+[["nec5", "ghost", .03, .05], ["abj5", "pause", .5, .35], ["div5", "offlineCap", 3, 5], ["div5", "offlineEth", 1.2, 1.3], ["tra5", "burnOff", .1, .1], ["tra5", "burnX", 1, 1.5], ["con5", "taxe", .5, .35]].forEach(([id, k, a, b]) => { near(pv(id, 0, k), a, id + " " + k + " base"); near(pv(id, 1, k), b, id + " " + k + " spé"); });
+ok(A("evo5", 0).imp === 1 && A("evo5", 1).imp === 2 && A("evo5", 1).dur === 28 && A("evo5", 1).cd === 120 && A("evo5", 0).cd === 150, "evo5 : 20 s / 1 impulsion / 150 s → 28 s / 2 / 120 s");
+near(A("enc5", 0).cut, .2, "enc5 −20 %"); near(A("enc5", 1).cut, .3, "enc5 spé −30 %"); ok(A("enc5", 1).dur === 40 && A("enc5", 0).dur === 30, "enc5 30 s → 40 s"); ok(A("ill5", 0).mult === 5 && A("ill5", 1).mult === 7 && A("ill5", 1).cd === 95, "ill5 ×5 → ×7");
+// plafond hors ligne global 12 h (§22) et Pierre Philosophale
+ok(F.capH(mk({ offlineCap: 15 })) === 12 && F.capH(mk({ offlineCap: 8 })) === 8, "plafond global 12 h");
+r = F.away(c, 20 * 3600, mk({ offlineCap: 8 + 2 + 3 })); ok(r.sec === 12 * 3600, "abj2 + div5 (13 h) plafonné à 12 h");
+r = F.away(c, 3600, mk({ burnOff: .1 })); near(r.burn, 18000, "Pierre Philosophale : 10 % brûlés hors ligne"); near(r.eth, 360000 + 18000 * 20, "…rendement ×20");
+r = F.away(c, 3600, mk({ burnOff: .1, burnX: 1.5 })); near(r.eth, 360000 + 18000 * 30, "…rendement ×30 en spé");
+r = F.away(c, 3600, mk({ burn: .2, burnOff: .1 })); near(r.burn, 54000, "Alchimie + Pierre : 30 % cumulés");
 console.log("effects.test.js : " + n + " vérifications OK");

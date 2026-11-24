@@ -24,7 +24,13 @@ const FxLib = (() => {
     tra1: f => [["frag", "*", 1.15], ["burn", "+", L(.2, .1, f)]],                // brûle une part de la Sagesse produite → Éther ×20 (en ligne ET hors ligne)
     tra4: f => [["ether", "*", L(1.25, 1.35, f)], ["scribe", "*", L(1.25, 1.35, f)], ["frag", "*", L(1.25, 1.35, f)], ["bldG", "*", L(1, 1.35, f)]],
     con1: f => [["ethCost", "*", L(.95, .92, f)], ["sgCost", "*", L(.95, .92, f)]],
-    con2: f => [["famil", "+", Math.floor(L(1, 2, f))]]
+    con2: f => [["famil", "+", Math.floor(L(1, 2, f))]],
+    // ---- Rang 5 (v2.a3.19, §7) — colonne « Spé » INVENTÉE ici (le document n'en donne pas) : à valider
+    nec5: f => [["ghost", "+", L(.03, .05, f)]],                              // le scribe spectral grandit (s'ajoute à nec2) ; actif hors ligne
+    abj5: f => [["pause", "*", L(.5, .35, f)]],                               // pause de surchauffe du Voile −50 % (−65 % en spé)
+    div5: f => [["offlineCap", "+", L(3, 5, f)], ["offlineEth", "*", L(1.2, 1.3, f)]],
+    tra5: f => [["burnOff", "+", .1], ["burnX", "*", L(1, 1.5, f)]],         // hors ligne : 10 % de la Sagesse produite → Éther (×20 ; ×30 en spé)
+    con5: f => [["taxe", "*", L(.5, .35, f)]]                                // Taxe d'adaptation −50 % (−65 % en spé)
   };
   const pm = (id, f, ctx) => PM[id] ? PM[id](f, ctx || { lvl: 1, paliers: [5, 10, 15], cpsG: 10 }) : [];
   // ---- Actifs (et paramètres d'evo4) : valeurs à l'instant du lancer
@@ -42,7 +48,10 @@ const FxLib = (() => {
     tra2: f => ({ cd: 90, mult: L(3, 4, f), dur: L(30, 40, f) }),
     tra3: f => ({ cd: L(120, 95, f), mult: 5, dur: L(15, 20, f) }),
     con3: f => ({ cd: L(240, 190, f), n: Math.floor(L(1, 2, f)) }),
-    con4: f => ({ cd: 300, mult: 3, dur: L(10, 14, f) })
+    con4: f => ({ cd: 300, mult: 3, dur: L(10, 14, f) }),
+    evo5: f => ({ cd: L(150, 120, f), dur: L(20, 28, f), imp: Math.round(L(1, 2, f)) }),          // chaque clic du Voile déclenche N impulsions de plus
+    enc5: f => ({ cd: L(180, 140, f), dur: L(30, 40, f), cut: L(.2, .3, f) }),                    // bâtiments du Grimoire moins chers
+    ill5: f => ({ cd: L(120, 95, f), mult: L(5, 7, f) })                                          // prochain clic de CHAQUE panneau
   };
   const act = (id, f, c) => ACT[id] ? ACT[id](f, c) : {};
   const cdOf = (id, base, f) => ACT[id] ? ACT[id](f).cd : base;
@@ -58,10 +67,11 @@ const FxLib = (() => {
   // ---- Hors ligne (une tranche) : M(clé, défaut) lit les modificateurs ; c = calc() (ethPS, sgPS). Renvoie les gains et le temps retenu (plafonné par offlineCap en heures).
   const awayRaw = (c, sec, M) => {                                       // une tranche de `sec` secondes, SANS plafond (le plafond est appliqué par l'appelant)
     sec = Math.max(0, sec);
-    const e0 = c.ethPS * sec * M("offlineEth", 1), s0 = c.sgPS * sec * M("offlineSg", 1), burn = Math.min(s0, s0 * Math.min(1, M("burn", 0)));
-    return { sec, eth: e0 + burn * 20, sg: s0 - burn, burn, micro: sec * M("fragOff", 1) };
+    const e0 = c.ethPS * sec * M("offlineEth", 1), s0 = c.sgPS * sec * M("offlineSg", 1), burn = Math.min(s0, s0 * Math.min(1, M("burn", 0) + M("burnOff", 0)));   // Alchimie Mineure (burn) + Pierre Philosophale (burnOff, hors ligne seulement)
+    return { sec, eth: e0 + burn * 20 * M("burnX", 1), sg: s0 - burn, burn, micro: sec * M("fragOff", 1) };
   };
-  const away = (c, sec, M) => awayRaw(c, Math.min(sec, M("offlineCap", 8) * 3600), M);
+  const capH = M => Math.min(M("offlineCap", 8), 12);                      // invariant §22 : plafond hors ligne 12 h au maximum
+  const away = (c, sec, M) => awayRaw(c, Math.min(sec, capH(M) * 3600), M);
   // ---- Préparation hors ligne (§16) : un sort qui agit hors ligne et vient d'être équipé n'est « chargé » qu'après un délai, mesuré entre son DERNIER changement et le départ.
   // ★ RÉGLAGE : 0–3 min → 60 min · 3–5 → 20 · 5–10 → 8 · 10–15 → 3 · 15 min et + → 0. Le délai ne coupe QUE les gains du sort changé, et il est plafonné par la durée d'absence (pas de dette).
   const loadDelay = agoMs => agoMs < 180e3 ? 3600 : agoMs < 300e3 ? 1200 : agoMs < 600e3 ? 480 : agoMs < 900e3 ? 180 : 0;
@@ -80,7 +90,7 @@ const FxLib = (() => {
   const CAP = [[15, 50], [10, 70], [0, 100]];
   const cap = limit => { for (const [l, c] of CAP) if (limit >= l) return c; return 100; };
   const slotKey = code => { const m = /^Digit(\d)$/.exec(code || ""); if (!m) return null; const d = +m[1]; return d >= 1 && d <= 5 ? { p: "V", i: d - 1 } : d >= 6 ? { p: "G", i: d - 6 } : d === 0 ? { p: "G", i: 4 } : null; };   // Voile 1-5, Grimoire 6-9 puis 0 (event.code : AZERTY et QWERTY)
-  return { L, sf, cap, CAP, slotKey, awayRaw, loadDelay, awaySlices, activ, PM: pm, ACT: act, cdOf, augure, mod, addFx, away, ap };
+  return { L, sf, cap, CAP, slotKey, capH, awayRaw, loadDelay, awaySlices, activ, PM: pm, ACT: act, cdOf, augure, mod, addFx, away, ap };
 })();
 const Fx = FxLib;
 if (typeof module !== "undefined") module.exports = FxLib;

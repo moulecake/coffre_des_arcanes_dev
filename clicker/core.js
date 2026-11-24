@@ -355,8 +355,9 @@ function initCursor() {                                // l'Orbe suit la souris 
 
 function clickV(e) {
   const n = Date.now(); if (n < hot) { if (n - lastDenyV > 250) { lastDenyV = n; sfx("deny"); ripple(e, .25); } return; }      // voile rigide pendant la surchauffe
-  Stats.click("V"); if (!Spells.immune()) heat += 10; const over = heat >= Fx.cap(M("cps", CPS_PALIERS[0])); if (over) { Stats.add("ovV", 1); hotMs = M("cps", CPS_PALIERS[0]) * 1000; hot = n + hotMs; }   // surchauffe : pause = limite en secondes (5 cps → 5 s · 10 → 10 s · 15 → 15 s)
+  Stats.click("V"); if (!Spells.immune()) heat += 10; const over = heat >= Fx.cap(M("cps", CPS_PALIERS[0])); if (over) { Stats.add("ovV", 1); hotMs = M("cps", CPS_PALIERS[0]) * 1000 * M("pause", 1); hot = n + hotMs; }   // surchauffe : pause = limite en secondes (5 cps → 5 s · 10 → 10 s · 15 → 15 s)
   const m = Spells.onClick(), g = Passives.calc().clickV * M("click", 1) * m; S.eth += g; Stats.add("eth", g);
+  { const ch = M("chain", 0); if (ch > 0) { const g2 = g * ch; S.eth += g2; Stats.add("eth", g2); Stats.add("imp", ch); } }          // Chaîne d'Éclairs : impulsions supplémentaires
   sfx(over ? "rumble" : "zap"); ripple(e, over ? 1.8 : m > 1 ? 1.5 : 1); fl(e, "+" + fE(g), "#a78bfa");
   if (m > 1) critFx(e, "ill", "CRITIQUE ×" + m);        // Image Miroir : glyphe d'Illusion
 }
@@ -423,7 +424,7 @@ function clickG(e) {
   if (nG < hotG) { if (nG - lastDenyG > 500) { lastDenyG = nG; sfx("deny"); } return; }       // Grimoire verrouillé pendant le chaos
   Stats.click("G"); heatG += 10;
   if (heatG >= Fx.cap(M("cpsG", CPS_GRIMOIRE))) { Stats.add("ovG", 1); hotGMs = M("cpsG", CPS_GRIMOIRE) * 1000; hotG = nG + hotGMs; startChaos(); }       // trop de clics/s : chaos (pause = limite en secondes)
-  const c = Passives.calc(), pt = S.g.t, g = c.pageClick * pageX() * M("sg", 1);
+  const c = Passives.calc(), pt = S.g.t, g = c.pageClick * pageX() * M("sg", 1) * Spells.onClickG();
   Spells.touch(); clkPt = paneXY(e); gainSg(g, true); sfx("paper"); fl(e, "+" + fN(g) + " Sg", pt === "gold" ? "#d4af37" : pt === "red" ? "#e11d48" : "#f5d98a");
 }
 
@@ -470,7 +471,7 @@ function startChaos() {
 function endChaos() { $("tome").classList.remove("chaos"); document.querySelector(".grimoire").classList.remove("chaos"); }
 
 function away(sec) {                                   // hors-ligne : timestamps, plafond 8 h (extensible via sorts) ; calcul PAR TRANCHES (préparation §16 : un sort récemment équipé n'agit qu'après son délai) ; formules pures dans effects.js (testées)
-  Stats.max("offMax", sec); const c = Passives.calc(), raw = sec, total = Math.min(raw, M("offlineCap", 8) * 3600), loads = Spells.loadsAt(Date.now() - raw * 1e3);
+  Stats.max("offMax", sec); const c = Passives.calc(), raw = sec, total = Math.min(raw, Fx.capH(M) * 3600), loads = Spells.loadsAt(Date.now() - raw * 1e3);
   const R = Fx.awaySlices(total, loads, (ex, len) => { const MM = Spells.modFor(ex), cc = Passives.calcWith(MM), r = Fx.awayRaw(cc, len, MM); return { eth: r.eth, sg: r.sg, burn: r.burn, mf: keysPerDay(cc.ethPS) * 5 * 100 / 86400 * MM("frag", 1) * r.micro, pg: cc.pagesPS * len }; });
   const a = { sec: total, eth: R.eth || 0, sg: R.sg || 0, burn: R.burn || 0 };
   S.eth += a.eth; S.sg += a.sg; Stats.add("eth", a.eth); Stats.add("sg", a.sg); Stats.add("off", a.sec); Stats.add("offN", 1); Stats.add("offEth", a.eth); Stats.add("offSg", a.sg);

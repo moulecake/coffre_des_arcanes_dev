@@ -7,8 +7,8 @@
 const ProgLib = (() => {
   const SPV = 2;
   // ★ RÉGLAGES (CONCEPTION_SORTS.md §3.4) — prix en Sagesse, temps en secondes, seuils CUMULÉS (statistiques à vie : Éther en nL).
-  const COST = [2e5, 8e6, 8e7, 3e8], TIME = [30, 300, 1800, 10800];
-  const EX = { price: [2e6, 8e7, 8e8, 3e9, 1.2e10], dur: [60, 60, 60, 60, 60], durOrig: [120, 1200, 7200, 28800, 43200],   /* TEMPORAIRE (test, v2.a3.9) : tous les examens durent 1 min — À REMETTRE À `durOrig` AVANT LES BÊTA-TESTEURS */ eth: [1e6, 5e7, 3e8, 1e9, 3e9], sg: [1e3, 2e8, 2e9, 1e10, 4e10], open: 4, rankMax: 5 };   // open = examens jouables (1 à 4 ; le 5 reste scellé jusqu'aux sorts de rang 5) · rang 5 = 5 emplacements · valeurs de l'examen 5 = PLACEHOLDER à calibrer
+  const COST = [2e5, 8e6, 8e7, 3e8, 1.2e9], TIME = [30, 300, 1800, 10800, 21600];
+  const EX = { price: [2e6, 8e7, 8e8, 3e9, 1.2e10], dur: [60, 60, 60, 60, 60], durOrig: [120, 1200, 7200, 28800, 43200],   /* TEMPORAIRE (test, v2.a3.9) : tous les examens durent 1 min — À REMETTRE À `durOrig` AVANT LES BÊTA-TESTEURS */ eth: [1e6, 5e7, 3e8, 1e9, 3e9], sg: [1e3, 2e8, 2e9, 1e10, 4e10], open: 5, rankMax: 5 };   // open = examens jouables (1 à 4 ; le 5 reste scellé jusqu'aux sorts de rang 5) · rang 5 = 5 emplacements · valeurs de l'examen 5 = PLACEHOLDER à calibrer
   const emptySp = () => ({ learned: {}, eq: { V: [], G: [] }, lock: {}, cd: {}, course: null, decks: [], rank: 1, exam: null, exDone: {}, chg: {}, act: {}, school: null, schoolAt: 0, school2: null, tut: { fill: {}, cast: 0, castIds: {}, deck: 0, equip: 0 } });
   const isO = v => v && typeof v === "object" && !Array.isArray(v), V = X => (X && X.spV) || 1, clone = v => JSON.parse(JSON.stringify(v == null ? null : v));
   function norm(sp) {                                  // complète un S.sp incomplet (idempotent) ; ne touche à aucun sort appris
@@ -61,11 +61,12 @@ const ProgLib = (() => {
   // Conditions d'un examen : [{id, ok, kind, have?, need?}] ; `st` = statistiques à vie (S.st). L'examen 4 est scellé.
   function conds(sp, st, n) {
     const t = sp.tut || {}, f = t.fill || {}, e = +(st && st.eth) || 0, g = +(st && st.sg) || 0, o = [];
-    if (n >= 5) return [];                                                     // examen 5 : scellé (conditions avec les sorts de rang 5)
+    if (n >= 6) return [];                                                     // examen 6 : scellé (rang 6 : sorts à venir)
     if (n <= 2) o.push({ id: "fill", ok: FILL[n - 1].every(k => f[k]) });
     if (n === 1) o.push({ id: "cast", ok: !!t.cast });
     if (n === 2) o.push({ id: "deck", ok: !!t.deck });
     if (n === 3) o.push({ id: "equip", ok: !!t.equip }, { id: "cast3", ok: Object.keys(t.castIds || {}).length >= 3, have: Object.keys(t.castIds || {}).length, need: 3 });
+    if (n === 5) o.push({ id: "deck5", ok: (sp.decks || []).some(d => [0, 1, 2, 3, 4].every(i => d.V && d.G && d.V[i] && d.G[i])) }, { id: "cast5", ok: Object.keys(t.castIds || {}).length >= 5, have: Object.keys(t.castIds || {}).length, need: 5 });   // PLACEHOLDER (conditions de l'examen 5 à valider) : un deck complet 5 + 5 et 5 sorts actifs différents lancés
     if (n === 4) o.push({ id: "deck4", ok: (sp.decks || []).some(d => [0, 1, 2, 3].every(i => d.V && d.G && d.V[i] && d.G[i])) }, { id: "ov", ok: ((st && st.ovV) | 0) >= 1 });   // un deck COMPLET (4 + 4) · avoir déclenché la surchauffe du Voile (condition « surchauffe » du §3.2, tranchée ici : tutoriel de la mécanique)
     o.push({ id: "eth", ok: e >= EX.eth[n - 1], have: e, need: EX.eth[n - 1] }, { id: "sg", ok: g >= EX.sg[n - 1], have: g, need: EX.sg[n - 1] });
     if (n === 1) o.push({ id: "spe", ok: !!sp.school });                      // v2.a3.7 : choisir sa spécialité pour pouvoir payer l'examen 1
