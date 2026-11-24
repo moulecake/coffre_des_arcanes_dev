@@ -12,7 +12,8 @@ const Passives = (() => {
   const cost = b => Math.ceil(b.base * 1.15 ** own(b.id) * M(b.s === "G" ? "sgCost" : "ethCost", 1));
   let cc = null, ct = 0;                                              // cache de 50 ms : calc() est appelé à chaque clic, tick et mise à jour (7 lectures M() à chaque fois)
   const calc = () => { const t = performance.now(); if (cc && t - ct < 50) return cc; ct = t; return cc = calc0(); };
-  const calc0 = () => {
+  const calc0 = MM => {                     // MM = fonction de modificateurs (par défaut celle du jeu ; le hors ligne par tranches en fournit d'autres)
+    const M = MM || ((k, d) => Spells.mod(k, d));
     const a = own("anc"), p = own("pyl"), b = own("bou"), l = own("lut"), c = own("bgi"), h = own("hom");
     const flat = a * tm(a) * M("passive", 1), clickV = 1 + .02 * flat, crit = Math.min(.5, .01 * b * tm(b)), bg = M("bldG", 1);     // bg : spé Transmutation (tra4) étendue à Bougie/Homoncule
     const ethPS = (flat + (p * .5 * tm(p) * M("pylon", 1) + M("famil", 0)) * clickV) * (1 + crit * 4) * M("ether", 1);
@@ -38,5 +39,5 @@ const Passives = (() => {
     d.querySelector("em").textContent = "×" + n + (nx ? " · palier " + nx : " · max");
     { const px = d.querySelector(".px"), t = b.s === "G" ? fN(c) + " Sg" : fEh(c); if (px.dataset.h !== t) { px.dataset.h = t; px.innerHTML = t; } }
   });
-  return { calc, build, update, L, cost };
+  return { calc, calcWith: M2 => calc0(M2), build, update, L, cost };
 })();

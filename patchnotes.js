@@ -7,6 +7,16 @@
 // ============================================================
 const PATCHNOTES = [
   {
+    v: '2.a3.18', name: 'Se préparer avant de partir', date: '2026-11-26',
+    gift: 'Cadeau de mise à jour : 3 clés offertes !',
+    sections: [
+      { t: '⚖ Équilibrage', items: [
+        '**Préparation hors ligne** : un sort qui agit pendant ton absence n’est « chargé » qu’après un délai si tu viens de l’équiper (jusqu’à 60 min si tu pars tout de suite, 0 si tu l’as équipé il y a 15 min). Un message te prévient, et le bilan d’absence indique ce qui se charge encore.',
+        '**Charme-Personne** et **Portail Mineur** (réduction de prix) sont inactifs 10 min après leur équipement (5 min avec ta spécialité) : un compte à rebours s’affiche sur l’emplacement.'
+      ] }
+    ]
+  },
+  {
     v: '2.a3.17', name: 'Les sorts se voient', date: '2026-11-26',
     gift: 'Cadeau de mise à jour : 3 clés offertes !',
     sections: [

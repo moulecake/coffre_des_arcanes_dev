@@ -56,18 +56,31 @@ const FxLib = (() => {
     const e = { m, u: now + secs * 1e3, tag }; fxs.push(e); return e;
   };
   // ---- Hors ligne (une tranche) : M(clé, défaut) lit les modificateurs ; c = calc() (ethPS, sgPS). Renvoie les gains et le temps retenu (plafonné par offlineCap en heures).
-  const away = (c, sec, M) => {
-    sec = Math.max(0, Math.min(sec, M("offlineCap", 8) * 3600));
+  const awayRaw = (c, sec, M) => {                                       // une tranche de `sec` secondes, SANS plafond (le plafond est appliqué par l'appelant)
+    sec = Math.max(0, sec);
     const e0 = c.ethPS * sec * M("offlineEth", 1), s0 = c.sgPS * sec * M("offlineSg", 1), burn = Math.min(s0, s0 * Math.min(1, M("burn", 0)));
     return { sec, eth: e0 + burn * 20, sg: s0 - burn, burn, micro: sec * M("fragOff", 1) };
   };
+  const away = (c, sec, M) => awayRaw(c, Math.min(sec, M("offlineCap", 8) * 3600), M);
+  // ---- Préparation hors ligne (§16) : un sort qui agit hors ligne et vient d'être équipé n'est « chargé » qu'après un délai, mesuré entre son DERNIER changement et le départ.
+  // ★ RÉGLAGE : 0–3 min → 60 min · 3–5 → 20 · 5–10 → 8 · 10–15 → 3 · 15 min et + → 0. Le délai ne coupe QUE les gains du sort changé, et il est plafonné par la durée d'absence (pas de dette).
+  const loadDelay = agoMs => agoMs < 180e3 ? 3600 : agoMs < 300e3 ? 1200 : agoMs < 600e3 ? 480 : agoMs < 900e3 ? 180 : 0;
+  // Somme par tranches : `loads` = [{id, delay (s)}] ; `slice(excludedIds, lenSec)` renvoie un objet de nombres ; un sort est exclu tant que le temps écoulé < son délai.
+  const awaySlices = (total, loads, slice) => {
+    total = Math.max(0, total); const cuts = [...new Set(loads.map(l => Math.min(l.delay, total)).filter(d => d > 0 && d < total))].sort((a, b) => a - b), out = {};
+    [0, ...cuts].forEach((t0, i, all) => { const t1 = i + 1 < all.length ? all[i + 1] : total, r = slice(loads.filter(l => l.delay > t0).map(l => l.id), t1 - t0); for (const k in r) out[k] = (out[k] || 0) + r[k]; });
+    return out;
+  };
+  // ---- Activation des sorts d'achat (§17) : enc1 et con1 restent INACTIFS après leur équipement (10 min ; 5 min en spécialité). Retirés puis remis : on repart de zéro.
+  const ACTIV = { enc1: [600, 300], con1: [600, 300] };
+  const activ = (id, f) => ACTIV[id] ? L(ACTIV[id][0], ACTIV[id][1], f) : 0;
   // ---- Surchauffe, OPTION A (§5.1) : capacité réduite selon la limite de clics/s. Chaque clic = +10 de chaleur, la chaleur retombe de (limite × 10)/s, surchauffe dès que la chaleur atteint la CAPACITÉ.
   // ★ RÉGLAGE : [limite minimale, capacité] — limite 5 → 100 (inchangé pour les joueurs normaux) · 10 → 70 · 15 → 50 (une limite de 12 en spécialité = palier 10).
   // OPTION B (gardée en commentaire, §5.1) : gain croissant, chaleur += 10 × (cps réels / limite) par clic ; pénalise les rafales, mais coûteux sur vieux téléphones si mal optimisé.
   const CAP = [[15, 50], [10, 70], [0, 100]];
   const cap = limit => { for (const [l, c] of CAP) if (limit >= l) return c; return 100; };
   const slotKey = code => { const m = /^Digit(\d)$/.exec(code || ""); if (!m) return null; const d = +m[1]; return d >= 1 && d <= 5 ? { p: "V", i: d - 1 } : d >= 6 ? { p: "G", i: d - 6 } : d === 0 ? { p: "G", i: 4 } : null; };   // Voile 1-5, Grimoire 6-9 puis 0 (event.code : AZERTY et QWERTY)
-  return { L, sf, cap, CAP, slotKey, PM: pm, ACT: act, cdOf, augure, mod, addFx, away, ap };
+  return { L, sf, cap, CAP, slotKey, awayRaw, loadDelay, awaySlices, activ, PM: pm, ACT: act, cdOf, augure, mod, addFx, away, ap };
 })();
 const Fx = FxLib;
 if (typeof module !== "undefined") module.exports = FxLib;

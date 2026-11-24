@@ -469,12 +469,14 @@ function startChaos() {
 }
 function endChaos() { $("tome").classList.remove("chaos"); document.querySelector(".grimoire").classList.remove("chaos"); }
 
-function away(sec) {                                   // hors-ligne : timestamps, plafond 8 h (extensible via sorts) ; calcul pur dans effects.js (Fx.away, testé)
-  Stats.max("offMax", sec); const c = Passives.calc(), a = Fx.away(c, sec, M), raw = sec;
+function away(sec) {                                   // hors-ligne : timestamps, plafond 8 h (extensible via sorts) ; calcul PAR TRANCHES (préparation §16 : un sort récemment équipé n'agit qu'après son délai) ; formules pures dans effects.js (testées)
+  Stats.max("offMax", sec); const c = Passives.calc(), raw = sec, total = Math.min(raw, M("offlineCap", 8) * 3600), loads = Spells.loadsAt(Date.now() - raw * 1e3);
+  const R = Fx.awaySlices(total, loads, (ex, len) => { const MM = Spells.modFor(ex), cc = Passives.calcWith(MM), r = Fx.awayRaw(cc, len, MM); return { eth: r.eth, sg: r.sg, burn: r.burn, mf: keysPerDay(cc.ethPS) * 5 * 100 / 86400 * MM("frag", 1) * r.micro, pg: cc.pagesPS * len }; });
+  const a = { sec: total, eth: R.eth || 0, sg: R.sg || 0, burn: R.burn || 0 };
   S.eth += a.eth; S.sg += a.sg; Stats.add("eth", a.eth); Stats.add("sg", a.sg); Stats.add("off", a.sec); Stats.add("offN", 1); Stats.add("offEth", a.eth); Stats.add("offSg", a.sg);
-  const nf = microAdd(fragRate(c.ethPS) * a.micro); if (nf) { Stats.add("frP", nf); Stats.add("offFr", nf); save(); }   // micro-fragments hors-ligne (plafond passif/jour inclus)
+  const nf = microAdd(R.mf || 0); if (nf) { Stats.add("frP", nf); Stats.add("offFr", nf); save(); }   // micro-fragments hors-ligne (plafond passif/jour inclus)
   const nowT = Date.now(), done = []; if (S.sp && S.sp.course && S.sp.course.end <= nowT) done.push("Cours terminé : " + Spells.byId[S.sp.course.id].n); if (S.sp && S.sp.exam && S.sp.exam.end <= nowT) done.push("Examen du rang " + S.sp.exam.n + " terminé");
-  window.AWAYR = { raw, sec: a.sec, eth: a.eth, sg: a.sg, burn: a.burn, pages: c.pagesPS * a.sec, nf, mulE: M("ether", 1), offE: M("offlineEth", 1), offS: M("offlineSg", 1), done, idle: Spells.idleNames(), load: Spells.loadingNames ? Spells.loadingNames() : [] };   // bilan détaillé (clicker/hud.js)
+  window.AWAYR = { raw, sec: a.sec, eth: a.eth, sg: a.sg, burn: a.burn, pages: R.pg || 0, nf, mulE: M("ether", 1), offE: M("offlineEth", 1), offS: M("offlineSg", 1), done, idle: Spells.idleNames(), load: loads.map(l => ({ n: Spells.byIdN(l.id), m: Math.min(l.delay, total) })).filter(x => x.m > 0).map(x => x.n + " (−" + Math.round(x.m / 60) + " min)") };   // bilan détaillé (clicker/hud.js)
   if (raw < 60 && a.eth + a.sg > 0) toast("Absence : +" + fE(a.eth) + " · +" + fN(a.sg) + " Sg" + (nf ? " · +" + nf + " fragment(s)" : ""));
 }
 

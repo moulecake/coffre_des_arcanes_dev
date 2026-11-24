@@ -62,4 +62,18 @@ ok(tOver(9.5, 10) === -7 || 9.5 <= 10, "un humain à ≈ 9,5 clics/s ne surchauf
 // 6. Raccourcis clavier : event.code physique
 [["Digit1", "V", 0], ["Digit5", "V", 4], ["Digit6", "G", 0], ["Digit9", "G", 3], ["Digit0", "G", 4]].forEach(([c, p, i]) => { const k = F.slotKey(c); ok(k && k.p === p && k.i === i, c + " → " + p + (i + 1)); });
 ok(F.slotKey("KeyA") === null && F.slotKey("Numpad1") === null && F.slotKey(undefined) === null, "autres touches ignorées");
+
+// 7. Préparation hors ligne (§16) : délai de chargement et calcul par tranches
+[[0, 3600], [179e3, 3600], [180e3, 1200], [299e3, 1200], [300e3, 480], [599e3, 480], [600e3, 180], [899e3, 180], [900e3, 0], [5e6, 0]].forEach(([ago, d]) => ok(F.loadDelay(ago) === d, "délai pour un changement il y a " + ago / 1000 + " s = " + d + " s"));
+const sliceOf = (rate) => (ex, len) => ({ eth: len * (ex.indexOf("a") >= 0 ? rate[0] : rate[1]) });
+ok(F.awaySlices(3600, [], sliceOf([1, 2])).eth === 7200, "aucun sort en chargement : une seule tranche");
+ok(F.awaySlices(3600, [{ id: "a", delay: 1200 }], sliceOf([1, 2])).eth === 1200 * 1 + 2400 * 2, "un sort chargé après 20 min : 20 min sans lui, 40 min avec");
+ok(F.awaySlices(600, [{ id: "a", delay: 3600 }], sliceOf([1, 2])).eth === 600, "absence plus courte que le délai : le sort ne rapporte rien, pas de dette");
+ok(F.awaySlices(7200, [{ id: "a", delay: 1200 }, { id: "b", delay: 3600 }], (ex, len) => ({ n: len * (2 - ex.length * .5), t: len })).t === 7200, "deux sorts : les durées des tranches somment la durée totale");
+ok(F.awaySlices(7200, [{ id: "a", delay: 1200 }, { id: "b", delay: 3600 }], (ex, len) => ({ n: len * (3 - ex.length) })).n === 1200 * 1 + 2400 * 2 + 3600 * 3, "tranches 0-20 min (2 exclus), 20-60 min (1 exclu), 60-120 min (aucun)");
+ok(F.awaySlices(0, [{ id: "a", delay: 60 }], sliceOf([1, 2])).eth === 0 && F.awaySlices(3600, [{ id: "a", delay: 0 }], sliceOf([1, 2])).eth === 7200, "durée nulle / délai nul");
+// somme de tranches == calcul direct quand aucun sort n'est exclu (cohérence avec Fx.away)
+{ const c = { ethPS: 100, sgPS: 50 }, MM = (k, d) => d; const sl = F.awaySlices(3600, [], (ex, len) => F.awayRaw(c, len, MM)); ok(sl.eth === F.away(c, 3600, MM).eth && sl.sg === F.away(c, 3600, MM).sg, "tranche unique = Fx.away"); }
+// 8. Activation des sorts d'achat (§17)
+ok(F.activ("enc1", 0) === 600 && F.activ("enc1", 1) === 300 && F.activ("con1", 0) === 600 && F.activ("evo1", 1) === 0, "activation : 10 min (5 min en spé) pour enc1/con1, aucune pour les autres");
 console.log("effects.test.js : " + n + " vérifications OK");

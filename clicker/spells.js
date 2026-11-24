@@ -75,7 +75,17 @@ const Spells = (() => {
   // ---- Modificateurs (passifs équipés + effets temporaires) : valeurs « base / spécialité » dans clicker/effects.js (pur, testé) ----
   const sch = k => Fx.sf(sp(), k);                                                        // facteur de spécialité de l'école k : 1 = choisie · 0,5 = seconde · 0 = autre
   let ml = [], dirty = 1, fxs = [], mirror = 0, presc = 0, clicks = 0, pp = "V", si = 0, lastAct = 0, lastEffort = 0, ed = null, immune = 0;   // lastAct = action récente (Taxe) ; lastEffort = tout appui (fragments d'effort) ; mirror = charges d'Image Miroir ; immune = fin de l'immunité de surchauffe (abj3)
-  const rebuild = () => { ml = []; eqIds().forEach(id => ml.push(...Fx.PM(id, sch(byId[id].k), { lvl: lvl("abj"), paliers: CPS_PALIERS, cpsG: CPS_GRIMOIRE }))); };
+  const rebuild = () => { ml = []; const nowA = Date.now(), A = sp().act || {}; eqIds().filter(id => !((A[id] || 0) > nowA)).forEach(id => ml.push(...Fx.PM(id, sch(byId[id].k), { lvl: lvl("abj"), paliers: CPS_PALIERS, cpsG: CPS_GRIMOIRE }))); };
+  const modFor = ex => { const Lm = []; eqIds().filter(id => ex.indexOf(id) < 0).forEach(id => Lm.push(...Fx.PM(id, sch(byId[id].k), { lvl: lvl("abj"), paliers: CPS_PALIERS, cpsG: CPS_GRIMOIRE }))); return (k, d) => Fx.mod(Lm, [], 0, k, d); };   // modificateurs SANS les sorts `ex` et sans effets temporaires (hors ligne par tranches)
+  // ---- Préparation hors ligne (§16) et activation des sorts d'achat (§17) : à chaque changement d'équipement ----
+  const onEq = (added, removed) => {
+    const t = Date.now(), o = sp(); if (!o.chg) o.chg = {}; if (!o.act) o.act = {};
+    removed.forEach(i => { delete o.act[i]; });
+    added.forEach(i => { o.chg[i] = t; const a = Fx.activ(i, sch(byId[i].k)); if (a > 0) { o.act[i] = t + a * 1e3; toast(byId[i].n + " s'active dans " + Math.round(a / 60) + " min"); } });
+    if (added.some(i => OFFL.has(i))) toast("Chargement des sorts hors ligne : " + Math.round(Fx.loadDelay(0) / 60) + " min si tu pars maintenant.");
+    dirty = 1;
+  };
+  const loadsAt = depart => eqIds().filter(id => OFFL.has(id) && (sp().chg || {})[id]).map(id => ({ id, delay: Fx.loadDelay(depart - sp().chg[id]) })).filter(l => l.delay > 0);
   const mod = (k, d) => { if (dirty) { dirty = 0; rebuild(); } return Fx.mod(ml, fxs, Date.now(), k, d); };
   const fx = (m, s, tag) => Fx.addFx(fxs, m, s, Date.now(), tag);                          // un effet déjà actif (même tag) est rafraîchi, jamais empilé
 
@@ -144,12 +154,12 @@ const Spells = (() => {
   const taxe = (fn, before, after, src) => {
     const now = Date.now(), ago = now - lastAct, removed = before.filter(x => after.indexOf(x) < 0), added = after.filter(x => before.indexOf(x) < 0), q = Prog.taxe(removed, added, ago);
     const rec = { t: new Date(now).toTimeString().slice(0, 8), src: src || "?", ago: Math.round(ago / 100) / 10, removed, added, free: q.free, why: q.free ? q.why : "taxe", S: q.S }; TAXE_LOG.push(rec); if (TAXE_LOG.length > 30) TAXE_LOG.shift(); console.info("[Taxe]", JSON.stringify(rec));
-    if (q.free) return fn();
+    if (q.free) { fn(); return onEq(added, removed); }
     const ce = Math.ceil(q.eth), cs = Math.ceil(q.sg), tm = Math.ceil(q.time), g = $("gbtns"); g.innerHTML = "";
     $("gtxt").innerHTML = "Tu retires : <b>" + nm(removed) + "</b><br>Tu ajoutes : <b>" + nm(added) + "</b><br>Ta dernière action date de " + Math.round(ago / 1e3) + " s : <b>" + (q.mul < 1 ? "demi-tarif" : "plein tarif") + "</b>. Choisis comment régler la taxe.";
     const add = (h, f, ok) => {
       const d = document.createElement("div"); d.className = "ps" + (ok ? "" : " off"); d.innerHTML = h;
-      d.onclick = () => { if (!ok) return; $("gate").hidden = true; f(); fn(); }; g.append(d);
+      d.onclick = () => { if (!ok) return; $("gate").hidden = true; f(); fn(); onEq(added, removed); }; g.append(d);
     };
     add("<i class='psi psi-g'>" + ICON.coin + "</i><div><b>Payer " + fEh(ce) + " + " + fN(cs) + " Sg</b><small>Éther ET Sagesse ensemble</small></div>", () => { S.eth -= ce; S.sg -= cs; Stats.add("taxe", 1); Stats.add("taxeP", 1); Stats.ms("taxe"); }, S.eth >= ce && S.sg >= cs);
     add("<i class='psi psi-b'>" + ICON.hourglass + "</i><div><b>Attendre : sorts actifs bloqués " + fdur(tm) + "</b><small>Les passifs restent actifs</small></div>", () => { sp().pen = Math.max(sp().pen || 0, Date.now() + tm * 1e3); Stats.add("taxe", 1); Stats.add("taxeT", 1); Stats.ms("taxe"); }, true);
@@ -317,6 +327,7 @@ const Spells = (() => {
     const ex = Prog.finishExam(S, n);                                         // examen terminé (même hors ligne : timestamp absolu)
     if (ex) { dirty = 1; Stats.add("exam", 1); Stats.ms("exam" + ex); Stats.snap("exam" + ex); bars(); save(); if (window.cloudSave) cloudSave(true); if (window.Academy) Academy.examDone(ex); }
     { const b = mod("burn", 0); if (b > 0) { const x = Math.min(S.sg, b * Passives.calc().sgPS * dt); S.sg -= x; S.eth += x * 20; Stats.add("eth", x * 20); } }
+    { const A = sp().act || {}, eqs = eqIds(); for (const k in A) { if (eqs.indexOf(k) < 0) delete A[k]; else if (A[k] <= n) { delete A[k]; dirty = 1; toast(byId[k].n + " est maintenant actif"); } } }          // fin de la recharge d'activation
     fxs = fxs.filter(f => f.u > n); sp().fx = fxs; sp().st = [mirror, presc, clicks]; tickBars(n); if (window.Academy) Academy.tick(n); if (window.Hud) Hud.tick(n);
   };
   // ---- Raccourcis clavier (§18.2, secret du jeu, PC seulement) : Voile = touches 1-5, Grimoire = 6-9 puis 0 (event.code : AZERTY et QWERTY, Maj toléré) ; comme un appui sur l'emplacement ; compte comme effort ----
@@ -335,6 +346,6 @@ const Spells = (() => {
     document.querySelectorAll(".gear[data-p]").forEach(g => g.onclick = () => pick(g.dataset.p));
     $("pclose").onclick = closePick; $("pick").onclick = e => { if (e.target.id === "pick") closePick(); };
   };
-  return { glyph: gl, hue, cast, SCH, mod, init, tick, onClick, force, forced, touch, effort, active, has, learn, SP, applyDeck, D, taxe, sp, byId, examInfo, startExam, COST, TIME, ft, quote, chooseSchool, chooseSchool2, resetLearning, OFFL, sch, activIn: id => Math.max(0, ((sp().act || {})[id] || 0) - Date.now()), idleNames: () => eqIds().filter(id => !OFFL.has(id)).map(id => byId[id].n),
+  return { glyph: gl, hue, cast, SCH, mod, init, tick, onClick, force, forced, touch, effort, active, has, learn, SP, applyDeck, D, taxe, sp, byId, examInfo, startExam, COST, TIME, ft, quote, chooseSchool, chooseSchool2, resetLearning, OFFL, sch, modFor, loadsAt, byIdN: id => byId[id].n, activIn: id => Math.max(0, ((sp().act || {})[id] || 0) - Date.now()), idleNames: () => eqIds().filter(id => !OFFL.has(id)).map(id => byId[id].n),
     hudState: now => ({ fxs: fxs.filter(e => e.u > now), eq: eqIds(), mirror, mirrorX: Fx.ACT("ill2", sch("ill")).mult, presc, clicks, evo4: Fx.ACT("evo4", sch("evo")), cps: mod("cps", CPS_PALIERS[0]), cpsG: mod("cpsG", CPS_GRIMOIRE) }), sch, invalidate: () => { dirty = 1; }, immune: () => Date.now() < immune, augure: () => has("div1") ? Fx.augure(sch("div")) : 0 };
 })();
