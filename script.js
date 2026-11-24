@@ -9,7 +9,7 @@
 // ============================================================
 // Adresse propre : on masque « index.html » dans la barre d'adresse (affichage seulement).
 if (/index\.html$/.test(location.pathname)) history.replaceState(null, "", location.pathname.replace(/index\.html$/, "") + location.search + location.hash);
-const CURRENT_VERSION = "2.a3.12";
+const CURRENT_VERSION = "2.a3.13";
 document.querySelectorAll('[id="app-version"]').forEach(e => { e.textContent = CURRENT_VERSION; });   // 2 pieds de page (accueil + app)
 
 // DROP RATES — C:40 | PC:25 | R:20 | TR:8 | L:5 | A:2

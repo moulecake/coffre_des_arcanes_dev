@@ -61,7 +61,13 @@ const FxLib = (() => {
     const e0 = c.ethPS * sec * M("offlineEth", 1), s0 = c.sgPS * sec * M("offlineSg", 1), burn = Math.min(s0, s0 * Math.min(1, M("burn", 0)));
     return { sec, eth: e0 + burn * 20, sg: s0 - burn, burn, micro: sec * M("fragOff", 1) };
   };
-  return { L, sf, PM: pm, ACT: act, cdOf, augure, mod, addFx, away, ap };
+  // ---- Surchauffe, OPTION A (§5.1) : capacité réduite selon la limite de clics/s. Chaque clic = +10 de chaleur, la chaleur retombe de (limite × 10)/s, surchauffe dès que la chaleur atteint la CAPACITÉ.
+  // ★ RÉGLAGE : [limite minimale, capacité] — limite 5 → 100 (inchangé pour les joueurs normaux) · 10 → 70 · 15 → 50 (une limite de 12 en spécialité = palier 10).
+  // OPTION B (gardée en commentaire, §5.1) : gain croissant, chaleur += 10 × (cps réels / limite) par clic ; pénalise les rafales, mais coûteux sur vieux téléphones si mal optimisé.
+  const CAP = [[15, 50], [10, 70], [0, 100]];
+  const cap = limit => { for (const [l, c] of CAP) if (limit >= l) return c; return 100; };
+  const slotKey = code => { const m = /^Digit(\d)$/.exec(code || ""); if (!m) return null; const d = +m[1]; return d >= 1 && d <= 5 ? { p: "V", i: d - 1 } : d >= 6 ? { p: "G", i: d - 6 } : d === 0 ? { p: "G", i: 4 } : null; };   // Voile 1-5, Grimoire 6-9 puis 0 (event.code : AZERTY et QWERTY)
+  return { L, sf, cap, CAP, slotKey, PM: pm, ACT: act, cdOf, augure, mod, addFx, away, ap };
 })();
 const Fx = FxLib;
 if (typeof module !== "undefined") module.exports = FxLib;

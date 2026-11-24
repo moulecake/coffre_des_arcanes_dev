@@ -7,6 +7,19 @@
 // ============================================================
 const PATCHNOTES = [
   {
+    v: '2.a3.13', name: 'Maîtrise de la chaleur', date: '2026-11-26',
+    gift: 'Cadeau de mise à jour : 3 clés offertes !',
+    sections: [
+      { t: '⚖ Équilibrage', items: [
+        '**Surchauffe** : la jauge se remplit plus vite à haute limite de clics (le Voile et le Grimoire surchauffent plus tôt avec le Bouclier d’Éther). Un avertissement apparaît à 70 % de chaleur.'
+      ] },
+      { t: '🛠 Améliorations', items: [
+        '**Recharge des sorts** : l’ombre se retire désormais dans le sens des aiguilles d’une montre.',
+        '**Sur PC**, les emplacements de sorts répondent au clavier.'
+      ] }
+    ]
+  },
+  {
     v: '2.a3.12', name: 'Finitions de l’Académie', date: '2026-11-26',
     gift: 'Cadeau de mise à jour : 3 clés offertes !',
     sections: [

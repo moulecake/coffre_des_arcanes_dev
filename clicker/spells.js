@@ -125,7 +125,7 @@ const Spells = (() => {
   const bars = () => { bar("V"); bar("G"); };
   const tickBars = n => document.querySelectorAll(".sl[data-id]").forEach(b => {
     const s = byId[b.dataset.id], r = (sp().cd[s.id] || 0) - n; b.classList.toggle("pen", n < (sp().pen || 0)); if (s.t !== "A") return;
-    b.style.setProperty("--p", (r > 0 ? Math.min(1, r / (Fx.cdOf(s.id, s.cd, sch(s.k)) * 1e3 * mod("cd", 1))) : 0) * 360 + "deg");
+    b.style.setProperty("--p", (r > 0 ? 1 - Math.min(1, r / (Fx.cdOf(s.id, s.cd, sch(s.k)) * 1e3 * mod("cd", 1))) : 1) * 360 + "deg");      // angle ÉCOULÉ : l'ombre se retire dans le sens des aiguilles d'une montre depuis 12 h (§18.1)
     b.querySelector("b").textContent = r > 0 && r <= 9e3 ? Math.ceil(r / 1e3) : "";          // chiffres : 9 dernières secondes
   });
 
@@ -259,7 +259,17 @@ const Spells = (() => {
     { const b = mod("burn", 0); if (b > 0) { const x = Math.min(S.sg, b * Passives.calc().sgPS * dt); S.sg -= x; S.eth += x * 20; Stats.add("eth", x * 20); } }
     fxs = fxs.filter(f => f.u > n); sp().fx = fxs; sp().st = [mirror, presc, clicks]; tickBars(n); if (window.Academy) Academy.tick(n);
   };
+  // ---- Raccourcis clavier (§18.2, secret du jeu, PC seulement) : Voile = touches 1-5, Grimoire = 6-9 puis 0 (event.code : AZERTY et QWERTY, Maj toléré) ; comme un appui sur l'emplacement ; compte comme effort ----
+  let kbd = 0;
+  const OVR = ["intro", "pick", "dk", "gate", "acEx", "acInfo", "acCele", "acSpe", "acRst", "acRev", "acDip", "acCht"];
+  const keys = () => addEventListener("keydown", e => {
+    if (e.repeat || e.ctrlKey || e.altKey || e.metaKey || !matchMedia("(pointer:fine)").matches) return;
+    const t = e.target, k = Fx.slotKey(e.code); if (!k || (t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable))) return;
+    if (OVR.some(id => { const x = document.getElementById(id); return x && !x.hidden; })) return;
+    const b = document.querySelectorAll("#bar" + k.p + " .sl")[k.i]; if (!b) return; e.preventDefault(); effort(); b.click();
+  });
   const init = () => {
+    if (!kbd) { kbd = 1; keys(); }
     const o = sp(); fxs = (o.fx || []).filter(f => f.u > Date.now()); [mirror, presc, clicks] = o.st || [0, 0, 0];   // effets actifs persistants
     bars(); dkInit(); if (window.Academy) Academy.init();
     document.querySelectorAll(".gear[data-p]").forEach(g => g.onclick = () => pick(g.dataset.p));

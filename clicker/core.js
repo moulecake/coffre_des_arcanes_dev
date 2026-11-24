@@ -355,7 +355,7 @@ function initCursor() {                                // l'Orbe suit la souris 
 
 function clickV(e) {
   const n = Date.now(); if (n < hot) { if (n - lastDenyV > 250) { lastDenyV = n; sfx("deny"); ripple(e, .25); } return; }      // voile rigide pendant la surchauffe
-  Stats.click("V"); if (!Spells.immune()) heat += 10; const over = heat >= 100; if (over) { Stats.add("ovV", 1); hotMs = M("cps", CPS_PALIERS[0]) * 1000; hot = n + hotMs; }   // surchauffe : pause = limite en secondes (5 cps → 5 s · 10 → 10 s · 15 → 15 s)
+  Stats.click("V"); if (!Spells.immune()) heat += 10; const over = heat >= Fx.cap(M("cps", CPS_PALIERS[0])); if (over) { Stats.add("ovV", 1); hotMs = M("cps", CPS_PALIERS[0]) * 1000; hot = n + hotMs; }   // surchauffe : pause = limite en secondes (5 cps → 5 s · 10 → 10 s · 15 → 15 s)
   const m = Spells.onClick(), g = Passives.calc().clickV * M("click", 1) * m; S.eth += g; Stats.add("eth", g);
   sfx(over ? "rumble" : "zap"); ripple(e, over ? 1.8 : m > 1 ? 1.5 : 1); fl(e, "+" + fE(g), "#a78bfa");
   if (m > 1) critFx(e, "ill", "CRITIQUE ×" + m);        // Image Miroir : glyphe d'Illusion
@@ -422,7 +422,7 @@ function clickG(e) {
   const nG = Date.now();
   if (nG < hotG) { if (nG - lastDenyG > 500) { lastDenyG = nG; sfx("deny"); } return; }       // Grimoire verrouillé pendant le chaos
   Stats.click("G"); heatG += 10;
-  if (heatG >= 100) { Stats.add("ovG", 1); hotGMs = M("cpsG", CPS_GRIMOIRE) * 1000; hotG = nG + hotGMs; startChaos(); }       // trop de clics/s : chaos (pause = limite en secondes)
+  if (heatG >= Fx.cap(M("cpsG", CPS_GRIMOIRE))) { Stats.add("ovG", 1); hotGMs = M("cpsG", CPS_GRIMOIRE) * 1000; hotG = nG + hotGMs; startChaos(); }       // trop de clics/s : chaos (pause = limite en secondes)
   const c = Passives.calc(), pt = S.g.t, g = c.pageClick * pageX() * M("sg", 1);
   Spells.touch(); clkPt = paneXY(e); gainSg(g, true); sfx("paper"); fl(e, "+" + fN(g) + " Sg", pt === "gold" ? "#d4af37" : pt === "red" ? "#e11d48" : "#f5d98a");
 }
@@ -482,22 +482,24 @@ function tick() {
   const c = Passives.calc(); S.eth += c.ethPS * dt; Stats.add("eth", c.ethPS * dt); Stats.add("imp", c.impPS * dt); Stats.tick(dt, Spells.active(), c.ethPS, c.sgPS);
   if (c.sgPS > 0) gainSg(c.sgPS * dt * pageX(), false);             // lecture automatique : silencieuse
   fragTick(dt, c);
-  if (n < hotG) heatG = (hotG - n) / hotGMs * 100; else { if (hotG) { hotG = 0; heatG = 0; endChaos(); } heatG = Math.max(0, heatG - M("cpsG", CPS_GRIMOIRE) * 10 * dt); }
-  const ccr = Math.round((n < hotG ? 1 : Math.max(0, (heatG - 35) / 65)) * 20) / 20; if (ccr !== lastCor) { lastCor = ccr; $("tome").style.setProperty("--cor", ccr); }   // encre d'avertissement
-  if (n < hot) heat = (hot - n) / hotMs * 100; else { if (hot) { hot = 0; heat = 0; } heat = Math.max(0, heat - M("cps", CPS_PALIERS[0]) * 10 * dt); }
+  const capG = Fx.cap(M("cpsG", CPS_GRIMOIRE)), capV = Fx.cap(M("cps", CPS_PALIERS[0]));                       // capacités (option A §5.1)
+  if (n < hotG) heatG = (hotG - n) / hotGMs * capG; else { if (hotG) { hotG = 0; heatG = 0; endChaos(); } heatG = Math.max(0, heatG - M("cpsG", CPS_GRIMOIRE) * 10 * dt); }
+  const ccr = Math.round((n < hotG ? 1 : Math.max(0, (heatG / capG * 100 - 35) / 65)) * 20) / 20; if (ccr !== lastCor) { lastCor = ccr; $("tome").style.setProperty("--cor", ccr); }   // encre d'avertissement
+  if (n < hot) heat = (hot - n) / hotMs * capV; else { if (hot) { hot = 0; heat = 0; } heat = Math.max(0, heat - M("cps", CPS_PALIERS[0]) * 10 * dt); }
 
   { const eh = fEh(S.eth); if (eh !== lastEh) { lastEh = eh; $("eth").innerHTML = eh; $("eth2").innerHTML = eh; } }
   $("sg").textContent = fN(S.sg);
   if (stkOn) $("sg2").textContent = $("sg").textContent;
   $("ethps").textContent = "+" + fE(c.ethPS) + "/s"; $("sgps").textContent = "+" + fN(c.sgPS) + " Sg/s";
-  $("heat").style.width = Math.min(100, heat) + "%"; $("heatBox").classList.toggle("hot", n < hot); $("orb").classList.toggle("hot", n < hot); document.body.classList.toggle("hot", n < hot);
-  $("heatTxt").textContent = n < hot ? "Surchauffe — canalisation en pause " + Math.ceil((hot - n) / 1e3) + " s" : "Canalisation stable"; $("heatTxt").classList.toggle("red", n < hot);
+  $("heat").style.width = Math.min(100, heat / capV * 100) + "%"; $("heatBox").classList.toggle("hot", n < hot); $("orb").classList.toggle("hot", n < hot); document.body.classList.toggle("hot", n < hot);
+  const warmV = n >= hot && heat / capV >= .7;                                            // pastille d'avertissement à 70 % (comme le Grimoire)
+  $("heatTxt").textContent = n < hot ? "Surchauffe — canalisation en pause " + Math.ceil((hot - n) / 1e3) + " s" : warmV ? "Canalisation instable…" : "Canalisation stable"; $("heatTxt").classList.toggle("red", n < hot || warmV);
   $("heatLim").textContent = "Limite : " + M("cps", CPS_PALIERS[0]) + " clics/s avant surchauffe";
   const G = S.g, pt = G.t;
   $("buff").textContent = "Page " + (G.n + 1) + (pt === "norm" ? "" : " · " + PG[pt].n + " ×" + px(pt));
   $("buff").className = "buff" + (pt === "norm" ? "" : " " + pt);
   if (n < hotG) { $("buff").textContent = "Le Grimoire se débat — " + Math.ceil((hotG - n) / 1e3) + " s"; $("buff").className = "buff red"; }
-  else if (heatG >= 70) { $("buff").textContent = "Encre instable…"; $("buff").className = "buff red"; }
+  else if (heatG / capG >= .7) { $("buff").textContent = "Encre instable…"; $("buff").className = "buff red"; }
   $("pgFill").style.width = Math.min(100, G.got / G.need * 100) + "%"; $("pgbar").className = "pgbar " + pt;
   $("pgTxt").textContent = fN(G.got) + " / " + fN(G.need) + " Runes décryptées";
   const tm = $("tome"); tm.classList.toggle("red", pt === "red"); tm.classList.toggle("gold", pt === "gold"); reveal(Math.min(1, G.got / G.need));

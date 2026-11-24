@@ -53,4 +53,13 @@ r = F.away(c, 3600, mk({ burn: .2 })); near(r.burn, 36000, "tra1 : 20 % de la Sa
 r = F.away(c, 3600, mk({ burn: .1 })); near(r.burn, 18000, "tra1 spé : 10 %");
 r = F.away(c, 3600, mk({ burn: .2, offlineSg: 1.2 })); near(r.burn, 43200, "tra1 brûle la Sagesse hors ligne boostée");
 r = F.away(c, 0, M0); ok(r.eth === 0 && r.sg === 0, "durée nulle"); r = F.away({ ethPS: 0, sgPS: 0 }, 1e5, M0); ok(r.eth === 0 && r.sg === 0, "aucune production");
+
+// 5. Surchauffe option A (§5.1) : capacité selon la limite ; faisabilité humaine
+[[5, 100], [9, 100], [10, 70], [12, 70], [14, 70], [15, 50], [17, 50]].forEach(([l, c]) => ok(F.cap(l) === c, "capacité de la limite " + l + " = " + c));
+const tOver = (cps, lim) => F.cap(lim) / ((cps - lim) * 10);                  // secondes avant surchauffe (chaleur +10/clic, −lim×10 /s, seuil = capacité)
+near(tOver(7, 5), 5, "7 clics/s à la limite 5 : 5 s (inchangé)"); near(tOver(12, 10), 3.5, "12 clics/s à la limite 10 : 3,5 s"); near(tOver(11, 10), 7, "11 clics/s à la limite 10 : 7 s"); near(tOver(20, 15), 1, "20 clics/s à la limite 15 : 1 s");
+ok(tOver(9.5, 10) === -7 || 9.5 <= 10, "un humain à ≈ 9,5 clics/s ne surchauffe jamais à la limite 10 (la chaleur ne monte pas)");
+// 6. Raccourcis clavier : event.code physique
+[["Digit1", "V", 0], ["Digit5", "V", 4], ["Digit6", "G", 0], ["Digit9", "G", 3], ["Digit0", "G", 4]].forEach(([c, p, i]) => { const k = F.slotKey(c); ok(k && k.p === p && k.i === i, c + " → " + p + (i + 1)); });
+ok(F.slotKey("KeyA") === null && F.slotKey("Numpad1") === null && F.slotKey(undefined) === null, "autres touches ignorées");
 console.log("effects.test.js : " + n + " vérifications OK");

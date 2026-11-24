@@ -51,7 +51,7 @@ h2{font:900 15px Cinzel,serif;letter-spacing:2px;text-align:center}
 .bar{align-items:center}.slots{display:flex;gap:8px;flex-wrap:wrap}
 .sl{position:relative;width:46px;height:46px;border-radius:12px;border:1px solid var(--bd);background:rgba(255,255,255,.04);display:grid;place-items:center;cursor:pointer;color:var(--dim);overflow:hidden;font-size:16px;transition:var(--t)}
 .sl.act{box-shadow:inset 0 0 14px currentColor}.sl.sel{border-color:var(--or)}
-.sl u{position:absolute;inset:0;background:conic-gradient(rgba(0,0,0,.72) var(--p,0deg),transparent 0)}
+.sl u{position:absolute;inset:0;background:conic-gradient(transparent var(--p,360deg),rgba(0,0,0,.72) 0)}   /* --p = angle ÉCOULÉ (v2.a3.13) : l'ombre se retire dans le sens des aiguilles d'une montre */
 .sl b{position:absolute;font:700 15px Cinzel,serif;color:#fff;text-shadow:0 0 6px #000}
 .sl.lk::after{content:"🔒";position:absolute;right:2px;top:0;font-size:9px}
 .gear,.phead button{width:32px;height:32px;border-radius:10px;border:1px solid var(--bd);background:rgba(255,255,255,.04);color:var(--dim);cursor:pointer;transition:var(--t)}
