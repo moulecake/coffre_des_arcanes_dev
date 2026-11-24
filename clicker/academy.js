@@ -10,7 +10,20 @@ window.Academy = (() => {
     ok: "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 12l5 5L20 6'/></svg>",
     lock: "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><rect x='5' y='11' width='14' height='10' rx='2'/><path d='M8 11V8a4 4 0 0 1 8 0v3'/></svg>"
   };
-  let navDone = 0, uid = 0, sel = null, exN = 0, last = {}, tEx = 0, celOpen = 0, onCele = null;
+  const MOT = { evo: "feu · éclairs", enc: "fils · charmes", ill: "miroirs · éclats", nec: "brume · os", abj: "bouclier · runes", div: "œil · étoiles", tra: "alchimie · or", con: "portails · cercles" };
+  const TITRE = { evo: "ÉVOCATEUR", enc: "ENCHANTEUR", ill: "ILLUSIONNISTE", nec: "NÉCROMANCIEN", abj: "ABJURATEUR", div: "DEVIN", tra: "TRANSMUTATEUR", con: "CONJURATEUR" };
+  const TAG = { evo: "La flamme obéit à qui ose la nommer.", enc: "Les volontés plient devant la tienne.", ill: "Ce que tu montres n'est jamais ce qui est.", nec: "La mort n'est qu'un outil de plus.", abj: "Rien ne passe sans ton accord.", div: "Tu as déjà lu la fin de l'histoire.", tra: "Tout devient ce que tu désires.", con: "Les portes s'ouvrent quand tu appelles." };
+  const SPE = {   // bonus RÉELS de la spécialité (valeurs = clicker/effects.js, §11)
+    evo1: "Projectile Magique : 15 impulsions au lieu de 10, recharge 15 s, et le critique s'applique", evo2: "Orbe Lumineux : 45 s d'Éther et 30 clics au lieu de 30 s et 20", evo3: "Boule de Feu Arcanique : 14 s à 14 impulsions/s, recharge 70 s", evo4: "Météore de l'Académie : dès 70 clics, ×2 pendant 20 s",
+    enc1: "Charme-Personne : −15 % de coût, aussi sur les bâtiments d'Éther", enc2: "Suggestion : +25 % de vitesse des Scribes", enc3: "Domination d'Esprit : 40 s, recharge 95 s", enc4: "Mot de Pouvoir : Obéissance : ×1,3 de Sagesse",
+    ill1: "Lumières Dansantes : +12 % de pages rares", ill2: "Image Miroir : ×7, avec 2 charges", ill3: "Mot de Divertissement : +8 s de durée", ill4: "Voile d'Illusion Majeure : ×15, durée +50 %",
+    nec1: "Faucheur de Tome : ×1,10 de Sagesse", nec2: "Invocation de Squelette Scribe : 4 % de tes pages/s", nec3: "Transmutation Vitale : ne consomme que 5 % de la Sagesse", nec4: "Encre Cramoisie : Page Nécrotique ×7",
+    abj1: "Bouclier d'Éther : +2 clics/s au Voile et au Grimoire", abj2: "Glyphe de Warding : hors ligne plafonné à 12 h", abj3: "Disjonction de Mordenkainen : recharge 40 s et 5 s d'immunité", abj4: "Sanctuaire Absolu : −22 % de recharge",
+    div1: "Augure : tu vois les 2 prochaines pages", div2: "Vision du Passé : +30 %, Éther hors ligne inclus", div3: "Prescience : 7 pages rares, recharge 120 s", div4: "Vision de l'Avenir : −35 % de temps de cours",
+    tra1: "Alchimie Mineure : ne brûle que 10 % de la Sagesse", tra2: "Fonte des Runes : ×4 pendant 40 s", tra3: "Transmutation de Plomb en Or : 20 s, recharge 95 s", tra4: "Philosophie de la Matière : ×1,35, Bougie et Homoncule inclus",
+    con1: "Portail Mineur : −8 % de coût", con2: "Invocation de Familier : 2 familiers", con3: "Cercle de Téléportation : remet 2 sorts à zéro, recharge 190 s", con4: "Invocation d'Avatar Arcanique : 14 s de pleine puissance"
+  };
+  let navDone = 0, selK = null, snooze = new Set(), uid = 0, sel = null, exN = 0, last = {}, tEx = 0, celOpen = 0, onCele = null;
   const tfmt = s => s < 60 ? Math.round(s) + " s" : s < 3600 ? Math.round(s / 60) + " min" : (s / 3600) % 1 ? (s / 3600).toFixed(1).replace(".", ",") + " h" : s / 3600 + " h";
   const clock = s => { s = Math.max(0, Math.ceil(s)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), q = s % 60; return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(q).padStart(2, "0"); };
   const set = (id, txt) => { const e = $(id); if (e && last[id] !== txt) { last[id] = txt; e.textContent = txt; } };
@@ -36,6 +49,15 @@ window.Academy = (() => {
       "<text x='50' y='61' text-anchor='middle' font-family='Cinzel,serif' font-weight='900' font-size='28' fill='#3b2a0a'>" + n + "</text><ellipse cx='38' cy='30' rx='12' ry='5' fill='#fff' opacity='.28' transform='rotate(-30 38 30)'/></svg>";
   }
 
+  const hold = (btn, ms, done) => {                                    // appui maintenu (souris, doigt, Espace/Entrée) : barre qui se remplit, `done` à 100 %
+    let raf = 0, t0 = 0; const stop = () => { cancelAnimationFrame(raf); raf = 0; t0 = 0; btn.style.setProperty("--p", 0); };
+    const step = t => { if (!t0) t0 = t; const p = Math.min(100, (t - t0) / ms * 100); btn.style.setProperty("--p", p); if (p >= 100) { raf = 0; done(); return; } raf = requestAnimationFrame(step); };
+    const start = e => { e.preventDefault(); stop(); raf = requestAnimationFrame(step); };
+    btn.addEventListener("pointerdown", start); ["pointerup", "pointerleave", "pointercancel"].forEach(ev => btn.addEventListener(ev, stop));
+    btn.addEventListener("keydown", e => { if ((e.key === " " || e.key === "Enter") && !e.repeat) start(e); }); btn.addEventListener("keyup", stop);
+  };
+  const buzz2 = p => { try { if (readPrefs().vibe !== false && navigator.vibrate) navigator.vibrate(p); } catch (e) {} };
+
   // ---------- Barre du haut : rang, Sagesse, cours / examen en cours, pli de l'Académie, puces d'examens ----------
   const top = () => {
     const R = rk(), c = sp().course, ex = sp().exam, pend = Prog.pending(S).length;
@@ -43,18 +65,20 @@ window.Academy = (() => {
       const done = n < R, cur = n === R, ready = cur && Prog.doneAt(sp(), n) === 8 && !ex, sealed = n > Prog.EX.open;
       return "<button class='" + (cur ? "on " : "") + (ready ? "ready " : "") + (done ? "done" : "") + "' data-n='" + n + "'>EXAMEN " + n + (done ? "<span class='ac-lk2'>" + ic.ok + "</span>" : n > R || sealed ? "<span class='ac-lk2'>" + ic.lock + "</span>" : "") + "</button>";
     }).join("");
+    const sc = sp().school, scd = sc && SCH.find(x => x[0] === sc);
     $("acTop").innerHTML = "<div class='ac-bar'><div class='ac-rank'><span>RANG</span><b>" + ROM[R] + "</b></div><div class='ac-wal'><span>Sagesse disponible</span><b id='acW'>" + fN(S.sg) + "</b></div></div>" +
+      "<button class='ac-spe" + (sc ? " set" : "") + "' id='acSpeB' " + (sc ? "style='--h:" + scd[2] + "'" : "") + ">" + (sc ? med(sc) + "<span><small>SPÉCIALITÉ</small><b>" + scd[1].toUpperCase() + "</b></span>" : "<span><small>Aucune école choisie</small><b>CHOISIR MA SPÉCIALITÉ</b></span>") + "</button>" +
       (pend ? "<button class='ac-pli' id='acPli'>" + ic.ok.replace("<svg", "<svg width='16' height='16'") + "<span>Un pli de l'Académie t'attend</span></button>" : "") +
       "<div class='ac-run' id='acRun' " + (c || ex ? "" : "hidden") + "></div><div class='ac-chips'>" + chips + "</div>";
     last = {}; $("acTop").querySelectorAll(".ac-chips button").forEach(b => b.onclick = () => openExam(+b.dataset.n)); const rn = $("acRun"); if (rn) rn.onclick = () => { if (ex) openExam(ex.n); else if (c) { sel = c.id; grid(); detail(); } };
-    const pl = $("acPli"); if (pl) pl.onclick = () => celebrate(true);
+    const pl = $("acPli"); if (pl) pl.onclick = () => { snooze.clear(); celebrate(true); }; $("acSpeB").onclick = openSpe;
   };
 
   // ---------- Grille : 8 écoles × rangs (rang suivant grisé, au-delà masqué, rang 5 = « ??? ») ----------
   const grid = () => {
     const R = rk(), maxR = Math.min(5, R + 1), L = sp().learned, c = sp().course; let h = "<tr><th></th>" + Array.from({ length: maxR }, (_, r) => "<th>RANG " + (r + 1) + "</th>").join("") + "</tr>";
     SCH.forEach(s => {
-      h += "<tr><td class='ac-sch'><div class='ac-sn' style='--h:" + s[2] + "'>" + med(s[0]) + "<div>" + s[1].toUpperCase() + "</div></div></td>";
+      h += "<tr><td class='ac-sch'><div class='ac-sn' style='--h:" + s[2] + "'>" + med(s[0]) + "<div>" + s[1].toUpperCase() + (sp().school === s[0] ? "<em>Spécialité</em>" : "") + "</div></div></td>";
       for (let r = 0; r < maxR; r++) {
         if (r === 4) { h += "<td><div class='ac-t ac-mystery' style='--h:" + s[2] + "'>???</div></td>"; continue; }
         const x = byId[s[0] + (r + 1)], lock = r + 1 > R, done = !!L[x.id], lng = !!c && c.id === x.id, inner = gl(s[0], 26) + "<span class='ac-ty'>" + (x.t === "A" ? "ACTIF" : "") + "</span>" + (lock ? "" : "<span class='ac-nm'>" + x.n + "</span>");
@@ -69,20 +93,21 @@ window.Academy = (() => {
   const detail = () => {
     const el = $("acDt"); if (!sel) { el.innerHTML = "<div class='ac-hint'>Touche un sort pour voir son effet, son prix et la durée du cours.</div>"; return; }
     const s = byId[sel], k = s.k, sc = SCH.find(x => x[0] === k), R = rk(), L = sp().learned, c = sp().course, ex = sp().exam;
-    const lock = s.r > R, done = !!L[s.id], lng = !!c && c.id === s.id, price = Spells.COST[s.r - 1], time = Spells.TIME[s.r - 1] * Spells.mod("study", 1), busy = (!!c && !lng) || !!ex, poor = S.sg < price;
+    const lock = s.r > R, done = !!L[s.id], lng = !!c && c.id === s.id, q = Spells.quote(s), price = q.price, time = q.time, busy = (!!c && !lng) || !!ex, poor = S.sg < price;
     const tags = "<span class='ac-tg " + (s.t === "A" ? "act" : OFFL.has(s.id) ? "off" : "on") + "'>" + (s.t === "A" ? "Actif" : OFFL.has(s.id) ? "Passif · hors ligne" : "Passif · en ligne") + "</span><span class='ac-tg'>" + PN[s.pn] + "</span><span class='ac-tg'>Rang " + s.r + "</span>";
     const btn = done ? "<button class='ac-learn' disabled>APPRIS ✓</button>" : lock ? "<button class='ac-learn' disabled>VERROUILLÉ</button>" : lng ? "<button class='ac-learn' disabled>COURS EN COURS</button>" :
-      "<button class='ac-learn' id='acL' " + (busy || poor ? "disabled" : "") + ">" + (ex ? "EXAMEN EN COURS" : busy ? "UN COURS EST DÉJÀ EN COURS" : poor ? "SAGESSE INSUFFISANTE" : "APPRENDRE") + "<small>" + fN(price) + " Sg · " + tfmt(time) + "</small></button>";
+      "<button class='ac-learn' id='acL' " + (busy || poor ? "disabled" : "") + ">" + (ex ? "EXAMEN EN COURS" : busy ? "UN COURS EST DÉJÀ EN COURS" : poor ? "SAGESSE INSUFFISANTE" : "APPRENDRE") + "<small>" + (q.mul < 1 ? "<s>" + fN(q.basePrice) + " Sg · " + tfmt(q.baseTime) + "</s><br>" + fN(price) + " Sg · " + tfmt(time) + " (−" + Math.round((1 - q.mul) * 100) + " %)" : fN(price) + " Sg · " + tfmt(time)) + "</small></button>";
     const name = lock ? s.n.replace(/./g, (ch, i) => i < 2 ? ch : "·") : s.n;
     el.style.setProperty("--h", sc[2]);
     el.innerHTML = "<div class='ac-ico' style='color:hsl(" + sc[2] + " 80% 68%)'><span class='d'>" + gl(k, 62) + "</span><span class='l' id='acIcl' style='clip-path:inset(0 " + (done ? 0 : 100) + "% 0 0)'>" + gl(k, 62) + "</span></div>" +
-      "<div><h4 style='color:hsl(" + sc[2] + " 80% 72%)'>" + name + "</h4><div class='ac-tags'>" + tags + "</div><p>" + (lock ? "Réussis l'examen du rang " + R + " pour accéder à ce rang." : s.d) + "</p>" +
+      "<div><h4 style='color:hsl(" + sc[2] + " 80% 72%)'>" + name + "</h4><div class='ac-tags'>" + tags + "</div><p>" + (lock ? "Réussis l'examen du rang " + R + " pour accéder à ce rang." : s.d) + "</p>" + (lock ? "" : "<div class='ac-spl" + (sp().school === k ? " on" : "") + "'>" + (sp().school === k ? "★ Spécialité : " : "Bonus de spécialité (si " + sc[1] + " est ton école) : ") + (SPE[s.id].indexOf(s.n + " : ") === 0 ? SPE[s.id].slice(s.n.length + 3) : SPE[s.id]) + "</div>") +
       (lng ? "<div class='ac-clock' id='acClk'></div>" : lock || done ? "" : "<div class='ac-clock off'>Durée du cours : " + tfmt(time) + "</div>") + "</div>" + btn;
     const b = $("acL"); if (b) b.onclick = () => Spells.learn(s); last = {}; paint(Date.now());
   };
 
   // ---------- Fenêtre d'examen ----------
   const CT = {
+    spe: ["Choisir ta spécialité", "Au premier examen, tu t'engages auprès d'une école. Ce choix est définitif : elle réduit de 25 % le prix et le temps de ses cours et renforce chacun de ses sorts."],
     fill1: ["Un sort dans chaque emplacement", "Place un sort dans ton emplacement du Voile ET dans celui du Grimoire (peu importe lequel). C'est ainsi que tu prépares ton équipement."],
     fill2: ["Tous les emplacements remplis", "Remplis au moins une fois chacun de tes 2 emplacements du Voile et de tes 2 du Grimoire."],
     cast: ["Avoir lancé un sort actif", "Lance au moins une fois un sort actif depuis un emplacement, au Voile ou au Grimoire."],
@@ -100,7 +125,7 @@ window.Academy = (() => {
     else if (!done) {
       const firstNo = info.conds.findIndex(c => !c.ok);
       h += "<div class='ac-conds'>" + info.conds.map((c, i) => { const t = ctext(c, n), pct = c.ok ? 100 : c.need ? Math.round(Math.min(1, c.have / c.need) * 100) : 0;
-        return "<div class='ac-cd" + (c.ok ? " ok" : i === firstNo ? " wait" : "") + "'><span class='st'>" + ic.ok + "</span><div><b>" + t[0] + "</b>" + (c.need ? "<div class='bar'><i style='width:" + pct + "%'></i></div>" : "<small>" + (c.ok ? "Validé" : "En attente de validation") + "</small>") + "</div><button class='ac-info' data-i='" + i + "' aria-label='Que faut-il faire ?'>i</button></div>"; }).join("") + "</div>";
+        return "<div class='ac-cd" + (c.ok ? " ok" : i === firstNo ? " wait" : "") + "'><span class='st'>" + ic.ok + "</span><div><b>" + t[0] + "</b>" + (c.need ? "<div class='bar'><i style='width:" + pct + "%'></i></div>" : c.id === "spe" && !c.ok ? "<small><button class='ac-mini' id='acSpeGo'>Choisir mon école</button></small>" : "<small>" + (c.ok ? "Validé" : "En attente de validation") + "</small>") + "</div><button class='ac-info' data-i='" + i + "' aria-label='Que faut-il faire ?'>i</button></div>"; }).join("") + "</div>";
     } else h += "<div class='ac-res'><b>RANG " + (n + 1) + " DÉBLOQUÉ</b><div>Un emplacement de plus au Voile et au Grimoire · les sorts du rang " + (n + 1) + " sont étudiables.</div></div>";
     const why = info.can.why;
     h += "<div class='ac-pay'><div class='ac-wallet'><span>Sagesse disponible</span><b>" + fN(S.sg) + " <small>Sg</small></b></div><div class='ac-r'><span>Frais d'inscription</span><b>" + fN(info.price) + " Sg</b></div><div class='ac-r'><span>Durée de l'examen<br><small>se poursuit hors ligne</small></span><b>" + tfmt(info.dur) + "</b></div>";
@@ -112,22 +137,61 @@ window.Academy = (() => {
     h += "<div class='ac-slots'>" + row("v", "VOILE") + row("g", "GRIMOIRE") + "</div>";
     body.innerHTML = h; last = {};
     body.querySelectorAll(".ac-info[data-i]").forEach(b => b.onclick = () => { const t = ctext(info.conds[+b.dataset.i], n); $("acInfoT").textContent = t[0]; $("acInfoP").textContent = t[1]; $("acInfo").hidden = false; $("acInfoOk").focus(); });
+    const sg = $("acSpeGo"); if (sg) sg.onclick = openSpe;
     const go = $("acGo"); if (go) go.onclick = () => { const r = Spells.startExam(n); if (r.ok) { toast("Inscription validée : l'épreuve commence"); } };
   };
   const openExam = n => { exN = n; $("acEx").hidden = false; exam(); const f = $("acExC"); if (f) f.focus(); };
   const closeExam = () => { $("acEx").hidden = true; };
+
+  // ---------- Choix de la spécialité (définitif) ----------
+  const speR = () => {
+    const done = sp().school, box = $("acSpeB2");
+    const cards = SCH.map(x => "<button class='ac-sc" + (selK === x[0] ? " on" : "") + (done && done !== x[0] ? " dim" : "") + "' data-k='" + x[0] + "' style='--h:" + x[2] + "' " + (done ? "disabled" : "") + "><div class='ac-motif ac-mo-" + x[0] + "'></div>" + med(x[0]) + "<b>" + x[1].toUpperCase() + "</b><small>" + MOT[x[0]] + "</small></button>").join("");
+    const k = done || selK, sc = k && SCH.find(x => x[0] === k); let det;
+    if (!k) det = "<div class='ac-sphint'>Touche une école pour voir ce qu'elle t'apporte.<br><small>Rien n'est définitif avant la confirmation maintenue.</small></div>";
+    else det = "<div class='ac-sdh'>" + med(k) + "<div><h3>" + sc[1].toUpperCase() + "</h3><div class='ac-ssub'>" + MOT[k] + "</div></div></div><ul>" + [1, 2, 3, 4].map(i => "<li><i>✦</i><span>" + SPE[k + i] + "</span></li>").join("") + "</ul>" +
+      "<div class='ac-scom'><b>Pour toute école :</b> −25 % de prix et de temps sur ses cours.</div>" +
+      (done ? "<div class='ac-sealedtxt'>Spécialisation scellée. Tes cours de " + sc[1] + " coûtent 25 % de moins et durent 25 % de moins, et ses sorts sont renforcés.</div>" :
+        "<div class='ac-warn'>" + ic.lock + "<span><b>Choix définitif.</b> Changer d'école = réinitialiser tout l'apprentissage des sorts, sans remboursement (bâtiments conservés).</span></div><button class='ac-hold' id='acSeal' style='--h:" + sc[2] + "'><span>MAINTENIR POUR SCELLER</span></button>");
+    box.style.setProperty("--h", sc ? sc[2] : 260);
+    box.innerHTML = "<div class='ac-cards'>" + cards + "</div><div class='ac-sdet'>" + det + "</div>";
+    box.querySelectorAll(".ac-sc").forEach(b => b.onclick = () => { selK = b.dataset.k; speR(); });
+    const sl = $("acSeal"); if (sl) hold(sl, 1200, () => { if (Spells.chooseSchool(selK)) { const kk = selK; selK = null; $("acSpe").hidden = true; reveal(kk); } });
+  };
+  const openSpe = () => { snooze.clear(); selK = null; $("acSpe").hidden = false; speR(); };
+  const closeSpe = () => { $("acSpe").hidden = true; };
+  // Révélation épique (§23.1) : assombrissement, tremblements + vibration, éclair, médaillon, rayons, ondes, titre, phrase d'école. Mouvement réduit = état final direct.
+  function reveal(k) {
+    const sc = SCH.find(x => x[0] === k), el = $("acRev"), rm = matchMedia("(prefers-reduced-motion: reduce)").matches; el.style.setProperty("--h", sc[2]); el.hidden = false;
+    el.innerHTML = "<div class='ac-rbg'></div><div class='ac-rays'></div><div class='ac-rings'><i></i><i></i><i></i></div><div class='ac-rstage'><div class='ac-rvm'>" + med(k) + "</div><div class='ac-rvt'>TU ES " + TITRE[k] + "</div><div class='ac-rvq'>" + TAG[k] + "</div><button class='ac-rvb' id='acRvb'>ENTRER DANS L'ÉCOLE</button></div><div class='ac-flash'></div>";
+    const T = [], done = () => { T.forEach(clearTimeout); document.body.classList.remove("ac-shake"); el.className = ""; el.hidden = true; el.innerHTML = ""; refresh(); celebrate(); };
+    if (rm) { el.className = "ph2 ph3"; if (window.sfx) sfx("gold"); }
+    else {
+      el.className = "ph0"; document.body.classList.add("ac-shake"); buzz2([40, 40, 60, 40, 80, 40, 120, 40, 200]); if (window.sfx) sfx("rumble");
+      T.push(setTimeout(() => el.classList.add("ph1"), 1300), setTimeout(() => { document.body.classList.remove("ac-shake"); el.classList.add("ph2"); buzz2([200, 60, 300]); if (window.sfx) sfx("gold"); }, 1500), setTimeout(() => el.classList.add("ph3"), 3800));
+    }
+    $("acRvb").onclick = done; $("acRvb").focus();
+  }
+  // Dernier recours (§3.3) : fenêtre d'explication + appui maintenu 2 s ; remet l'apprentissage à zéro, sans remboursement
+  const openRst = () => { $("acRst").hidden = false; };
+  const closeRst = () => { $("acRst").hidden = true; };
 
   // ---------- Pli de l'Académie (célébration en attente, affichée EN PREMIER à l'ouverture du clicker) ----------
   const letter = "<svg class='ac-letter' viewBox='0 0 120 90' aria-hidden='true'><defs><linearGradient id='acl1' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='#f5e6b8'/><stop offset='1' stop-color='#cfae6a'/></linearGradient><radialGradient id='acl2' cx='35%' cy='30%'><stop offset='0' stop-color='#fca5a5'/><stop offset='.55' stop-color='#b91c1c'/><stop offset='1' stop-color='#5b0f0f'/></radialGradient></defs>" +
     "<rect x='8' y='14' width='104' height='68' rx='5' fill='url(#acl1)' stroke='#8a6a22' stroke-width='1.2'/><path d='M8 18l52 34 52-34' fill='none' stroke='#8a6a22' stroke-width='1.2'/><path d='M8 80l38-30M112 80L74 50' fill='none' stroke='#8a6a22' stroke-opacity='.5'/><circle cx='60' cy='52' r='11' fill='url(#acl2)' stroke='#450a0a' stroke-width='1'/><path d='M60 46l1.8 4 4.2.5-3.1 2.9.8 4.2-3.7-2.1-3.7 2.1.8-4.2-3.1-2.9 4.2-.5z' fill='#fecaca' fill-opacity='.85'/></svg>";
   const buzz = () => { try { if (readPrefs().vibe !== false && navigator.vibrate) navigator.vibrate([40, 50, 90]); } catch (e) {} };
   const celebrate = manual => {
-    const list = Prog.pending(S); if (celOpen) return;
+    const list = Prog.pending(S).filter(e => !snooze.has(e.k)); if (celOpen) return;
     if (!list.length) { const f = onCele; onCele = null; if (f) f(); return; }
     const e = list[0], el = $("acCele"), box = $("acCeleB"); celOpen = 1; el.hidden = false;
     box.innerHTML = "<div class='ac-lt'>" + letter + "<h3>Un pli de l'Académie t'attend</h3><p>Il porte le sceau du Conseil des Examens.</p><button class='ac-go' id='acOpen'>OUVRIR LE PLI</button></div>";
     $("acOpen").focus(); $("acOpen").onclick = () => {
       if (window.sfx && SOUND) sfx("gold"); buzz();
+      if (e.t === "spe") {
+        box.innerHTML = "<div class='ac-dip'>" + seal(1) + "<h3>L'ACADÉMIE T'INVITE À T'ENGAGER</h3><p>Tu as déjà passé ton premier examen : il est temps de choisir ta <b>spécialité</b>. Une école de magie réduira de 25 % le prix et le temps de ses cours, et renforcera chacun de ses sorts.</p><button class='ac-go' id='acSpeYes'>CHOISIR MON ÉCOLE</button><button class='ac-lite' id='acSpeLater'>Plus tard</button></div>";
+        $("acSpeYes").focus(); $("acSpeYes").onclick = () => { celOpen = 0; el.hidden = true; openSpe(); }; $("acSpeLater").onclick = () => { snooze.add(e.k); celOpen = 0; el.hidden = true; top(); celebrate(); };
+        return;
+      }
       box.innerHTML = "<div class='ac-dip'>" + seal(e.n) + "<h3>EXAMEN DU RANG " + e.n + " VALIDÉ</h3><div class='ac-up'>RANG " + (e.n + 1) + " DÉBLOQUÉ</div><p>Un emplacement de plus au Voile et au Grimoire.<br>Les sorts du rang " + (e.n + 1) + " sont désormais étudiables.</p><button class='ac-go' id='acGoOn'>POURSUIVRE</button></div>";
       $("acGoOn").focus(); $("acGoOn").onclick = () => { Prog.ack(S, e.k); save(); if (window.cloudSave) cloudSave(true); celOpen = 0; el.hidden = true; top(); sel = null; grid(); detail(); celebrate(); };
     };
@@ -148,13 +212,19 @@ window.Academy = (() => {
   const refresh = () => { top(); grid(); detail(); if (!$("acEx").hidden) exam(); };
   const init = () => {
     $("acExC").onclick = closeExam; $("acEx").onclick = e => { if (e.target.id === "acEx") closeExam(); };
+    $("acSpeC").onclick = closeSpe; $("acSpe").onclick = e => { if (e.target.id === "acSpe") closeSpe(); };
+    $("acRstC").onclick = closeRst; $("acRst").onclick = e => { if (e.target.id === "acRst") closeRst(); }; $("acRstGo").onclick = openRst;
+    if (!$("acRstH").dataset.b) { $("acRstH").dataset.b = 1; hold($("acRstH"), 2000, () => { closeRst(); Spells.resetLearning(); sel = null; toast("Apprentissage réinitialisé — bâtiments, Éther et Sagesse conservés"); }); }
     $("acInfoOk").onclick = () => { $("acInfo").hidden = true; }; $("acInfo").onclick = e => { if (e.target.id === "acInfo") $("acInfo").hidden = true; };
     if (typeof Nav !== "undefined" && !navDone) {
       navDone = 1; Nav.add("acInfo", { open: () => !$("acInfo").hidden, close: () => { $("acInfo").hidden = true; } });
       Nav.add("acEx", { open: () => !$("acEx").hidden, close: closeExam });
       Nav.add("acCele", { open: () => !$("acCele").hidden, close: closeCele });
+      Nav.add("acSpe", { open: () => !$("acSpe").hidden, close: closeSpe });
+      Nav.add("acRst", { open: () => !$("acRst").hidden, close: closeRst });
     }
+    if (Prog.proposeSpe(S, Date.now())) { save(); if (window.cloudSave) cloudSave(); }
     refresh();
   };
-  return { init, refresh, tick, celebrate, openExam, celebrating: () => !!celOpen, setAfter: f => { onCele = f; } };
+  return { init, refresh, tick, celebrate, openExam, celebrating: () => !!celOpen, setAfter: f => { onCele = f; }, openSpe };
 })();

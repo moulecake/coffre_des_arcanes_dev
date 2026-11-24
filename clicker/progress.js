@@ -9,7 +9,7 @@ const ProgLib = (() => {
   // ★ RÉGLAGES (CONCEPTION_SORTS.md §3.4) — prix en Sagesse, temps en secondes, seuils CUMULÉS (statistiques à vie : Éther en nL).
   const COST = [2e5, 8e6, 8e7, 3e8], TIME = [30, 300, 1800, 10800];
   const EX = { price: [2e6, 8e7, 8e8, 3e9], dur: [120, 1200, 7200, 28800], eth: [1e6, 5e7, 3e8, 1e9], sg: [1e3, 2e8, 2e9, 1e10], open: 3, rankMax: 4 };   // open = examens jouables (le 4 est scellé)
-  const emptySp = () => ({ learned: {}, eq: { V: [], G: [] }, lock: {}, cd: {}, course: null, decks: [], rank: 1, exam: null, exDone: {}, tut: { fill: {}, cast: 0, castIds: {}, deck: 0, equip: 0 } });
+  const emptySp = () => ({ learned: {}, eq: { V: [], G: [] }, lock: {}, cd: {}, course: null, decks: [], rank: 1, exam: null, exDone: {}, school: null, schoolAt: 0, school2: null, tut: { fill: {}, cast: 0, castIds: {}, deck: 0, equip: 0 } });
   const isO = v => v && typeof v === "object" && !Array.isArray(v), V = X => (X && X.spV) || 1, clone = v => JSON.parse(JSON.stringify(v == null ? null : v));
   function norm(sp) {                                  // complète un S.sp incomplet (idempotent) ; ne touche à aucun sort appris
     if (!isO(sp)) return emptySp();
@@ -66,6 +66,7 @@ const ProgLib = (() => {
     if (n === 2) o.push({ id: "deck", ok: !!t.deck });
     if (n === 3) o.push({ id: "equip", ok: !!t.equip }, { id: "cast3", ok: Object.keys(t.castIds || {}).length >= 3, have: Object.keys(t.castIds || {}).length, need: 3 });
     o.push({ id: "eth", ok: e >= EX.eth[n - 1], have: e, need: EX.eth[n - 1] }, { id: "sg", ok: g >= EX.sg[n - 1], have: g, need: EX.sg[n - 1] });
+    if (n === 1) o.push({ id: "spe", ok: !!sp.school });                      // v2.a3.7 : choisir sa spécialité pour pouvoir payer l'examen 1
     return o;
   }
   // Peut-on s'inscrire à l'examen n ? → { ok, why }
@@ -86,7 +87,21 @@ const ProgLib = (() => {
     const n = sp.exam.n; sp.exDone[n] = sp.exam.end; sp.rank = Math.max(sp.rank | 0 || 1, n + 1); sp.exam = null;
     if (!Array.isArray(S.pend)) S.pend = []; S.pend = mergePend(S.pend, [{ k: "exam:" + n, t: "exam", n, ts: sp.exDone[n] }]); return n;
   }
-  return { SPV, COST, TIME, EX, emptySp, norm, migrate, score, decide, fixSp, mergePend, mergeDone, pending, ack, slots, doneAt, canLearn, conds, canExam, startExam, finishExam };
+  // ---- Spécialité d'école (v2.a3.7) : choix DÉFINITIF (sauf réinitialisation totale), −25 % de prix ET de temps sur les cours de l'école, jamais sur les examens ----
+  const SCHOOLS = ["evo", "enc", "ill", "nec", "abj", "div", "tra", "con"];
+  const chooseSchool = (sp, k, now) => { if (!sp || sp.school || SCHOOLS.indexOf(k) < 0) return false; sp.school = k; sp.schoolAt = now; return true; };
+  const schoolMul = (sp, k) => sp && sp.school === k ? .75 : sp && sp.school2 === k ? .875 : 1;     // double spé : la moitié de l'effet
+  // Dernier recours (§3.3) : sorts, équipement, decks, cours, rang, examens, école et double spé à zéro, SANS remboursement. Bâtiments, Éther, Sagesse, fragments, stats : intacts.
+  // Chaque réinitialisation INCRÉMENTE S.spV : la version la plus haute gagne pour sp/pend/pdone (§21) → le cloud n'annule jamais un reset.
+  function resetLearning(S) { S.sp = emptySp(); S.spV = V(S) + 1; S.pend = (S.pend || []).filter(e => e && e.t !== "exam" && e.t !== "spe"); if (!Array.isArray(S.pdone)) S.pdone = []; return S.spV; }
+  // Joueur ayant déjà validé l'examen 1 sans école : propose le choix UNE fois par version d'apprentissage (célébration en attente « spe:<spV> »). Renvoie true si ajouté.
+  function proposeSpe(S, now) {
+    const sp = S.sp; if (!sp || sp.school || (sp.rank | 0 || 1) < 2) return false;
+    const k = "spe:" + V(S); if (!Array.isArray(S.pend)) S.pend = []; if (!Array.isArray(S.pdone)) S.pdone = [];
+    if (S.pdone.includes(k) || S.pend.some(e => e && e.k === k)) return false;
+    S.pend = mergePend(S.pend, [{ k, t: "spe", ts: now || 0 }]); return true;
+  }
+  return { SPV, COST, TIME, EX, SCHOOLS, chooseSchool, schoolMul, resetLearning, proposeSpe, emptySp, norm, migrate, score, decide, fixSp, mergePend, mergeDone, pending, ack, slots, doneAt, canLearn, conds, canExam, startExam, finishExam };
 })();
 const Prog = ProgLib;
 if (typeof module !== "undefined") module.exports = ProgLib;

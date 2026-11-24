@@ -58,11 +58,11 @@ sp = P.emptySp(); sp.exam = { n: 1, end: 1 }; ok(!P.canLearn(sp, 1), "pas de cou
 
 // 6. Conditions et inscription
 const st0 = { eth: 0, sg: 0 }, stOk = { eth: 1e6, sg: 1e3 };
-sp = P.emptySp(); learnAll(sp, 1); ok(P.canExam(sp, st0, 1e9, 1).why === "conds", "examen 1 : conditions manquantes");
+sp = P.emptySp(); learnAll(sp, 1); sp.school = "evo"; ok(P.canExam(sp, st0, 1e9, 1).why === "conds", "examen 1 : conditions manquantes");
 sp.tut.fill = { V0: 1, G0: 1 }; sp.tut.cast = 1; ok(P.canExam(sp, { eth: 999999, sg: 1e3 }, 1e9, 1).why === "conds", "Éther juste sous le seuil");
 ok(P.canExam(sp, stOk, 1.9e6, 1).why === "poor", "Sagesse insuffisante pour les frais (2 M)");
 ok(P.canExam(sp, stOk, 2e6, 1).ok === true, "examen 1 possible");
-let sp2 = P.emptySp(); learnAll(sp2, 1); delete sp2.learned.con1; sp2.tut.fill = { V0: 1, G0: 1 }; sp2.tut.cast = 1; ok(P.canExam(sp2, stOk, 1e9, 1).why === "spells", "7 sorts sur 8 : refusé");
+let sp2 = P.emptySp(); learnAll(sp2, 1); sp2.school = "evo"; delete sp2.learned.con1; sp2.tut.fill = { V0: 1, G0: 1 }; sp2.tut.cast = 1; ok(P.canExam(sp2, stOk, 1e9, 1).why === "spells", "7 sorts sur 8 : refusé");
 ok(P.canExam(sp, stOk, 1e9, 2).why === "future" && P.canExam(sp, stOk, 1e9, 4).why === "sealed", "futur / scellé");
 sp.exam = { n: 1, end: 9 }; ok(P.canExam(sp, stOk, 1e9, 1).why === "busy", "examen en cours");
 eq(P.conds(P.emptySp(), st0, 4), [], "examen 4 sans conditions (scellé)");
@@ -84,3 +84,41 @@ ok(P.finishExam(S, 9e9) === 0 && S.pend.length === 1, "idempotent");
 ok(P.COST.join() === "200000,8000000,80000000,300000000" && P.TIME.join() === "30,300,1800,10800", "table de prix §3.4");
 ok(P.EX.price.join() === "2000000,80000000,800000000,3000000000" && P.EX.dur.join() === "120,1200,7200,28800", "examens §3.4");
 console.log("progress.test.js : " + n + " vérifications OK");
+
+// ===== v2.a3.7 : spécialité, réinitialisation (spV incrémenté), proposition aux joueurs rang ≥ 2 =====
+{
+  let m = 0; const ok2 = (c, msg) => { assert(c, msg); n++; m++; };
+  // école : choix définitif, −25 % prix/temps de son école seulement
+  let sp = P.emptySp(); ok2(sp.school === null && P.chooseSchool(sp, "abj", 5) === true && sp.school === "abj" && sp.schoolAt === 5, "choix d'école");
+  ok2(P.chooseSchool(sp, "evo", 6) === false && sp.school === "abj", "choix définitif"); ok2(P.chooseSchool(P.emptySp(), "xxx", 1) === false, "école inconnue refusée");
+  ok2(P.schoolMul(sp, "abj") === .75 && P.schoolMul(sp, "evo") === 1 && P.schoolMul({ school: "abj", school2: "evo" }, "evo") === .875, "−25 % (−12,5 % en double spé)");
+  // condition « spe » de l'examen 1 uniquement
+  sp = P.emptySp(); learnAll(sp, 1); sp.tut.fill = { V0: 1, G0: 1 }; sp.tut.cast = 1; const st1 = { eth: 1e6, sg: 1e3 };
+  ok2(P.conds(sp, st1, 1).some(c => c.id === "spe" && !c.ok) && P.canExam(sp, st1, 1e9, 1).why === "conds", "examen 1 : école obligatoire");
+  P.chooseSchool(sp, "evo", 1); ok2(P.canExam(sp, st1, 1e9, 1).ok === true, "examen 1 possible avec une école");
+  ok2(!P.conds({ ...P.emptySp(), rank: 2 }, st1, 2).some(c => c.id === "spe"), "pas de condition spe à l'examen 2");
+  // proposition : rang ≥ 2 sans école, une seule fois, sans résurrection
+  let S = { spV: 2, sp: P.emptySp(), pend: [], pdone: [] }; ok2(P.proposeSpe(S, 9) === false, "rang 1 : rien");
+  S.sp.rank = 2; ok2(P.proposeSpe(S, 9) === true && P.pending(S).map(e => e.k).join() === "spe:2", "rang 2 sans école : pli proposé"); ok2(P.proposeSpe(S, 9) === false && S.pend.length === 1, "idempotent");
+  P.ack(S, "spe:2"); ok2(P.pending(S).length === 0 && P.proposeSpe(S, 9) === false, "acquitté : ne revient pas");
+  S.sp.school = "abj"; S.pdone = []; S.pend = []; ok2(P.proposeSpe(S, 9) === false, "école déjà choisie : rien");
+  // réinitialisation : spV+1, sp neuf, le reste intact ; deux resets
+  S = { spV: 2, eth: 5e6, sg: 4e9, b: { anc: 12 }, st: { eth: 7 }, ms: { click: { ts: 1 } }, sp: P.emptySp(), pend: [{ k: "exam:1", t: "exam", n: 1 }, { k: "spe:2", t: "spe" }, { k: "x", t: "autre" }], pdone: ["exam:0"] };
+  S.sp.rank = 3; S.sp.school = "abj"; learnAll(S.sp, 3); S.sp.exDone = { 1: 5, 2: 6 };
+  ok2(P.resetLearning(S) === 3 && S.spV === 3, "reset : spV 2 → 3");
+  ok2(S.sp.rank === 1 && S.sp.school === null && S.sp.school2 === null && Object.keys(S.sp.learned).length === 0 && Object.keys(S.sp.exDone).length === 0 && S.sp.decks.length === 0 && S.sp.course === null && S.sp.exam === null, "sorts, rang, examens, école, decks, cours à zéro");
+  ok2(S.eth === 5e6 && S.sg === 4e9 && S.b.anc === 12 && S.st.eth === 7 && S.ms.click.ts === 1, "bâtiments, Éther, Sagesse, stats conservés (zéro remboursement)");
+  eq(S.pend.map(e => e.k), ["x"], "célébrations d'examen / de spécialité périmées retirées"); ok2(P.resetLearning(S) === 4 && S.spV === 4, "second reset : spV 4");
+  // §21 avec des resets : la version la plus haute gagne, jamais le « plus avancé »
+  const fix2 = (L, R) => { const base = P.decide(L, R, false), X = JSON.parse(JSON.stringify(base === "cloud" ? R : L)); P.fixSp(X, JSON.parse(JSON.stringify(L)), R); return { base, X }; };
+  const big = () => { const s = { spV: 2, seen: 1, b: { anc: 9 }, sp: P.emptySp(), pend: [], pdone: [] }; s.sp.rank = 4; learnAll(s.sp, 4); s.sp.school = "evo"; return s; };
+  let local = big(); P.resetLearning(local); local.seen = 50; let cloud = big(); cloud.seen = 99;
+  let rr = fix2(local, cloud); ok2(Object.keys(rr.X.sp.learned).length === 0 && rr.X.spV === 3 && rr.X.sp.school === null, "reset local (spV 3) contre cloud spV 2 plein de sorts : le reset gagne");
+  local = big(); cloud = big(); P.resetLearning(cloud); cloud.seen = 99; local.seen = 50;
+  rr = fix2(local, cloud); ok2(Object.keys(rr.X.sp.learned).length === 0 && rr.X.spV === 3, "reset fait sur un autre appareil : le cloud spV 3 arrive et vide le local");
+  local = big(); cloud = big(); delete cloud.spV; cloud.seen = 99; P.resetLearning(local);
+  rr = fix2(local, cloud); ok2(rr.X.spV === 3 && Object.keys(rr.X.sp.learned).length === 0, "reset puis ancien client (spV absent) : le reset est conservé");
+  local = big(); cloud = big(); P.resetLearning(cloud); P.resetLearning(cloud); rr = fix2(local, cloud); ok2(rr.X.spV === 4, "deux resets successifs : spV 4 gagne");
+  ok2(P.score(big(), { spV: 3, sp: P.emptySp() }) === P.score({ spV: 2, b: { anc: 9 }, sp: P.emptySp() }, { spV: 3 }), "score : sorts ignorés quand les spV diffèrent");
+  console.log("  (+" + m + " vérifications spécialité/reset)");
+}

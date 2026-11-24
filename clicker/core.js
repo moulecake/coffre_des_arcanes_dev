@@ -286,7 +286,7 @@ function initSticky() {                                // compteurs collants : e
   [[".res", "res"], [".pane.voile", "voile"], [".pane.grimoire", "grim"], [".pane.amphi", "amphi"]].forEach(([q, k]) => { const el = document.querySelector(q); if (el) { el.dataset.k = k; io.observe(el); } });
 }
 
-let nx = Math.random();                                // tirage de la prochaine page (Augure l'affiche)
+let nx = Math.random(), nx2 = Math.random();          // tirages des 2 prochaines pages (Augure en affiche 1, ou 2 pour l'école de Divination)
 const kk = c => Math.min(10, c.rare * M("rare", 1)), typ = (r, c) => { const k = kk(c); return r < PG.gold.p * k ? "gold" : r < (PG.gold.p + PG.red.p) * k ? "red" : null; };
 const px = k => k === "red" ? M("redX", 4) : PG[k].x;
 const pageX = () => S.g && S.g.t !== "norm" ? px(S.g.t) : 1;       // ×Sagesse tant que la page spéciale est en lecture
@@ -294,7 +294,7 @@ const pageX = () => S.g && S.g.t !== "norm" ? px(S.g.t) : 1;       // ×Sagesse 
 // Pages = paliers de lecture : la Sagesse gagnée remplit la jauge ; page pleine → page suivante tirée (normale/spéciale).
 // Pool = 3 + (flux Sg + 3 clics/s) × T, T = 2 s (début) → 12 s (≈ page 25). Page spéciale : pool × multiplicateur × durée.
 function nextPage(user) {
-  const c = Passives.calc(), G = S.g, r = nx; nx = Math.random();
+  const c = Passives.calc(), G = S.g, r = nx; nx = nx2; nx2 = Math.random();
   const t = Spells.force() ? (r < .2 ? "gold" : "red") : typ(r, c);
   const T = Math.min(12, 2 + .4 * G.n), farm = c.sgPS + 3 * c.pageClick;
   let need = 3 + farm * T; if (t) need *= px(t) * (1 + M("buffDur", 0) / 20);
@@ -353,7 +353,7 @@ function initCursor() {                                // l'Orbe suit la souris 
 
 function clickV(e) {
   const n = Date.now(); if (n < hot) { if (n - lastDenyV > 250) { lastDenyV = n; sfx("deny"); ripple(e, .25); } return; }      // voile rigide pendant la surchauffe
-  Stats.click("V"); heat += 10; const over = heat >= 100; if (over) { Stats.add("ovV", 1); hotMs = M("cps", CPS_PALIERS[0]) * 1000; hot = n + hotMs; }   // surchauffe : pause = limite en secondes (5 cps → 5 s · 10 → 10 s · 15 → 15 s)
+  Stats.click("V"); if (!Spells.immune()) heat += 10; const over = heat >= 100; if (over) { Stats.add("ovV", 1); hotMs = M("cps", CPS_PALIERS[0]) * 1000; hot = n + hotMs; }   // surchauffe : pause = limite en secondes (5 cps → 5 s · 10 → 10 s · 15 → 15 s)
   const m = Spells.onClick(), g = Passives.calc().clickV * M("click", 1) * m; S.eth += g; Stats.add("eth", g);
   sfx(over ? "rumble" : "zap"); ripple(e, over ? 1.8 : m > 1 ? 1.5 : 1); fl(e, "+" + fE(g), "#a78bfa");
   if (m > 1) critFx(e, "ill", "CRITIQUE ×" + m);        // Image Miroir : glyphe d'Illusion
@@ -420,7 +420,7 @@ function clickG(e) {
   const nG = Date.now();
   if (nG < hotG) { if (nG - lastDenyG > 500) { lastDenyG = nG; sfx("deny"); } return; }       // Grimoire verrouillé pendant le chaos
   Stats.click("G"); heatG += 10;
-  if (heatG >= 100) { Stats.add("ovG", 1); hotGMs = CPS_GRIMOIRE * 1000; hotG = nG + hotGMs; startChaos(); }       // trop de clics/s : chaos (pause = limite en secondes)
+  if (heatG >= 100) { Stats.add("ovG", 1); hotGMs = M("cpsG", CPS_GRIMOIRE) * 1000; hotG = nG + hotGMs; startChaos(); }       // trop de clics/s : chaos (pause = limite en secondes)
   const c = Passives.calc(), pt = S.g.t, g = c.pageClick * pageX() * M("sg", 1);
   Spells.touch(); clkPt = paneXY(e); gainSg(g, true); sfx("paper"); fl(e, "+" + fN(g) + " Sg", pt === "gold" ? "#d4af37" : pt === "red" ? "#e11d48" : "#f5d98a");
 }
@@ -467,12 +467,11 @@ function startChaos() {
 }
 function endChaos() { $("tome").classList.remove("chaos"); document.querySelector(".grimoire").classList.remove("chaos"); }
 
-function away(sec) {                                   // hors-ligne : timestamps, plafond 8 h (extensible via sorts)
-  Stats.max("offMax", sec); sec = Math.min(sec, M("offlineCap", 8) * 3600);
-  const c = Passives.calc(), e = c.ethPS * sec, s = c.sgPS * sec * M("offlineSg", 1);
-  S.eth += e; S.sg += s; Stats.add("eth", e); Stats.add("sg", s); Stats.add("off", sec); Stats.add("offN", 1); Stats.add("offEth", e); Stats.add("offSg", s);
-  const nf = microAdd(fragRate(c.ethPS) * sec * M("fragOff", 1)); if (nf) { Stats.add("frP", nf); Stats.add("offFr", nf); save(); }   // micro-fragments hors-ligne (plafond passif/jour inclus)
-  if (e + s > 0) toast("Absence : +" + fE(e) + " · +" + fN(s) + " Sg" + (nf ? " · +" + nf + " fragment(s)" : ""));
+function away(sec) {                                   // hors-ligne : timestamps, plafond 8 h (extensible via sorts) ; calcul pur dans effects.js (Fx.away, testé)
+  Stats.max("offMax", sec); const c = Passives.calc(), a = Fx.away(c, sec, M);
+  S.eth += a.eth; S.sg += a.sg; Stats.add("eth", a.eth); Stats.add("sg", a.sg); Stats.add("off", a.sec); Stats.add("offN", 1); Stats.add("offEth", a.eth); Stats.add("offSg", a.sg);
+  const nf = microAdd(fragRate(c.ethPS) * a.micro); if (nf) { Stats.add("frP", nf); Stats.add("offFr", nf); save(); }   // micro-fragments hors-ligne (plafond passif/jour inclus)
+  if (a.eth + a.sg > 0) toast("Absence : +" + fE(a.eth) + " · +" + fN(a.sg) + " Sg" + (nf ? " · +" + nf + " fragment(s)" : ""));
 }
 
 function tick() {
@@ -481,7 +480,7 @@ function tick() {
   const c = Passives.calc(); S.eth += c.ethPS * dt; Stats.add("eth", c.ethPS * dt); Stats.add("imp", c.impPS * dt); Stats.tick(dt, Spells.active(), c.ethPS, c.sgPS);
   if (c.sgPS > 0) gainSg(c.sgPS * dt * pageX(), false);             // lecture automatique : silencieuse
   fragTick(dt, c);
-  if (n < hotG) heatG = (hotG - n) / hotGMs * 100; else { if (hotG) { hotG = 0; heatG = 0; endChaos(); } heatG = Math.max(0, heatG - CPS_GRIMOIRE * 10 * dt); }
+  if (n < hotG) heatG = (hotG - n) / hotGMs * 100; else { if (hotG) { hotG = 0; heatG = 0; endChaos(); } heatG = Math.max(0, heatG - M("cpsG", CPS_GRIMOIRE) * 10 * dt); }
   const ccr = Math.round((n < hotG ? 1 : Math.max(0, (heatG - 35) / 65)) * 20) / 20; if (ccr !== lastCor) { lastCor = ccr; $("tome").style.setProperty("--cor", ccr); }   // encre d'avertissement
   if (n < hot) heat = (hot - n) / hotMs * 100; else { if (hot) { hot = 0; heat = 0; } heat = Math.max(0, heat - M("cps", CPS_PALIERS[0]) * 10 * dt); }
 
@@ -500,7 +499,7 @@ function tick() {
   $("pgTxt").textContent = fN(G.got) + " / " + fN(G.need) + " Runes décryptées";
   const tm = $("tome"); tm.classList.toggle("red", pt === "red"); tm.classList.toggle("gold", pt === "gold"); reveal(Math.min(1, G.got / G.need));
   Spells.tick(dt, n);
-  $("hintG").textContent = Spells.has("div1") ? "Augure : prochaine page " + ({ gold: "Dorée", red: "Nécrotique" }[Spells.forced() ? (nx < .2 ? "gold" : "red") : typ(nx, c)] || "commune") : "";
+  { const na = Spells.augure(), nm = (r, i) => ({ gold: "Dorée", red: "Nécrotique" }[Spells.forced() >= i + 1 ? (r < .2 ? "gold" : "red") : typ(r, c)] || "commune"); $("hintG").textContent = na ? "Augure : " + (na > 1 ? "prochaines pages " + nm(nx, 0) + " · " + nm(nx2, 1) : "prochaine page " + nm(nx, 0)) : ""; }
   Passives.update();
 }
 
@@ -532,6 +531,7 @@ const LEX = [
   ["Taxe", "Prix d'un changement de sorts fait juste après un effort (moins de 15 s) : payer en Éther, en Sagesse, ou subir 30 s de sorts actifs bloqués."],
   ["Cours", "Apprendre un sort coûte de la Sagesse et du temps réel. Le cours continue même quand tu es absent."],
   ["École", "Une des 8 écoles de magie. Chacune compte un sort par rang."],
+  ["Spécialité", "L'école que tu choisis, une fois pour toutes, au premier examen : ses cours coûtent 25 % de moins et durent 25 % de moins, et chacun de ses sorts est renforcé. Seul le « dernier recours » (apprentissage remis à zéro) permet d'en changer."],
   ["Rang", "Ton niveau d'avancement à l'Amphithéâtre. Tu peux apprendre les sorts jusqu'à ton rang ; le suivant s'ouvre en réussissant l'examen."],
   ["Examen", "Épreuve de l'Académie qui ouvre le rang suivant : apprends les 8 sorts du rang, remplis les conditions, paie les frais et patiente (ça continue hors ligne)."],
   ["Emplacement", "Une case de la barre de sorts, sous le Voile ou sous le Grimoire. Tu en as autant que ton rang ; le sort qui l'occupe agit."],

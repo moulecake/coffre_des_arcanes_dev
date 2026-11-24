@@ -7,6 +7,20 @@
 // ============================================================
 const PATCHNOTES = [
   {
+    v: '2.a3.7', name: 'La Spécialité', date: '2026-11-25',
+    gift: 'Cadeau de mise à jour : 3 clés offertes !',
+    sections: [
+      { t: '🎁 Nouveautés', items: [
+        '**Spécialité d’école** : choisis une école de magie (appui maintenu pour sceller). Ses cours coûtent 25 % de moins et durent 25 % de moins, et **chacun de ses 4 sorts est renforcé** (le détail est dans l’écran de choix et dans la fiche de chaque sort). Le choix est définitif, et il devient la dernière condition de l’examen 1. Si tu as déjà réussi cet examen, l’Académie te propose de choisir à ton retour.',
+        '**Dernier recours** : sous la grille de l’Amphithéâtre, tu peux remettre ton apprentissage à zéro pour changer d’école (sans remboursement ; bâtiments, Éther, Sagesse et inventaire conservés).'
+      ] },
+      { t: '⚖ Équilibrage', items: [
+        '**Météore de l’Académie** ne se cumule plus avec lui-même (il rafraîchit sa durée).',
+        '**Alchimie Mineure** et **Vision du Passé** agissent maintenant aussi hors ligne (Éther compris). **Squelette Scribe** suit tes pages/s. **Bouclier d’Éther** relève aussi la limite du Grimoire.'
+      ] }
+    ]
+  },
+  {
     v: '2.a3.6', name: 'Les Examens de l’Académie', date: '2026-11-24',
     gift: 'Cadeau de mise à jour : 3 clés offertes !',
     sections: [

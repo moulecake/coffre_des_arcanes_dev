@@ -14,11 +14,11 @@ const Passives = (() => {
   const calc = () => { const t = performance.now(); if (cc && t - ct < 50) return cc; ct = t; return cc = calc0(); };
   const calc0 = () => {
     const a = own("anc"), p = own("pyl"), b = own("bou"), l = own("lut"), c = own("bgi"), h = own("hom");
-    const flat = a * tm(a) * M("passive", 1), clickV = 1 + .02 * flat, crit = Math.min(.5, .01 * b * tm(b));
+    const flat = a * tm(a) * M("passive", 1), clickV = 1 + .02 * flat, crit = Math.min(.5, .01 * b * tm(b)), bg = M("bldG", 1);     // bg : spé Transmutation (tra4) étendue à Bougie/Homoncule
     const ethPS = (flat + (p * .5 * tm(p) * M("pylon", 1) + M("famil", 0)) * clickV) * (1 + crit * 4) * M("ether", 1);
-    const pagesPS = l * .5 * tm(l) * M("scribe", 1) + M("pagesFlat", 0), sgPage = 1 + .2 * c * tm(c), sgPS = pagesPS * sgPage * M("sg", 1);
+    const lutP = l * .5 * tm(l) * M("scribe", 1), gh = M("ghost", 0), pagesPS = lutP + (gh > 0 ? Math.max(.5, gh * lutP) : 0), sgPage = 1 + .2 * c * tm(c) * bg, sgPS = pagesPS * sgPage * M("sg", 1);   // squelette scribe (nec2) : max(0,5 ; 2 % [4 % en spé] des pages/s des Lutins)
     const impPS = (p * .5 * tm(p) * M("pylon", 1) + M("famil", 0)) * (1 + crit * 4) * M("ether", 1);   // impulsions/s (stats)
-    return { clickV, ethPS, impPS, pagesPS, sgPage, sgPS, pageClick: 1 + .02 * sgPS, rare: (1 + .05 * h) * tm(h) };
+    return { clickV, ethPS, impPS, pagesPS, sgPage, sgPS, pageClick: 1 + .02 * sgPS, rare: (1 + .05 * h * bg) * tm(h), critMul: 1 + crit * 4 };
   };
   const buy = b => {
     const k = b.s === "G" ? "sg" : "eth", c = cost(b);
