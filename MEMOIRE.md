@@ -1,7 +1,7 @@
 # MEMOIRE — Le Coffre des Arcanes (ex-Arcane Vault) + Clicker
 
 > Handoff pour le Claude qui continue le dev. À lire en premier, à mettre à jour à la fin de chaque étape.
-> Dernière mise à jour : 2026-11-24. **Version : v2.a3.14** (code à jour = dossier de travail, pas le zip de handoff). Langue de travail : français. Utilisateur : MJ de JDR D&D, non-dev, colle les blocs à la main.
+> Dernière mise à jour : 2026-11-24. **Version : v2.a3.15** (code à jour = dossier de travail, pas le zip de handoff). Langue de travail : français. Utilisateur : MJ de JDR D&D, non-dev, colle les blocs à la main.
 
 ## ⏰ RAPPELS (à traiter par Claude dès qu'on est à la date)
 - **À RETIRER AVANT LES BÊTA-TESTEURS (code de test temporaire, v2.a3.9+)** : (1) `clicker/academy.js` : tout le bloc `// === DEMO-BEGIN … DEMO-END ===` + `AC_DEMO` + les 2 lignes `if (AC_DEMO)` dans `exam()` ; (2) `clicker/style.css` : bloc `DEMO-BEGIN … DEMO-END` ; (3) `clicker/progress.js` : `EX.dur` doit redevenir `EX.durOrig` (`[120, 1200, 7200, 28800]`) ; (4) 2.a3.11+ : les durées de test de la triche (`CHEAT.lock`, `CHEAT.cd` forcés dans le bloc DEMO) ; (5) 2.a3.10+ : le journal de diagnostic de la Taxe (`TAXE_LOG`, `console.info("[Taxe]")`).
@@ -265,3 +265,8 @@ Fait : lien (bouton ⚡ GRIMOIRE) et cache SW. Reste : équilibrage global, popo
 ### v2.a3.14 — DA des fenêtres Sorts / Decks / Taxe (2026-11-26) — §23.4
 - `#pick`, `#dk`, `#gate` reprennent la DA de la maquette (CSS en fin de style.css, bloc v2.a3.14) : verre + liseré or, titres dorés, lignes-tuiles avec **médaillon d'école** (`.psi`, `--h` = teinte), étiquettes Actif/Passif, sort équipé en or (« ÉQUIPÉ »), puces de decks en pilules (principale dorée, danger rose). **Plus aucun emoji** dans ces fenêtres : bibliothèque `ICON` (SVG) dans spells.js (croix, lecture, disque, plume, lignes, corbeille, sablier, pièce). **Plus de `prompt()`/`confirm()`** : renommage EN PLACE (champ dans la carte, Entrée/Échap/perte de focus) ; suppression par DOUBLE APPUI (« Confirmer ? » 3 s). Fenêtre Taxe : icônes pièce / sablier / croix, prix d'Éther rendu avec `fEh`.
 - Reste du lot visuel : retours d'effets, bilan hors ligne (étape 3), préparation hors ligne et CD d'activation (étape 4), rang 5 et examen 4 (étape 5).
+
+### v2.a3.15 — Gestionnaire de decks refait + unités d'Éther (2026-11-26)
+- **Decks** (spells.js `dkList` / `dkEdit`, `#dkbody`) : la fenêtre « Decks de sorts » (formulaire + liste de boutons) est REMPLACÉE par « Mes decks » : une grille de CARTES (nom, type, aperçu des médaillons Voile/Grimoire, « Équiper » en un geste, tag « Équipé » si le deck correspond à l'équipement, « Modifier ») + tuile « Nouveau deck » (part de l'équipement actuel, nom à saisir tout de suite). Éditeur : retour, nom, type (Hybride/Voile/Grimoire), emplacements en médaillons (sélection dorée), PALETTE de sorts appris (un sort n'est jamais deux fois dans un deck ; passage automatique à l'emplacement vide suivant ; « Vider »), actions Équiper / Copier mon équipement actuel / Supprimer (double appui). Tout s'enregistre au fil de l'eau. Anciennes fonctions `edit(d,p)` et mode `ed` du sélecteur : conservées (plus utilisées, non supprimées).
+- **Unités d'Éther** : l'unité garde la couleur et le style du nombre (cause du défaut : `.chip span` / `.stkc span` s'appliquaient à `<span class=eu>`) ; police de l'unité = Georgia (serif avec minuscules : Cinzel ne les a pas).
+- **Démo** : bouton « Tout débloquer (rang 4, 32 sorts) » (rang 4, exams 1-3 validés, tous les sorts, flags de tutoriel).

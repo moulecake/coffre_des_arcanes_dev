@@ -55,7 +55,7 @@ window.Academy = (() => {
   // === DEMO-BEGIN : panneau de test (v2.a3.9) — TEMPORAIRE, À RETIRER AVANT LES BÊTA-TESTEURS (voir MEMOIRE.md « À RETIRER ») ===
   const AC_DEMO = true;
   if (AC_DEMO) { Prog.CHEAT.lock = 9e4; Prog.CHEAT.cd = 5e3; }          // TEMPORAIRE : verrou 90 s (au lieu de 24 h) et 5 s entre deux tentatives (au lieu de 5 min)
-  const demoHtml = () => "<div class='ac-demo'><span>Démo :</span><button data-d='learn'>Apprendre les sorts du rang</button><button data-d='next'>Valider la condition suivante</button><button data-d='all'>Tout valider</button><button data-d='sg'>Sagesse ×10</button><button data-d='eth'>Éther ×10</button><button data-d='back'>Simuler : rouvrir le clicker après validation</button><button data-d='rst'>Réinitialiser</button></div>";
+  const demoHtml = () => "<div class='ac-demo'><span>Démo :</span><button data-d='unlock'>Tout débloquer (rang 4, 32 sorts)</button><button data-d='learn'>Apprendre les sorts du rang</button><button data-d='next'>Valider la condition suivante</button><button data-d='all'>Tout valider</button><button data-d='sg'>Sagesse ×10</button><button data-d='eth'>Éther ×10</button><button data-d='back'>Simuler : rouvrir le clicker après validation</button><button data-d='rst'>Réinitialiser</button></div>";
   const demoOk = (c, n) => {                                              // valide UNE condition (sauf l'école : elle se choisit pour de vrai)
     const t = sp().tut; Stats.flush();
     if (c.id === "fill") (n === 1 ? ["V0", "G0"] : ["V0", "V1", "G0", "G1"]).forEach(k => { t.fill[k] = 1; });
@@ -67,7 +67,8 @@ window.Academy = (() => {
   const demoBind = n => {
     document.querySelectorAll(".ac-demo button").forEach(b => b.onclick = () => {
       const d = b.dataset.d, info = Spells.examInfo(n);
-      if (d === "learn") { Spells.SP.filter(x => x.r === n).forEach(x => { sp().learned[x.id] = 1; }); sp().course = null; Spells.invalidate(); toast("Démo : sorts du rang " + n + " appris"); }
+      if (d === "unlock") { const p = sp(); p.rank = 4; p.course = null; p.exam = null; [1, 2, 3].forEach(k => { p.exDone[k] = p.exDone[k] || Date.now() - (4 - k) * 864e5; }); Spells.SP.forEach(x => { p.learned[x.id] = 1; }); Object.assign(p.tut, { cast: 1, deck: 1, equip: 1 }); ["V", "G"].forEach(q => [0, 1, 2, 3].forEach(i => { p.tut.fill[q + i] = 1; })); ["evo1", "evo2", "evo3"].forEach(i => { p.tut.castIds[i] = 1; }); Spells.invalidate(); Spells.init(); toast("Démo : rang 4, tous les sorts appris"); }
+      else if (d === "learn") { Spells.SP.filter(x => x.r === n).forEach(x => { sp().learned[x.id] = 1; }); sp().course = null; Spells.invalidate(); toast("Démo : sorts du rang " + n + " appris"); }
       else if (d === "next") { const c = info.conds.find(x => !x.ok); if (!c) toast("Démo : tout est validé"); else if (!demoOk(c, n)) toast("Choisis d'abord ta spécialité (bouton « Choisir mon école »)"); }
       else if (d === "all") { info.conds.forEach(c => demoOk(c, n)); if (info.conds.some(c => c.id === "spe" && !c.ok)) toast("Il manque la spécialité (bouton « Choisir mon école »)"); }
       else if (d === "sg") { S.sg = Math.max(S.sg, 1) * 10; toast("Démo : Sagesse ×10"); }

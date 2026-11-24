@@ -202,38 +202,57 @@ const Spells = (() => {
     N.G.forEach((id, i) => { if (id && N.V.includes(id) && !sp().lock["G" + i]) N.G[i] = null; });      // pas de doublon (Voile prioritaire)
     taxe(() => { sp().eq = N; dirty = 1; bars(); Stats.add("chgDeck", 1); sp().tut.equip = 1; ["V", "G"].forEach(q => N[q].forEach((x, i) => { if (x) sp().tut.fill[q + i] = 1; })); save(); toast("Deck « " + d.name + " » équipé"); }, eqIds(), [...N.V, ...N.G].filter(Boolean), "deck");
   };
-  const dkR = () => {
-    const el = $("dklist"); el.innerHTML = "";
-    if (!D().length) el.innerHTML = "<div class='hint'>Aucun deck — crée-en un depuis ton équipement actuel.</div>";
+  // ---- Decks v2.a3.15 : une LISTE de cartes (aperçu visuel, « Équiper » en un geste) puis un ÉDITEUR : on touche un emplacement, puis un sort de la palette. Tout s'enregistre au fil de l'eau. ----
+  let dkI = -1, dkP = "V", dkS = 0;                                  // deck ouvert (-1 = liste), panneau et emplacement sélectionnés
+  const hn = k => SCH.find(x => x[0] === k)[2];
+  const dkBadge = (id, sel) => id ? "<i class='psi" + (sel ? " sel" : "") + "' style='--h:" + hn(byId[id].k) + "' title='" + byId[id].n + "'>" + gl(byId[id].k, 20) + "</i>" : "<i class='psi psi-e" + (sel ? " sel" : "") + "'>" + IC("<path d='M12 6v12M6 12h12'/>", 14, 2) + "</i>";
+  const dkSame = d => sides(d).every(p => Array.from({ length: nSlots() }, (_, i) => (d[p][i] || null) === (sp().eq[p][i] || null)).every(Boolean));
+  const dkHead = (t, back) => "<div class='phead'>" + (back ? "<button class='dk-back' id='dkBack' aria-label='Retour à mes decks'>" + IC("<path d='M15 5l-7 7 7 7'/>", 16, 2.4) + "<span>Mes decks</span></button>" : "<b>" + t + "</b>") + "<button id='dkclose' aria-label='Fermer'>" + ICON.cross + "</button></div>";
+  const dkClose = () => { $("dk").hidden = true; dkI = -1; };
+  const dkR = () => { if (dkI >= 0 && !D()[dkI]) dkI = -1; (dkI < 0 ? dkList : dkEdit)(); const c = $("dkclose"); if (c) c.onclick = dkClose; };
+  const dkList = () => {
+    const el = $("dkbody"), n = nSlots(); let h = dkHead("Mes decks") + "<p class='dk-lead'>Un deck est un équipement de sorts prêt à l'emploi. Crée-en jusqu'à 8 et passe de l'un à l'autre d'un seul geste.</p><div class='dk-grid'>";
     D().forEach((d, i) => {
-      const r = document.createElement("div"), h = document.createElement("div"), nm = document.createElement("b"), a = document.createElement("div"), pv = document.createElement("div");
-      r.className = "dk"; h.className = "dkh"; a.className = "dka"; pv.className = "dkp"; nm.textContent = d.name;
-      h.append(nm); h.insertAdjacentHTML("beforeend", "<em>" + TN[d.t] + "</em>");
-      pv.innerHTML = sides(d).map(p => "<span class='pv'><u>" + (p === "V" ? "Voile" : "Grimoire") + "</u>" + (d[p].filter(Boolean).map(id => "<i class='pvb' style='--h:" + SCH.find(x => x[0] === byId[id].k)[2] + "' title='" + byId[id].n + "'>" + gl(byId[id].k, 14) + "</i>").join("") || "<span class='pv0'>vide</span>") + "</span>").join("");
-      const bt = (ico, t, f, k) => { const b = document.createElement("button"); b.className = "dkb" + (k ? " " + k : ""); b.innerHTML = ico + "<span>" + t + "</span>"; b.onclick = f; a.append(b); return b; };
-      bt(ICON.play, "Équiper", () => applyDeck(d), "pri");
-      bt(ICON.save, "Enregistrer l'équipement", () => { snap(d); save(); dkR(); toast("Deck mis à jour"); });
-      sides(d).forEach(p => bt(ICON.edit, p === "V" ? "Voile" : "Grimoire", () => edit(d, p)));
-      bt(ICON.name, "Renommer", () => {                                      // renommage EN PLACE (plus de boîte du navigateur)
-        const inp = document.createElement("input"); inp.className = "dk-ren"; inp.maxLength = 20; inp.value = d.name; nm.replaceWith(inp); inp.focus(); inp.select();
-        const ok = () => { const v = inp.value.trim().slice(0, 20); if (v) { d.name = v; save(); } dkR(); };
-        inp.onkeydown = e => { if (e.key === "Enter") ok(); else if (e.key === "Escape") dkR(); }; inp.onblur = ok;
-      });
-      const del = bt(ICON.trash, "Supprimer", () => {                          // double appui (3 s) au lieu d'une boîte de confirmation
-        if (!del.classList.contains("conf")) { del.classList.add("conf"); del.querySelector("span").textContent = "Confirmer ?"; setTimeout(() => { if (del.isConnected) { del.classList.remove("conf"); del.querySelector("span").textContent = "Supprimer"; } }, 3000); return; }
-        D().splice(i, 1); save(); dkR();
-      }, "dng");
-      r.append(h, pv, a); el.append(r);
+      const on = dkSame(d), rows = sides(d).map(p => "<div class='dkc-r'><u>" + (p === "V" ? "Voile" : "Grimoire") + "</u>" + Array.from({ length: n }, (_, k) => dkBadge(d[p][k] || null)).join("") + "</div>").join("");
+      h += "<div class='dkc" + (on ? " on" : "") + "' data-i='" + i + "' tabindex='0' role='button' aria-label='Modifier le deck " + d.name.replace(/'/g, "’") + "'><div class='dkc-h'><b>" + d.name.replace(/</g, "&lt;") + "</b><em>" + TN[d.t] + "</em></div>" + rows +
+        "<div class='dkc-f'>" + (on ? "<span class='dkc-eq'>" + IC("<path d='M5 12.5l4.5 4.5L19 7'/>", 14, 2.6) + "Équipé</span>" : "<button class='dkb pri' data-eq='" + i + "'>" + ICON.play + "<span>Équiper</span></button>") + "<span class='dkc-ed'>Modifier " + IC("<path d='M9 5l7 7-7 7'/>", 14, 2.2) + "</span></div></div>";
     });
+    if (D().length < 8) h += "<button class='dkc dkc-new' id='dkNew'><i class='dkc-plus'>" + IC("<path d='M12 5v14M5 12h14'/>", 22, 2.2) + "</i><b>Nouveau deck</b><small>Part de ton équipement actuel</small></button>";
+    h += "</div>" + (D().length ? "" : "<p class='dk-empty'>Aucun deck pour l'instant. Touche « Nouveau deck » : il se remplit avec ce que tu as équipé, tu n'as plus qu'à le nommer et le retoucher.</p>") + "<p class='dk-foot'>Équiper un deck juste après une action peut déclencher la Taxe d'adaptation.</p>";
+    el.innerHTML = h;
+    el.querySelectorAll(".dkc[data-i]").forEach(c => { c.onclick = () => { dkI = +c.dataset.i; dkP = sides(D()[dkI])[0]; dkS = 0; dkR(); }; c.onkeydown = e => { if (e.key === "Enter") c.click(); }; });
+    el.querySelectorAll("[data-eq]").forEach(b => b.onclick = e => { e.stopPropagation(); applyDeck(D()[+b.dataset.eq]); setTimeout(dkR, 60); });
+    const nw = $("dkNew"); if (nw) nw.onclick = () => { const d = { name: "Deck " + (D().length + 1), t: "H", V: [], G: [] }; snap(d); D().push(d); sp().tut.deck = 1; Stats.add("deckN", 1); Stats.ms("deck"); dkI = D().length - 1; dkP = "V"; dkS = 0; save(); dkR(); const nm = $("dkName"); if (nm) { nm.focus(); nm.select(); } };
+  };
+  const dkEdit = () => {
+    const d = D()[dkI], n = nSlots(), el = $("dkbody"), sd = sides(d); if (sd.indexOf(dkP) < 0) dkP = sd[0]; if (dkS >= n) dkS = 0;
+    const rows = sd.map(p => "<div class='dke-r'><u>" + (p === "V" ? "Voile d'Éther" : "Grimoire") + "</u><div class='dke-s'>" + Array.from({ length: n }, (_, k) => "<button class='dke-sl' data-p='" + p + "' data-s='" + k + "' aria-label='Emplacement " + (k + 1) + "'>" + dkBadge(d[p][k] || null, p === dkP && k === dkS) + "</button>").join("") + "</div></div>").join("");
+    const used = new Set([...d.V, ...d.G].filter(Boolean)), cur = d[dkP][dkS] || null;
+    const pal = SP.filter(s => sp().learned[s.id] && (s.pn === dkP || s.pn === "X")).map(s => "<button class='dkp-t" + (used.has(s.id) ? " used" : "") + (s.id === cur ? " cur" : "") + "' data-id='" + s.id + "' title='" + s.n.replace(/'/g, "’") + "'>" + dkBadge(s.id) + "<b>" + s.n + "</b><span class='ps-tg " + (s.t === "A" ? "act" : "pas") + "'>" + (s.t === "A" ? "Actif" : "Passif") + "</span></button>").join("");
+    el.innerHTML = dkHead("", true) +
+      "<div class='dke-top'><input id='dkName' maxlength='20' value='" + d.name.replace(/'/g, "&#39;") + "' aria-label='Nom du deck'><div class='dke-seg' role='group' aria-label='Type de deck'>" + ["H", "V", "G"].map(t => "<button data-t='" + t + "' class='" + (d.t === t ? "on" : "") + "'>" + TN[t] + "</button>").join("") + "</div></div>" +
+      "<div class='dke-slots'>" + rows + "</div>" +
+      "<div class='dke-pal'><div class='dke-pt'>Emplacement <b>" + (dkS + 1) + "</b> · " + (dkP === "V" ? "Voile d'Éther" : "Grimoire") + (cur ? " <button class='dke-clear' id='dkClear'>Vider</button>" : "") + "</div><div class='dkp-g'>" + (pal || "<p class='dk-empty'>Aucun sort appris pour ce panneau : inscris-toi aux cours de l'Amphithéâtre.</p>") + "</div></div>" +
+      "<div class='dke-act'><button class='dkb pri' id='dkEq'>" + ICON.play + "<span>" + (dkSame(d) ? "Équipé" : "Équiper ce deck") + "</span></button><button class='dkb' id='dkCopy'>" + ICON.save + "<span>Copier mon équipement actuel</span></button><button class='dkb dng' id='dkDel'>" + ICON.trash + "<span>Supprimer</span></button></div>";
+    $("dkBack").onclick = () => { dkI = -1; dkR(); };
+    const nm = $("dkName"); nm.oninput = () => { d.name = nm.value.slice(0, 20); }; nm.onchange = nm.onblur = () => { d.name = (nm.value.trim() || d.name).slice(0, 20); save(); };
+    el.querySelectorAll(".dke-seg button").forEach(b => b.onclick = () => { d.t = b.dataset.t; ["V", "G"].forEach(p => { if (!d[p]) d[p] = []; }); if (sides(d).indexOf(dkP) < 0) { dkP = sides(d)[0]; dkS = 0; } save(); dkR(); });
+    el.querySelectorAll(".dke-sl").forEach(b => b.onclick = () => { dkP = b.dataset.p; dkS = +b.dataset.s; dkR(); });
+    el.querySelectorAll(".dkp-t").forEach(b => b.onclick = () => {                      // place le sort (jamais deux fois dans le deck), puis passe à l'emplacement vide suivant
+      const id = b.dataset.id; ["V", "G"].forEach(p => { d[p] = (d[p] || []).map(x => x === id ? null : x); }); d[dkP][dkS] = id;
+      const order = []; sides(d).forEach(p => { for (let k = 0; k < n; k++) order.push([p, k]); }); const at = order.findIndex(x => x[0] === dkP && x[1] === dkS), nx = order.slice(at + 1).concat(order.slice(0, at)).find(x => !d[x[0]][x[1]]);
+      if (nx) { dkP = nx[0]; dkS = nx[1]; } save(); dkR();
+    });
+    const cl = $("dkClear"); if (cl) cl.onclick = () => { d[dkP][dkS] = null; save(); dkR(); };
+    $("dkEq").onclick = () => { applyDeck(d); setTimeout(dkR, 60); }; $("dkCopy").onclick = () => { snap(d); save(); dkR(); toast("Équipement copié dans « " + d.name + " »"); };
+    const del = $("dkDel"); del.onclick = () => {                                     // double appui (3 s)
+      if (!del.classList.contains("conf")) { del.classList.add("conf"); del.querySelector("span").textContent = "Confirmer ?"; setTimeout(() => { if (del.isConnected) { del.classList.remove("conf"); del.querySelector("span").textContent = "Supprimer"; } }, 3000); return; }
+      D().splice(dkI, 1); dkI = -1; save(); dkR();
+    };
   };
   const dkInit = () => {
-    $("dkopen").onclick = () => { $("dk").hidden = false; dkR(); };
-    $("dkclose").onclick = () => { $("dk").hidden = true; }; $("dk").onclick = e => { if (e.target.id === "dk") $("dk").hidden = true; };
-    $("dkadd").onclick = () => {
-      if (D().length >= 8) return toast("8 decks maximum");
-      const d = { name: ($("dkname").value.trim() || "Deck " + (D().length + 1)).slice(0, 20), t: $("dkt").value, V: [], G: [] };
-      snap(d); D().push(d); sp().tut.deck = 1; Stats.add("deckN", 1); Stats.ms("deck"); $("dkname").value = ""; save(); dkR();
-    };
+    $("dkopen").onclick = () => { dkI = -1; $("dk").hidden = false; dkR(); };
+    $("dk").onclick = e => { if (e.target.id === "dk") dkClose(); };
   };
 
   // ---- Amphithéâtre (règles ; l'interface = clicker/academy.js) ----

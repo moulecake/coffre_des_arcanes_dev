@@ -7,6 +7,19 @@
 // ============================================================
 const PATCHNOTES = [
   {
+    v: '2.a3.15', name: 'Les Decks, simplement', date: '2026-11-26',
+    gift: 'Cadeau de mise à jour : 3 clés offertes !',
+    sections: [
+      { t: '🎁 Nouveautés', items: [
+        '**Mes decks, refaits** : tes decks sont des cartes qui montrent leurs sorts. Un geste pour équiper, un geste pour modifier. « Nouveau deck » part de ton équipement actuel.',
+        '**Éditeur** : touche un emplacement, puis un sort de la palette. Tout s’enregistre au fil de l’eau, et tu peux renommer le deck directement.'
+      ] },
+      { t: '🛠 Améliorations', items: [
+        '**Unités d’Éther** : retour à la couleur et au style d’origine, avec « mL » bien en minuscules.'
+      ] }
+    ]
+  },
+  {
     v: '2.a3.14', name: 'Un Clicker plus beau', date: '2026-11-26',
     gift: 'Cadeau de mise à jour : 3 clés offertes !',
     sections: [
