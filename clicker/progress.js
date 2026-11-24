@@ -44,6 +44,7 @@ const ProgLib = (() => {
   // L = état local d'avant remplacement (null si compte étranger), R = état cloud (ou null). Renvoie true si S.sp a été remplacé.
   function fixSp(S, L, R) {
     if (!R && !L) return false;
+    S.lock = Math.max(S.lock || 0, (L && L.lock) || 0, (R && R.lock) || 0);              // verrou de réinscription : la valeur la plus tardive gagne, jamais effaçable par une resynchronisation
     const lv = L ? V(L) : 0, rv = R ? V(R) : 0;
     if (rv > lv) { adopt(S, R); return true; }
     if (lv > rv) { const same = L === S; if (!same) adopt(S, L); return !same; }
@@ -70,8 +71,9 @@ const ProgLib = (() => {
     return o;
   }
   // Peut-on s'inscrire à l'examen n ? → { ok, why }
-  function canExam(sp, st, wallet, n) {
+  function canExam(sp, st, wallet, n, lock, now) {
     if (n > EX.open) return { ok: false, why: "sealed" };
+    if ((lock || 0) > (now || Date.now())) return { ok: false, why: "locked" };        // surpris en train de tricher : réinscription bloquée (S.lock, la valeur la plus tardive gagne à la fusion)
     if ((sp.rank | 0 || 1) !== n) return { ok: false, why: n > (sp.rank | 0 || 1) ? "future" : "done" };
     if (sp.exam) return { ok: false, why: "busy" };
     if (sp.course) return { ok: false, why: "course" };
@@ -80,7 +82,7 @@ const ProgLib = (() => {
     if (wallet < EX.price[n - 1]) return { ok: false, why: "poor" };
     return { ok: true };
   }
-  function startExam(sp, now, n) { sp.exam = { n, end: now + EX.dur[n - 1] * 1e3 }; }
+  function startExam(sp, now, n) { sp.exam = { n, end: now + EX.dur[n - 1] * 1e3, ch: { tries: 0, last: 0, bonus: 0, played: 0, over: 0 } }; }
   // Fin d'un examen (en ligne ou hors ligne) : rang +1, célébration en attente. Renvoie le numéro d'examen validé ou 0.
   function finishExam(S, now) {
     const sp = S.sp; if (!sp || !sp.exam || now < sp.exam.end) return 0;
@@ -111,7 +113,26 @@ const ProgLib = (() => {
     const all = removed.concat(added), mul = ago < TAXE.full ? 1 : .5, S = all.reduce((a, id) => a + 3 ** (rankOf(id) - 1), 0), base = all.reduce((a, id) => a + COST[rankOf(id) - 1], 0) * TAXE.sg;
     return { free: false, mul, S, time: Math.min(TAXE.cap, TAXE.k * Math.pow(S, TAXE.p)) * mul, sg: base * mul, eth: base * TAXE.eth * mul, removed, added };
   };
-  return { SPV, COST, TIME, EX, TAXE, taxe, SCHOOLS, chooseSchool, schoolMul, resetLearning, proposeSpe, emptySp, norm, migrate, score, decide, fixSp, mergePend, mergeDone, pending, ack, slots, doneAt, canLearn, conds, canExam, startExam, finishExam };
+  // ---- Tricher (v2.a3.11, §24) : disponible dès l'examen 2, pendant l'épreuve. Réussite 5 % (+ bonus du mini-jeu, + école d'Illusion) : le temps restant chute de 80 % ;
+  // surpris 10 % : perte d'1 sort du plus haut rang appris, examen annulé (frais perdus), réinscription bloquée 24 h ; sinon rien. 3 tentatives, 5 min d'écart ; une réussite ou une prise met fin à la triche pour cet examen.
+  const CHEAT = { first: 2, tries: 3, cd: 300e3, win: 5, caught: 10, cut: .8, lock: 864e5, illu: 3, maxBonus: 5, mini: { w0: 30, shrink: .72, speed0: .9, grow: 1.12, gain: .5, minW: 1.2 } };   // ★ réglages
+  const cheatOdds = (bonus, illu) => { const w = CHEAT.win + (bonus || 0) + (illu || 0); return { win: w, caught: CHEAT.caught, none: 100 - w - CHEAT.caught }; };
+  const cheatRoll = (r100, odds) => r100 < odds.win ? "win" : r100 < odds.win + odds.caught ? "caught" : "none";
+  const cheatCan = (sp, now) => {
+    const ex = sp && sp.exam; if (!ex || ex.n < CHEAT.first || now >= ex.end) return { ok: false, why: "none" };
+    const ch = ex.ch || (ex.ch = { tries: 0, last: 0, bonus: 0, played: 0, over: 0 }); if (ch.over) return { ok: false, why: "over" }; if (ch.tries >= CHEAT.tries) return { ok: false, why: "tries" };
+    if (ch.last && now - ch.last < CHEAT.cd) return { ok: false, why: "wait", left: CHEAT.cd - (now - ch.last) };
+    return { ok: true };
+  };
+  const cheatWin = (sp, now) => { sp.exam.end = now + Math.round((sp.exam.end - now) * (1 - CHEAT.cut)); sp.exam.ch.over = 1; };
+  function cheatCaught(S, rand, now) {                                    // retire 1 sort du plus haut rang appris (au hasard), annule l'examen, pose le verrou ; renvoie l'id perdu
+    const sp = S.sp, ids = Object.keys(sp.learned), top = ids.reduce((a, i) => Math.max(a, rankOf(i)), 0), pool = ids.filter(i => rankOf(i) === top).sort(), lost = pool.length ? pool[Math.min(pool.length - 1, Math.floor(rand * pool.length))] : null;
+    if (lost) { delete sp.learned[lost]; ["V", "G"].forEach(q => { sp.eq[q] = sp.eq[q].map(x => x === lost ? null : x); }); (sp.decks || []).forEach(d => ["V", "G"].forEach(q => { if (d[q]) d[q] = d[q].map(x => x === lost ? null : x); })); }
+    sp.exam = null; S.lock = Math.max(S.lock || 0, now + CHEAT.lock);
+    S.spV = V(S) + 1;                                                     // la sanction RETIRE de la progression : sans cet incrément, le cloud (plus avancé, il a encore le sort) la ferait annuler à la synchro (§21)
+    return lost;
+  }
+  return { SPV, COST, TIME, EX, TAXE, taxe, CHEAT, cheatOdds, cheatRoll, cheatCan, cheatWin, cheatCaught, SCHOOLS, chooseSchool, schoolMul, resetLearning, proposeSpe, emptySp, norm, migrate, score, decide, fixSp, mergePend, mergeDone, pending, ack, slots, doneAt, canLearn, conds, canExam, startExam, finishExam };
 })();
 const Prog = ProgLib;
 if (typeof module !== "undefined") module.exports = ProgLib;

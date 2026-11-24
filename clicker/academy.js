@@ -23,7 +23,8 @@ window.Academy = (() => {
     tra1: "Alchimie Mineure : ne brûle que 10 % de la Sagesse", tra2: "Fonte des Runes : ×4 pendant 40 s", tra3: "Transmutation de Plomb en Or : 20 s, recharge 95 s", tra4: "Philosophie de la Matière : ×1,35, Bougie et Homoncule inclus",
     con1: "Portail Mineur : −8 % de coût", con2: "Invocation de Familier : 2 familiers", con3: "Cercle de Téléportation : remet 2 sorts à zéro, recharge 190 s", con4: "Invocation d'Avatar Arcanique : 14 s de pleine puissance"
   };
-  let dipClose = null, navDone = 0, selK = null, snooze = new Set(), uid = 0, sel = null, exN = 0, last = {}, tEx = 0, celOpen = 0, onCele = null;
+  let miniDead = false, cg = { init: 0, vis: 0, hide: 0, next: 0 }, dipClose = null, navDone = 0, selK = null, snooze = new Set(), uid = 0, sel = null, exN = 0, last = {}, tEx = 0, celOpen = 0, onCele = null;
+  const EYE = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'><path d='M2 12c4-7 16-7 20 0-4 7-16 7-20 0z'/><circle cx='12' cy='12' r='3' fill='currentColor'/></svg>";
   const tfmt = s => s < 60 ? Math.round(s) + " s" : s < 3600 ? Math.round(s / 60) + " min" : (s / 3600) % 1 ? (s / 3600).toFixed(1).replace(".", ",") + " h" : s / 3600 + " h";
   const clock = s => { s = Math.max(0, Math.ceil(s)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), q = s % 60; return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(q).padStart(2, "0"); };
   const set = (id, txt) => { const e = $(id); if (e && last[id] !== txt) { last[id] = txt; e.textContent = txt; } };
@@ -53,6 +54,7 @@ window.Academy = (() => {
   const tension = (sec) => { if (!SOUND) return null; try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime; o.type = "sawtooth"; o.frequency.setValueAtTime(70, t); o.frequency.exponentialRampToValueAtTime(260, t + sec); g.gain.setValueAtTime(.0001, t); g.gain.linearRampToValueAtTime(.06, t + sec * .9); o.connect(g); g.connect(ac.destination); o.start(); return () => { try { g.gain.cancelScheduledValues(ac.currentTime); g.gain.setTargetAtTime(.0001, ac.currentTime, .03); o.stop(ac.currentTime + .15); } catch (e) {} }; } catch (e) { return null; } };   // grondement qui monte tant qu'on maintient
   // === DEMO-BEGIN : panneau de test (v2.a3.9) — TEMPORAIRE, À RETIRER AVANT LES BÊTA-TESTEURS (voir MEMOIRE.md « À RETIRER ») ===
   const AC_DEMO = true;
+  if (AC_DEMO) { Prog.CHEAT.lock = 9e4; Prog.CHEAT.cd = 5e3; }          // TEMPORAIRE : verrou 90 s (au lieu de 24 h) et 5 s entre deux tentatives (au lieu de 5 min)
   const demoHtml = () => "<div class='ac-demo'><span>Démo :</span><button data-d='learn'>Apprendre les sorts du rang</button><button data-d='next'>Valider la condition suivante</button><button data-d='all'>Tout valider</button><button data-d='sg'>Sagesse ×10</button><button data-d='eth'>Éther ×10</button><button data-d='back'>Simuler : rouvrir le clicker après validation</button><button data-d='rst'>Réinitialiser</button></div>";
   const demoOk = (c, n) => {                                              // valide UNE condition (sauf l'école : elle se choisit pour de vrai)
     const t = sp().tut; Stats.flush();
@@ -163,15 +165,17 @@ window.Academy = (() => {
     } else h += "<div class='ac-res'><b>RANG " + (n + 1) + " DÉBLOQUÉ</b><div>Un emplacement de plus au Voile et au Grimoire · les sorts du rang " + (n + 1) + " sont étudiables.</div></div>";
     const why = info.can.why;
     h += "<div class='ac-pay'><div class='ac-wallet'><span>Sagesse disponible</span><b>" + fN(S.sg) + " <small>Sg</small></b></div><div class='ac-r'><span>Frais d'inscription</span><b>" + fN(info.price) + " Sg</b></div><div class='ac-r'><span>Durée de l'examen<br><small>se poursuit hors ligne</small></span><b>" + tfmt(info.dur) + "</b></div>";
-    if (running) h += "<div class='ac-runb'><div class='ac-ring' id='acRing'><span id='acRt'></span></div><div>Épreuve en cours…<br><small>Tu peux fermer le jeu : elle continue.</small></div></div>";
-    else h += "<button class='ac-go' id='acGo' " + (info.can.ok ? "" : "disabled") + ">" + (done ? "EXAMEN VALIDÉ ✓" : sealed ? "BIENTÔT" : future ? "RANG VERROUILLÉ" : "PAYER ET M'INSCRIRE") + "</button>" +
-      (done || future || sealed ? "" : "<div class='ac-note'>" + ({ spells: "Apprends d'abord les 8 sorts du rang " + n + ".", conds: "Remplis toutes les conditions pour t'inscrire.", poor: "Sagesse insuffisante pour les frais d'inscription.", busy: "Un examen est déjà en cours.", course: "Termine d'abord ton cours en cours." }[why] || "") + "</div>");
+    if (running) { const ch = ex.ch || {}, gh = n >= Prog.CHEAT.first && !ch.over && (ch.tries | 0) < Prog.CHEAT.tries;          // bulle secrète : jamais expliquée
+      h += "<div class='ac-runb'><div class='ac-tb' id='acTb'><div class='ac-ring' id='acRing'><span id='acRt'></span></div>" + (gh ? "<button class='ac-gb' id='acGhost' aria-label='Tricher'>" + EYE + "</button>" : "") + "</div><div>Épreuve en cours…<br><small>Tu peux fermer le jeu : elle continue.</small></div></div>"; }
+    else h += "<button class='ac-go' id='acGo' " + (info.can.ok ? "" : "disabled") + ">" + (done ? "EXAMEN VALIDÉ ✓" : sealed ? "BIENTÔT" : future ? "RANG VERROUILLÉ" : why === "locked" ? "INSCRIPTIONS CLOSES" : "PAYER ET M'INSCRIRE") + "</button>" +
+      (done || future || sealed ? "" : "<div class='ac-note'>" + ({ locked: "Tu as été surpris en train de tricher. Tu pourras te réinscrire dans " + tfmt(Math.max(1, Math.ceil(((S.lock || 0) - Date.now()) / 1e3))) + ".", spells: "Apprends d'abord les 8 sorts du rang " + n + ".", conds: "Remplis toutes les conditions pour t'inscrire.", poor: "Sagesse insuffisante pour les frais d'inscription.", busy: "Un examen est déjà en cours.", course: "Termine d'abord ton cours en cours." }[why] || "") + "</div>");
     h += "</div>";
     const row = (c, l, p) => "<div class='ac-row " + c + "'><span>" + l + "</span>" + Array.from({ length: 4 }, (_, i) => "<span class='ac-sl " + (i < R ? "f" : "lock") + (done && i === n ? " new" : "") + "'>" + (i < R ? "✦" : ic.lock) + "</span>").join("") + "</div>";
     if (done) h += "<button class='ac-go sec' id='acRev2'>REVOIR MON DIPLÔME</button>";
     h += "<div class='ac-slots'>" + row("v", "VOILE") + row("g", "GRIMOIRE") + "</div>";
     if (AC_DEMO) h += demoHtml();                                                  // DEMO (temporaire)
     body.innerHTML = h; last = {}; if (AC_DEMO) demoBind(n);
+    { const tb = $("acTb"), gh = $("acGhost"); if (tb && cg.vis) tb.classList.add("g"); if (gh) gh.onclick = openCht; if (!tb) cg.init = 0; }
     body.querySelectorAll(".ac-info[data-i]").forEach(b => b.onclick = () => { const t = ctext(info.conds[+b.dataset.i], n); $("acInfoT").textContent = t[0]; $("acInfoP").textContent = t[1]; $("acInfo").hidden = false; $("acInfoOk").focus(); });
     const sg = $("acSpeGo"); if (sg) sg.onclick = openSpe; const r2 = $("acRev2"); if (r2) r2.onclick = () => diploma(n, null);
     const go = $("acGo"); if (go) go.onclick = () => { const r = Spells.startExam(n); if (r.ok) { tone(220, 110, .25, .09, "triangle"); tone(1500, 700, .12, .04, "square"); buzz2(30); toast("Inscription validée : l'épreuve commence"); } };
@@ -211,6 +215,53 @@ window.Academy = (() => {
   // Dernier recours (§3.3) : fenêtre d'explication + appui maintenu 2 s ; remet l'apprentissage à zéro, sans remboursement
   const openRst = () => { $("acRst").hidden = false; };
   const closeRst = () => { $("acRst").hidden = true; };
+
+  // ---------- Tricher (§24) : bulle secrète dès l'examen 2 ; 3 tentatives (5 min d'écart) ; mini-jeu « observer le surveillant » (1 par examen) ----------
+  const chtBox = () => $("acChtB"), illu = () => Prog.CHEAT.illu * Fx.sf(sp(), "ill");
+  const closeCht = () => { $("acCht").hidden = true; miniDead = true; };
+  const openCht = () => { if (!sp().exam) return; $("acCht").hidden = false; paintCht(); };
+  const updCht = n => {
+    const t = $("cTry"), ex = sp().exam; if (!t || !ex) return; const ch = ex.ch, can = Prog.cheatCan(sp(), n), left = Prog.CHEAT.tries - ch.tries;
+    set("cTry", can.ok ? "TENTER (" + left + " restante" + (left > 1 ? "s" : "") + ")" : can.why === "wait" ? "PROCHAINE TENTATIVE DANS " + clock(can.left / 1e3) : can.why === "tries" ? "PLUS DE TENTATIVE" : "TRICHE TERMINÉE"); t.disabled = !can.ok;
+  };
+  const paintCht = msg => {
+    const ex = sp().exam; if (!ex) return closeCht(); const ch = ex.ch, o = Prog.cheatOdds(ch.bonus, illu()), b = chtBox(); miniDead = true; b.className = "pbox ac-chtbox";
+    b.innerHTML = "<h3>" + EYE + " TRICHER ?</h3><p>Le surveillant est distrait… une feuille glissée, un sort murmuré. Mais l'Académie ne pardonne pas.</p>" +
+      "<div class='ac-odds'><div><b class='g'>" + +o.win.toFixed(1) + " %</b><span>Réussir : le temps restant chute de 80 %</span></div><div><b class='r'>" + o.caught + " %</b><span>Être surpris</span></div><div><b>" + +o.none.toFixed(1) + " %</b><span>Rien ne se passe</span></div></div>" +
+      "<div class='ac-pen'><b>Si tu es surpris :</b> tu perds 1 sort de ton plus haut rang · tu perds l'examen et repaies l'inscription · réinscription impossible pendant " + tfmt(Prog.CHEAT.lock / 1e3) + ".</div>" + (msg ? "<div class='ac-cmsg'>" + msg + "</div>" : "") +
+      "<div class='ac-crow'><button id='cTry'></button><button id='cGame' " + (ch.played ? "disabled" : "") + ">" + (ch.played ? "OBSERVATION FAITE" : "OBSERVER LE SURVEILLANT") + "</button><button id='cOut' class='plain'>RENONCER</button></div><div class='ac-bonus'>Bonus de chance : +" + (ch.bonus + illu()).toFixed(1) + " pt (max +" + Prog.CHEAT.maxBonus + ")</div>";
+    $("cOut").onclick = closeCht; $("cTry").onclick = tryCht; $("cGame").onclick = miniGame; last = {}; updCht(Date.now());
+  };
+  const persist = () => { save(); if (window.cloudSave) cloudSave(true); };
+  const tryCht = () => {
+    const ex = sp().exam, now = Date.now(); if (!ex) return closeCht(); if (!Prog.cheatCan(sp(), now).ok) return paintCht();
+    const ch = ex.ch, odds = Prog.cheatOdds(ch.bonus, illu()); ch.tries++; ch.last = now; Stats.addIn("cheat", "try", 1); Stats.ms("cheatFirst");
+    const r = Prog.cheatRoll(Math.random() * 100, odds);
+    if (r === "win") { Prog.cheatWin(sp(), now); Stats.addIn("cheat", "win", 1); buzz2([60, 40, 60]); tone(600, 1200, .4, .07, "sine"); toast("Ça a marché… le temps file."); closeCht(); persist(); if (!$("acEx").hidden) exam(); return; }
+    if (r === "caught") return caught();
+    Stats.addIn("cheat", "none", 1); buzz2(30); tone(200, 120, .15, .04, "triangle"); persist(); paintCht("Rien ne se passe. Le surveillant a jeté un œil dans ta direction…");
+  };
+  const caught = () => {
+    const lost = Prog.cheatCaught(S, Math.random(), Date.now()); Stats.addIn("cheat", "caught", 1); if (lost) Stats.addIn("cheat", "spellsLost", 1);
+    buzz2([200, 80, 400]); tone(90, 40, 1, .18, "square"); if (window.sfx) sfx("rumble"); miniDead = true; Spells.invalidate(); persist();
+    const b = chtBox(); b.classList.add("bad");
+    b.innerHTML = "<h3 style='color:#fb7185'>SURPRIS EN FLAGRANT DÉLIT</h3><p>Le surveillant te retire ta copie. Le jury est formel.</p><ul class='ac-lose'><li>Sort perdu : <b>" + (lost ? byId[lost].n : "—") + "</b></li><li>Examen annulé : frais d'inscription perdus</li><li>Inscriptions closes pendant <b>" + tfmt(Prog.CHEAT.lock / 1e3) + "</b></li></ul><div class='ac-crow'><button id='cOut2'>ACCEPTER LA SANCTION</button></div>";
+    $("cOut2").onclick = () => { closeCht(); b.classList.remove("b" + "ad"); Spells.init(); };
+  };
+  const miniGame = () => {
+    const ex = sp().exam; if (!ex || ex.ch.played) return; ex.ch.played = 1; Stats.addIn("cheat", "mini", 1); save();
+    const b = chtBox(), M = Prog.CHEAT.mini; let score = 0, speed = M.speed0, w = M.w0, center = 50, gained = 0, dead = false; const t0 = performance.now(); miniDead = false;
+    b.innerHTML = "<h3>" + EYE + " OBSERVER LE SURVEILLANT</h3><p>Appuie quand son regard croise ta zone. Chaque réussite te donne +0,5 pt de chance… et la zone rétrécit.</p><div class='ac-track'><div class='ac-zone' id='zn'></div><div class='ac-cur' id='cu'></div></div><div class='ac-crow'><button id='cHit' style='flex:1'>MAINTENANT</button></div><div class='ac-bonus' id='gs'>Série : 0</div>";
+    const place = () => { center = 15 + Math.random() * 70; $("zn").style.cssText = "left:" + (center - w / 2) + "%;width:" + w + "%"; }; place();
+    const pos = t => { const x = ((t - t0) / 1000 * speed) % 2; return (x < 1 ? x : 2 - x) * 100; };
+    const loop = t => { if (dead || miniDead || !$("cu")) return; $("cu").style.left = pos(t) + "%"; requestAnimationFrame(loop); }; requestAnimationFrame(loop);
+    const end = msg => { dead = true; if (gained) Stats.addIn("cheat", "miniBonusSum", gained); persist(); setTimeout(() => { if (!$("acCht").hidden && sp().exam) paintCht(msg); }, 500); };
+    $("cHit").onclick = () => {
+      if (dead) return; const x = pos(performance.now());
+      if (Math.abs(x - center) <= w / 2) { score++; const g = Math.min(Prog.CHEAT.maxBonus - ex.ch.bonus, M.gain); ex.ch.bonus += g; gained += g; w *= M.shrink; speed *= M.grow; buzz2(15); tone(500 + score * 60, 800 + score * 60, .15, .05, "sine"); $("gs").textContent = "Série : " + score + " · bonus +" + ex.ch.bonus.toFixed(1) + " pt"; if (ex.ch.bonus >= Prog.CHEAT.maxBonus || w < M.minW) end("Tu connais ses habitudes par cœur."); else place(); }
+      else { buzz2(80); end("Il t'a vu t'agiter. Série terminée : " + score + "."); }
+    };
+  };
 
   // ---------- Pli de l'Académie (célébration en attente, affichée EN PREMIER à l'ouverture du clicker) ----------
   const letter = "<svg class='ac-letter' viewBox='0 0 120 90' aria-hidden='true'><defs><linearGradient id='acl1' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='#f5e6b8'/><stop offset='1' stop-color='#cfae6a'/></linearGradient><radialGradient id='acl2' cx='35%' cy='30%'><stop offset='0' stop-color='#fca5a5'/><stop offset='.55' stop-color='#b91c1c'/><stop offset='1' stop-color='#5b0f0f'/></radialGradient></defs>" +
@@ -277,7 +328,12 @@ window.Academy = (() => {
     const rn = $("acRun"); if (rn) { if (ex) { rn.hidden = false; set("acRun", "Examen du rang " + ex.n + " en cours — " + clock((ex.end - n) / 1e3)); } else if (c) { rn.hidden = false; set("acRun", "Cours en cours : " + byId[c.id].n + " — " + clock((c.end - n) / 1e3)); } else rn.hidden = true; }
     if (ex && !$("acEx").hidden) { const tot = Prog.EX.dur[ex.n - 1] * 1e3, p = Math.max(0, Math.min(1, 1 - (ex.end - n) / tot)), ring = $("acRing"); if (ring) ring.style.setProperty("--p", (p * 100).toFixed(1)); set("acRt", (ex.end - n) >= 36e5 ? ((ex.end - n) / 36e5).toFixed(1) + " h" : Math.max(1, Math.ceil((ex.end - n) / 6e4)) + " min"); }
   };
-  const tick = n => { paint(n); if (!$("acEx").hidden && n - tEx > 1000) { tEx = n; exam(); } };
+  const bubble = n => {                                                  // bulle de triche : 1ʳᵉ apparition à 1–2 s, visible 3,2 s, puis revient au hasard 3–10 s plus tard (silencieuse : jamais de son non sollicité)
+    const tb = $("acTb"); if (!tb || !$("acGhost")) { cg.init = 0; cg.vis = 0; return; }
+    if (!cg.init) { cg.init = 1; cg.vis = 0; cg.next = n + 1000 + Math.random() * 1000; }
+    if ($("acCht").hidden) { if (!cg.vis && n >= cg.next) { cg.vis = 1; cg.hide = n + 3200; tb.classList.add("g"); } else if (cg.vis && n >= cg.hide) { cg.vis = 0; cg.next = n + 3000 + Math.random() * 7000; tb.classList.remove("g"); } }
+  };
+  const tick = n => { paint(n); bubble(n); if (!$("acCht").hidden) updCht(n); if (!$("acEx").hidden && n - tEx > 1000 && !(sp().exam && sp().exam.n === exN)) { tEx = n; exam(); } };
   const refresh = () => { top(); grid(); detail(); if (!$("acEx").hidden) exam(); };
   const init = () => {
     $("acExC").onclick = closeExam; $("acEx").onclick = e => { if (e.target.id === "acEx") closeExam(); };
@@ -291,6 +347,7 @@ window.Academy = (() => {
       Nav.add("acCele", { open: () => !$("acCele").hidden, close: closeCele });
       Nav.add("acSpe", { open: () => !$("acSpe").hidden, close: closeSpe });
       Nav.add("acRst", { open: () => !$("acRst").hidden, close: closeRst });
+      Nav.add("acCht", { open: () => !$("acCht").hidden, close: closeCht });
       Nav.add("acDip", { open: () => !$("acDip").hidden, close: () => { if (dipClose) dipClose(); } });
     }
     if (Prog.proposeSpe(S, Date.now())) { save(); if (window.cloudSave) cloudSave(); }

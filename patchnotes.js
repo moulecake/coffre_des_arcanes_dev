@@ -7,6 +7,15 @@
 // ============================================================
 const PATCHNOTES = [
   {
+    v: '2.a3.11', name: 'Les Épreuves', date: '2026-11-25',
+    gift: 'Cadeau de mise à jour : 3 clés offertes !',
+    sections: [
+      { t: '🛠 Améliorations', items: [
+        '**Examens** : l’épreuve gagne en suspense. Reste attentif pendant qu’elle se déroule…'
+      ] }
+    ]
+  },
+  {
     v: '2.a3.10', name: 'La Taxe revue', date: '2026-11-25',
     gift: 'Cadeau de mise à jour : 3 clés offertes !',
     sections: [

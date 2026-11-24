@@ -143,3 +143,47 @@ console.log("progress.test.js : " + n + " vérifications OK");
   ok3(P.TAXE.esc === false, "escalade par fréquence désactivée");
   console.log("  (+" + m + " vérifications Taxe)");
 }
+
+// ===== v2.a3.11 : Tricher (§24) =====
+{
+  let m = 0; const ok4 = (c, msg) => { assert(c, msg); n++; m++; }, nr4 = (a, b, tol, msg) => { assert(Math.abs(a - b) <= tol, msg + " (" + a + " ≠ " + b + ")"); n++; m++; };
+  // probabilités par tentative
+  let o = P.cheatOdds(0, 0); ok4(o.win === 5 && o.caught === 10 && o.none === 85, "par tentative : 5 / 10 / 85 %");
+  o = P.cheatOdds(2, 3); ok4(o.win === 10 && o.none === 80, "bonus +2 et Illusion +3 : 10 % de réussite");
+  ok4(P.cheatRoll(4.99, P.cheatOdds(0, 0)) === "win" && P.cheatRoll(5, P.cheatOdds(0, 0)) === "caught" && P.cheatRoll(14.99, P.cheatOdds(0, 0)) === "caught" && P.cheatRoll(15, P.cheatOdds(0, 0)) === "none", "tirage : bornes 5 / 15");
+  // 3 tentatives : valeurs analytiques du §24 (13,0 / 25,7 / 61,4 % à bonus 0) + simulation
+  const three = (b, rng) => { for (let t = 0; t < 3; t++) { const r = P.cheatRoll(rng() * 100, P.cheatOdds(b, 0)); if (r !== "none") return r; } return "none"; };
+  let seed = 12345; const rng = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  [[0, 13.0, 25.7, 61.4], [1, 15.2, 25.8, 59.0], [2, 17.7, 25.4, 56.9], [5, 24.3, 24.4, 51.3]].forEach(([b, w, c, nn]) => {
+    const c3 = { win: 0, caught: 0, none: 0 }; for (let i = 0; i < 100000; i++) c3[three(b, rng)]++;
+    nr4(c3.win / 1000, w, 0.8, "bonus +" + b + " : réussite ≈ " + w + " %"); nr4(c3.caught / 1000, c, 0.8, "bonus +" + b + " : surpris ≈ " + c + " %"); nr4(c3.none / 1000, nn, 1, "bonus +" + b + " : rien ≈ " + nn + " %");
+  });
+  // disponibilité
+  let sp = P.emptySp(); sp.rank = 2; P.startExam(sp, 1000, 2);
+  ok4(P.cheatCan(sp, 1500).ok === true, "examen 2 : triche possible"); let sp1 = P.emptySp(); P.startExam(sp1, 1000, 1); ok4(P.cheatCan(sp1, 1500).why === "none", "examen 1 : jamais (tutoriel)");
+  ok4(P.cheatCan(sp, sp.exam.end + 1).why === "none" && P.cheatCan(P.emptySp(), 1).why === "none", "hors épreuve : impossible");
+  sp.exam.end = 1e9; sp.exam.ch.tries = 1; sp.exam.ch.last = 2000; const w = P.cheatCan(sp, 2000 + 299e3); ok4(w.why === "wait" && w.left === 1e3, "5 min entre deux tentatives"); ok4(P.cheatCan(sp, 2000 + 300e3).ok, "…puis de nouveau possible");
+  sp.exam.ch.tries = 3; ok4(P.cheatCan(sp, 1500).why === "tries", "3 tentatives maximum"); sp.exam.ch.tries = 0; sp.exam.ch.over = 1; ok4(P.cheatCan(sp, 1500).why === "over", "réussite/prise : fin de la triche");
+  // réussite : le temps restant chute de 80 %
+  sp = P.emptySp(); sp.rank = 2; sp.exam = { n: 2, end: 101000, ch: { tries: 0, last: 0, bonus: 0, played: 0, over: 0 } }; P.cheatWin(sp, 1000); ok4(sp.exam.end === 1000 + 100000 * .2 && sp.exam.ch.over === 1, "temps restant −80 %");
+  // prise : 1 sort du plus haut rang, examen annulé, verrou 24 h, jamais effaçable
+  const S2 = { spV: 2, sp: P.emptySp(), pend: [], pdone: [] }; learnAll(S2.sp, 2); S2.sp.rank = 2; S2.sp.eq = { V: ["evo2", "evo1"], G: ["enc2"] }; S2.sp.decks = [{ name: "d", V: ["evo2"], G: ["enc2"] }]; P.startExam(S2.sp, 0, 2);
+  const lost = P.cheatCaught(S2, 0, 5e3); ok4(+lost[3] === 2 && !S2.sp.learned[lost], "perd 1 sort du rang 2 (le plus haut appris)"); ok4(S2.sp.exam === null && S2.lock === 5e3 + 864e5, "examen annulé, verrou 24 h");
+  ok4(!S2.sp.eq.V.includes(lost) && !S2.sp.eq.G.includes(lost) && !S2.sp.decks[0].V.includes(lost) && !S2.sp.decks[0].G.includes(lost), "retiré de l'équipement et des decks"); ok4(Object.keys(S2.sp.learned).length === 15, "un seul sort perdu (16 → 15)");
+  const l2 = P.cheatCaught({ sp: (() => { const x = P.emptySp(); learnAll(x, 2); return x; })() }, .999, 1); ok4(+l2[3] === 2, "tirage au hasard parmi le rang le plus haut");
+  ok4(P.canExam(S2.sp, { eth: 1e12, sg: 1e12 }, 1e12, 2, S2.lock, 6e3).why === "locked", "réinscription bloquée pendant le verrou"); ok4(P.canExam(S2.sp, { eth: 1e12, sg: 1e12 }, 1e12, 2, S2.lock, S2.lock + 1).why !== "locked", "…puis de nouveau possible après 24 h");
+  // le verrou survit aux fusions cloud et au dernier recours (max, jamais effacé)
+  const loc = { spV: 2, lock: 0, sp: P.emptySp(), pend: [], pdone: [] }, clo = { spV: 2, lock: 9e9, sp: P.emptySp() }; P.fixSp(loc, JSON.parse(JSON.stringify(loc)), clo); ok4(loc.lock === 9e9, "fusion : le verrou le plus tardif gagne");
+  const loc2 = { spV: 2, lock: 9e9, sp: P.emptySp() }; P.fixSp(loc2, loc2, { spV: 2, lock: 0, sp: P.emptySp() }); ok4(loc2.lock === 9e9, "un cloud sans verrou ne l'efface pas"); P.resetLearning(loc2); ok4(loc2.lock === 9e9, "le dernier recours ne lève pas le verrou");
+  console.log("  (+" + m + " vérifications Triche)");
+}
+
+// ===== v2.a3.11 : la sanction de triche ne doit JAMAIS être annulée par le cloud (plus avancé) =====
+{
+  const big = () => { const s = { spV: 2, seen: 1, b: { anc: 9 }, sp: P.emptySp(), pend: [], pdone: [] }; s.sp.rank = 2; learnAll(s.sp, 2); s.sp.exam = { n: 2, end: 9e12, ch: { tries: 0, last: 0, bonus: 0, played: 0, over: 0 } }; return s; };
+  const local = big(), cloud = big(); cloud.seen = 99; const lost = P.cheatCaught(local, 0, 5e3); local.seen = 50;
+  assert(local.spV === 3 && lost, "sanction : spV incrémenté"); n++;
+  const base = P.decide(local, cloud, false), X = JSON.parse(JSON.stringify(base === "cloud" ? cloud : local)); P.fixSp(X, JSON.parse(JSON.stringify(local)), cloud);
+  assert(!X.sp.learned[lost] && Object.keys(X.sp.learned).length === 15 && X.sp.exam === null && X.lock === 5e3 + 864e5, "après synchro : le sort perdu reste perdu, l'examen reste annulé, le verrou reste posé"); n++;
+  console.log("  (+2 vérifications sanction de triche / synchro) — total " + n);
+}

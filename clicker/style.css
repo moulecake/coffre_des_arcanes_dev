@@ -484,3 +484,19 @@ body.ac-shake{animation:acShk .09s linear infinite}@keyframes acShk{0%{transform
 .ac-demo{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:11px;color:var(--dim);border-top:1px dashed var(--bd);padding-top:10px}
 .ac-demo button{font:500 11px Inter,sans-serif;padding:6px 10px;border-radius:8px;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.35);color:#bae6fd;cursor:pointer}.ac-demo button:hover{background:rgba(56,189,248,.18)}
 /* === DEMO-END === */
+
+/* ===== v2.a3.11 : Tricher (§24, DA de maquettes/sorts.html) ===== */
+.ac-tb{position:relative;width:72px;height:72px;flex:none}.ac-tb .ac-ring,.ac-tb .ac-gb{position:absolute;inset:0;transition:opacity .25s}
+.ac-gb{opacity:0;pointer-events:none;border:0;border-radius:50%;cursor:pointer;display:grid;place-items:center;background:radial-gradient(circle at 35% 30%,#fda4af,#e11d48 55%,#4c0519);color:#fff;box-shadow:0 0 0 0 rgba(244,63,94,.8)}.ac-gb svg{width:34px;height:34px}
+.ac-tb.g .ac-ring{opacity:0}.ac-tb.g .ac-gb{opacity:1;pointer-events:auto;animation:acGbp .85s ease-out infinite}
+@keyframes acGbp{0%{box-shadow:0 0 0 0 rgba(244,63,94,.85);transform:scale(.94)}60%{transform:scale(1.07)}100%{box-shadow:0 0 0 22px rgba(244,63,94,0);transform:scale(.94)}}
+#acCht{position:fixed;inset:0;z-index:28;display:grid;place-items:center;padding:16px;background:rgba(0,0,0,.72);backdrop-filter:blur(6px)}#acCht[hidden]{display:none}
+.ac-chtbox{max-width:460px;width:100%;padding:22px;border-radius:18px;background:rgba(13,17,28,.97);border:1px solid rgba(248,113,113,.4);box-shadow:0 0 50px rgba(248,113,113,.15)}.ac-chtbox.bad{border-color:#e11d48;box-shadow:0 0 60px rgba(225,29,72,.4);animation:acShk .08s linear 8}
+.ac-chtbox h3{display:flex;align-items:center;gap:8px;font:900 14px Cinzel,serif;letter-spacing:2px;color:#fca5a5;margin-bottom:10px}.ac-chtbox h3 svg{width:18px;height:18px}.ac-chtbox p{font-size:13px;line-height:1.6;color:#cbd5e1}
+.ac-odds{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0}.ac-odds div{padding:10px 8px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid var(--bd);text-align:center;display:flex;flex-direction:column;gap:4px}
+.ac-odds b{font:900 18px Cinzel,serif}.ac-odds b.g{color:#34d399}.ac-odds b.r{color:#fb7185}.ac-odds span{font-size:10px;color:var(--dim);line-height:1.35}
+.ac-pen{font-size:11.5px;line-height:1.55;color:#fecaca;background:rgba(225,29,72,.07);border:1px solid rgba(225,29,72,.3);border-radius:10px;padding:9px 11px}.ac-cmsg{margin-top:10px;font-size:12px;color:#fde68a;text-align:center;font-style:italic}
+.ac-crow{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.ac-chtbox .ac-crow button{padding:10px 12px;border-radius:10px;border:1px solid rgba(248,113,113,.5);background:rgba(248,113,113,.1);color:var(--tx);font:600 10px Cinzel,serif;letter-spacing:1.2px;cursor:pointer;flex:1}.ac-chtbox .ac-crow button.plain{border-color:var(--bd);background:rgba(255,255,255,.04)}.ac-chtbox .ac-crow button[disabled]{opacity:.35;cursor:not-allowed}
+.ac-bonus{margin-top:10px;font-size:11px;color:var(--dim);text-align:center}.ac-lose{list-style:none;margin:12px 0;padding:0;display:flex;flex-direction:column;gap:6px;font-size:13px}.ac-lose li{padding:8px 10px;border-radius:8px;background:rgba(225,29,72,.08);border:1px solid rgba(225,29,72,.3)}
+.ac-track{position:relative;height:34px;border-radius:9px;background:rgba(255,255,255,.06);border:1px solid var(--bd);margin:16px 0 4px;overflow:hidden}.ac-zone{position:absolute;top:0;bottom:0;background:rgba(52,211,153,.28);border:1px solid #34d399;border-radius:6px}.ac-cur{position:absolute;top:0;bottom:0;width:4px;margin-left:-2px;background:#fff;box-shadow:0 0 12px #fff}
+@media(prefers-reduced-motion:reduce){.ac-tb.g .ac-gb,.ac-chtbox.bad{animation:none}}

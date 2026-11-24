@@ -241,7 +241,7 @@ const Spells = (() => {
   const resetLearning = () => {                                  // dernier recours : sorts/rang/examens/école à zéro, spV+1, rien n'est remboursé
     Prog.resetLearning(S); fxs = []; mirror = presc = clicks = 0; immune = 0; dirty = 1; Stats.add("reset", 1); Stats.ms("reset"); init(); save(); if (window.cloudSave) cloudSave(true); if (window.Academy) Academy.refresh();
   };
-  const examInfo = n => { Stats.flush(); const st = S.st || {}; return { conds: Prog.conds(sp(), st, n), can: Prog.canExam(sp(), st, S.sg, n), price: Prog.EX.price[n - 1], dur: Prog.EX.dur[n - 1], learned: Prog.doneAt(sp(), n) }; };
+  const examInfo = n => { Stats.flush(); const st = S.st || {}; return { conds: Prog.conds(sp(), st, n), can: Prog.canExam(sp(), st, S.sg, n, S.lock || 0, Date.now()), price: Prog.EX.price[n - 1], dur: Prog.EX.dur[n - 1], learned: Prog.doneAt(sp(), n) }; };
   const startExam = n => {                                      // paie les frais, lance le minuteur (timestamp absolu : continue hors ligne)
     const ci = examInfo(n).can; if (!ci.ok) return ci;
     S.sg -= Prog.EX.price[n - 1]; Prog.startExam(sp(), Date.now(), n); Stats.add("examPay", 1); Stats.ms("examStart" + n); save(); if (window.cloudSave) cloudSave(true); if (window.Academy) Academy.refresh(); return ci;

@@ -198,7 +198,7 @@ async function cloudLoad(u) {
     if (CHANNEL.ptu && !st) { toast("PTU : choisis d'abord ton compte PTU depuis le Coffre"); return; }   // le compte PTU est créé par le Coffre (copie du live ou départ à zéro) ; le clicker n'écrit rien avant
     let R = null; if (c && c.json) { try { R = JSON.parse(c.json); } catch (e) {} }
     const foreign = !!(S.uid && S.uid !== u.uid), base = Prog.decide(S, R, foreign);
-    Stats.flush(); const keepSt = foreign ? null : Stats.pick(S), L0 = foreign ? { spV: Prog.SPV, sp: Prog.emptySp(), pend: [], pdone: [] } : { spV: S.spV, sp: S.sp, pend: S.pend, pdone: S.pdone };   // stats et apprentissage locaux à réappliquer si l'état cloud remplace S
+    Stats.flush(); const keepSt = foreign ? null : Stats.pick(S), L0 = foreign ? { spV: Prog.SPV, sp: Prog.emptySp(), pend: [], pdone: [], lock: 0 } : { spV: S.spV, sp: S.sp, pend: S.pend, pdone: S.pdone, lock: S.lock };   // stats et apprentissage locaux à réappliquer si l'état cloud remplace S
     if (base === "cloud") {                                                              // le cloud est plus avancé (ou égal et plus récent)
       const fr = mergeFr(foreign ? {} : S.fr || {}, R.fr || {});
       Object.keys(S).forEach(k => delete S[k]); Object.assign(S, R); S.fr = fr; if (keepSt) Stats.mergeFrom(S, keepSt); Prog.migrate(S); Prog.fixSp(S, L0, R); Spells.init(); toast("☁ Progression synchronisée");
