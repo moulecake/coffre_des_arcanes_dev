@@ -7,6 +7,17 @@
 // ============================================================
 const PATCHNOTES = [
   {
+    v: '2.a3.21', name: 'Personnalisation', date: '2026-11-24',
+    gift: 'Cadeau de mise à jour : 3 clés offertes !',
+    sections: [
+      { t: '🎁 Nouveautés', items: [
+        '**Personnalisation** : nouveau bouton dans ton profil pour habiller ton sigil, ton coffre et le fond aux couleurs de ton école.',
+        '**Déblocage** : les couleurs s’obtiennent en choisissant l’école (ou la seconde école) à l’Académie du clicker.',
+        '**Lisibilité** : le fond teinté garde un texte contrasté (norme WCAG AA).'
+      ] }
+    ]
+  },
+  {
     v: '2.a3.20', name: 'Plus de clignotements', date: '2026-11-24',
     gift: 'Cadeau de mise à jour : 3 clés offertes !',
     sections: [

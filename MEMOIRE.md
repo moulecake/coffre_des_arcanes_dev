@@ -1,7 +1,7 @@
 # MEMOIRE — Le Coffre des Arcanes (ex-Arcane Vault) + Clicker
 
 > Handoff pour le Claude qui continue le dev. À lire en premier, à mettre à jour à la fin de chaque étape.
-> Dernière mise à jour : 2026-11-24. **Version : v2.a3.20** (code à jour = dossier de travail, pas le zip de handoff). Langue de travail : français. Utilisateur : MJ de JDR D&D, non-dev, colle les blocs à la main.
+> Dernière mise à jour : 2026-11-24. **Version : v2.a3.21** (code à jour = dossier de travail, pas le zip de handoff). Langue de travail : français. Utilisateur : MJ de JDR D&D, non-dev, colle les blocs à la main.
 
 ## ⏰ RAPPELS (à traiter par Claude dès qu'on est à la date)
 - **À TESTER EN MOBILE (375 px, navigateur MCP) À LA FIN DU LOT 5** (consigne utilisateur 2026-11-26) : grille et fiche de l'Amphithéâtre, tuiles d'examens, fenêtre d'examen + bulle de triche + mini-jeu, diplôme/plume, Mes decks (cartes, éditeur, palette, filtres), sélecteur de sorts + filtres, barre d'effets et badges d'emplacements, bilan hors ligne, Taxe, bulle des nombres complets, écran de spécialité (1 et 2).
@@ -286,6 +286,11 @@ Fait : lien (bouton ⚡ GRIMOIRE) et cache SW. Reste : équilibrage global, popo
 - **§16** : `Fx.loadDelay(agoMs)` (★ 0–3 min → 60 min · 3–5 → 20 · 5–10 → 8 · 10–15 → 3 · ≥15 → 0), `Fx.awaySlices(total, loads, slice)` (somme par tranches : un sort est exclu tant que le temps écoulé < son délai ; plafonné par l'absence, pas de dette), `Fx.awayRaw` (tranche sans plafond). `S.sp.chg[id]` = horodatage du dernier équipement ; `Spells.loadsAt(depart)` ne retient que les sorts `OFFL` équipés avec un `chg` (les sorts équipés AVANT cette version n'ont pas de délai). `core.js away()` calcule PAR TRANCHES avec `Spells.modFor(exclus)` + `Passives.calcWith(MM)` (calc0 est paramétrable) ; le bilan liste « Sorts en cours de chargement : X (−N min) ». Toast à l'équipement d'un sort hors ligne : « Chargement des sorts hors ligne : 60 min si tu pars maintenant ». **Changement de comportement** : le hors ligne n'inclut plus les effets TEMPORAIRES encore actifs (onglet endormi < 60 s) — négligeable.
 - **§17** : `Fx.activ(id, f)` (enc1, con1 : 10 min, 5 min en spé) ; `S.sp.act[id]` = fin de l'activation (horodatage absolu, persiste hors ligne) ; tant qu'elle n'est pas écoulée, le sort est exclu de `rebuild()` (effet inactif) ; retiré puis remis = repart de zéro ; toast « est maintenant actif » ; compte à rebours sur l'emplacement (`Hud` : badge `10′`, emplacement grisé) et dans l'infobulle. La Taxe s'applique en plus.
 - Tests : effects.test.js passe à 168 vérifications (délais, tranches, activation, cohérence avec `Fx.away`). Vérifié en navigateur : enc1 inactif puis actif, tra4 retardé (ratio 0,933 sur 3 h = 1 h sans le ×1,25).
+
+### v2.a3.21 — Personnalisation (2026-11-24)
+- Menu Profil : nouveau slot « Personnalisation » (avant Patchnote) → modale `#perso-modal` : **sigil** du profil (`.pf-sigil` : dégradés recolorés + glyphe de l'école à la place du buste), **coffre** (`html[data-chest]`, `hue-rotate` + halo) et **fond** (`html[data-bg]`, variables `--bg/--surface/--text-dim…` teintées, contraste du texte atténué calculé ≥ 4,5:1, mesuré 7,55 pour Abjuration). Choix limités aux écoles choisies (`sp.school`, `sp.school2`) ; les autres sont verrouillées.
+- **Stockage LOCAL** (`coffre-perso`, jamais dans `state` → aucun risque pour `syncState`) : synchro cloud + coffres offerts pendant les évènements = à faire. Fonctions : `applyPerso`, `setPerso`, `renderPerso`, `bgPalette`.
+- La pastille de texte d'école reste sous le nom du profil (texte seul).
 
 ### v2.a3.20 — Fin du clignotement, mots soulignés, flottants teintés, badge d'école (2026-11-24)
 - **Barre d'effets sans clignotement** (hud.js) : `pill()` renvoie un descripteur `{key,…}` ; `sync(el, list)` met à jour PAR CLÉ (le compte à rebours ne change que le texte ; apparition en fondu `.new`, disparition `.out`) — plus aucun `innerHTML` répété. CSS : `.fxp`/`.fxp.arm`/`.pane.amp` sans animation en boucle (halo fixe, intensité = puissance).

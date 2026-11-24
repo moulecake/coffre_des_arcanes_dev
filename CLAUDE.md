@@ -1,6 +1,6 @@
 # Directives — Le Coffre des Arcanes (ex-Arcane Vault)
 
-Version actuelle : **v2.a3.20** (série alpha « a3 » : 2.a3.0, 2.a3.1 … 2.a3.20…, prépare la v3 Aventures ; `cmpVer` lit « aN » comme 1000+N, donc 2.2.0 < 2.a3.0). Lis `MEMOIRE.md` avant toute action ; mets-le à jour en fin d'étape. Réponds en français, ultra concis.
+Version actuelle : **v2.a3.21** (série alpha « a3 » : 2.a3.0, 2.a3.1 … 2.a3.21…, prépare la v3 Aventures ; `cmpVer` lit « aN » comme 1000+N, donc 2.2.0 < 2.a3.0). Lis `MEMOIRE.md` avant toute action ; mets-le à jour en fin d'étape. Réponds en français, ultra concis.
 
 ## Posture
 UI/UX Engineer & Frontend expert / Web Designer vibe 2026 : sombre, bento, glassmorphism, micro-interactions fluides, typé JDR.

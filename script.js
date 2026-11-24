@@ -9,7 +9,7 @@
 // ============================================================
 // Adresse propre : on masque « index.html » dans la barre d'adresse (affichage seulement).
 if (/index\.html$/.test(location.pathname)) history.replaceState(null, "", location.pathname.replace(/index\.html$/, "") + location.search + location.hash);
-const CURRENT_VERSION = "2.a3.20";
+const CURRENT_VERSION = "2.a3.21";
 document.querySelectorAll('[id="app-version"]').forEach(e => { e.textContent = CURRENT_VERSION; });   // 2 pieds de page (accueil + app)
 
 // DROP RATES — C:40 | PC:25 | R:20 | TR:8 | L:5 | A:2
@@ -1476,14 +1476,64 @@ const SCHOOL_BADGE = { evo: ['Évocation', 25, 'M13 2L4 14h7l-1 8 9-12h-7z'], en
 function refreshSchoolBadge() {
   try {
     const el = document.getElementById('pf-school'); if (!el) return;
-    const c = JSON.parse(localStorage.getItem(CHANNEL.lsk('coffre-clicker')) || '{}'), sp = c.sp || {}, b = SCHOOL_BADGE[sp.school];
+    const sp = clickerSp(), b = SCHOOL_BADGE[sp.school];
     if (!b) { el.hidden = true; return; }
     const rk = Math.max(1, Math.min(6, sp.rank | 0)), ro = ['I', 'II', 'III', 'IV', 'V', 'VI'][rk - 1], b2 = SCHOOL_BADGE[sp.school2];
-    el.style.setProperty('--h', b[1]);
-    el.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path class="pf-sc-hex" d="M12 1.5l9 5.2v10.6l-9 5.2-9-5.2V6.7z"/><path class="pf-sc-gl" d="' + b[2] + '"/></svg><span>' + b[0] + (b2 ? ' · ' + b2[0] : '') + ' — Rang ' + ro + '</span>';
-    el.title = 'Spécialité du clicker' + (b2 ? ' (double spécialité)' : '') + ' — Rang ' + ro; el.hidden = false;
+    el.style.setProperty('--h', b[1]); el.textContent = b[0] + (b2 ? ' · ' + b2[0] : '') + ' — Rang ' + ro; el.hidden = false;
+  } catch (e) {}
+  applyPerso();
+}
+// ---- PERSONNALISATION (v2.a3.20) : sigil du profil, coffre et fond aux couleurs de son école. Choix limités aux écoles choisies au clicker (sp.school / sp.school2). Stocké sur l'appareil (PAS dans state : pas de risque pour syncState) ; synchro cloud = plus tard.
+const PERSO_KEY = CHANNEL.lsk('coffre-perso');
+const clickerSp = () => { try { return (JSON.parse(localStorage.getItem(CHANNEL.lsk('coffre-clicker')) || '{}').sp) || {}; } catch (e) { return {}; } };
+const getPerso = () => { try { return Object.assign({ sigil: 'default', chest: 'default', bg: 'default' }, JSON.parse(localStorage.getItem(PERSO_KEY) || '{}')); } catch (e) { return { sigil: 'default', chest: 'default', bg: 'default' }; } };
+const unlockedSchools = () => { const sp = clickerSp(); return [sp.school, sp.school2].filter((k, i, a) => k && SCHOOL_BADGE[k] && a.indexOf(k) === i); };
+// Contraste WCAG (luminance relative) : le fond teinté reste très sombre, le texte clair → on vérifie ≥ 4,5 pour le texte atténué
+const hsl2rgb = (h, s, l) => { s /= 100; l /= 100; const k = n => (n + h / 30) % 12, a = s * Math.min(l, 1 - l), f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1))); return [f(0), f(8), f(4)].map(v => Math.round(v * 255)); };
+const lum = ([r, g, b]) => { const f = v => { v /= 255; return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); }; return .2126 * f(r) + .7152 * f(g) + .0722 * f(b); };
+const contrast = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + .05) / (Math.min(x, y) + .05); };
+function bgPalette(h) {            // fond très sombre + texte clair teinté ; on éclaircit le texte atténué jusqu'à ≥ 4,5:1 sur le fond ET la surface
+  const bg = hsl2rgb(h, 45, 4), surf = hsl2rgb(h, 38, 8); let l = 66, dim;
+  do { dim = hsl2rgb(h, 16, l); l += 2; } while ((contrast(dim, bg) < 4.5 || contrast(dim, surf) < 4.5) && l < 95);
+  return { bg: 'hsl(' + h + ' 45% 4%)', surface: 'hsl(' + h + ' 38% 8%)', glass: 'hsla(' + h + ',38%,10%,.74)', border: 'hsla(' + h + ',70%,60%,.22)', text: 'hsl(' + h + ' 30% 95%)', dim: 'hsl(' + h + ' 16% ' + (l - 2) + '%)', ratio: Math.min(contrast(dim, bg), contrast(dim, surf)) };
+}
+function applyPerso() {
+  try {
+    const P = getPerso(), un = unlockedSchools(), R = document.documentElement, ok = k => k !== 'default' && un.indexOf(k) >= 0;
+    // coffre
+    if (ok(P.chest)) { const h = SCHOOL_BADGE[P.chest][1]; R.dataset.chest = P.chest; R.style.setProperty('--chh', h); R.style.setProperty('--chr', (h - 270) + 'deg'); } else { delete R.dataset.chest; }
+    // fond
+    if (ok(P.bg)) { const h = SCHOOL_BADGE[P.bg][1], q = bgPalette(h); R.dataset.bg = P.bg; R.style.setProperty('--bgh', h); [['--bg', q.bg], ['--surface', q.surface], ['--glass', q.glass], ['--border', q.border], ['--text', q.text], ['--text-dim', q.dim]].forEach(x => R.style.setProperty(x[0], x[1])); R.dataset.bgRatio = q.ratio.toFixed(2); }
+    else { delete R.dataset.bg; ['--bg', '--surface', '--glass', '--border', '--text', '--text-dim'].forEach(x => R.style.removeProperty(x)); }
+    // sigil du profil : dégradés recolorés + glyphe de l'école à la place du buste
+    const g = document.getElementById('pfg1'), g3 = document.getElementById('pfg3'), ring = document.getElementById('pf-ring'), svg = document.querySelector('.pf-sigil');
+    if (g && g3 && svg) {
+      const on = ok(P.sigil), h = on ? SCHOOL_BADGE[P.sigil][1] : null, st = g.querySelectorAll('stop'), s3 = g3.querySelectorAll('stop');
+      st[0].setAttribute('stop-color', on ? 'hsl(' + h + ' 62% 30%)' : '#4c1d95'); st[1].setAttribute('stop-color', on ? 'hsl(' + h + ' 55% 9%)' : '#14112e');
+      s3[0].setAttribute('stop-color', on ? 'hsl(' + h + ' 90% 80%)' : '#c4b5fd'); s3[1].setAttribute('stop-color', on ? 'hsl(' + h + ' 80% 60%)' : '#8b5cf6');
+      if (ring) ring.setAttribute('stroke', on ? 'hsla(' + h + ',90%,75%,.55)' : 'rgba(167,139,250,.45)');
+      svg.style.filter = on ? 'drop-shadow(0 0 10px hsla(' + h + ',90%,60%,.65))' : '';
+      svg.querySelectorAll('.pf-fig').forEach(e => { e.style.display = on ? 'none' : ''; });
+      let gl = document.getElementById('pf-glyph'); if (gl) gl.remove();
+      if (on) { gl = document.createElementNS('http://www.w3.org/2000/svg', 'g'); gl.id = 'pf-glyph'; gl.setAttribute('transform', 'translate(17.5 17.5) scale(1.22)'); gl.innerHTML = '<path d="' + SCHOOL_BADGE[P.sigil][2] + '" fill="hsla(' + h + ',90%,70%,.18)" stroke="url(#pfg2)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>'; svg.appendChild(gl); }
+    }
   } catch (e) {}
 }
+function setPerso(k, v) { const P = getPerso(); P[k] = v; try { localStorage.setItem(PERSO_KEY, JSON.stringify(P)); } catch (e) {} applyPerso(); renderPerso(); }
+function renderPerso() {
+  const P = getPerso(), un = unlockedSchools(), box = document.getElementById('perso-body'); if (!box) return;
+  const sec = (key, title, sub) => {
+    const chips = ['default'].concat(Object.keys(SCHOOL_BADGE)).map(k => {
+      const lock = k !== 'default' && un.indexOf(k) < 0, h = k === 'default' ? 265 : SCHOOL_BADGE[k][1], nm = k === 'default' ? 'Défaut' : SCHOOL_BADGE[k][0];
+      return '<button type="button" class="pz-chip' + (P[key] === k && !lock ? ' on' : '') + (lock ? ' lk' : '') + '" style="--h:' + h + '"' + (lock ? ' disabled title="Débloqué en choisissant cette école à l\'Académie"' : ' onclick="setPerso(\'' + key + '\',\'' + k + '\')"') + ' aria-pressed="' + (P[key] === k && !lock) + '"><i>' + (k === 'default' ? '' : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="' + SCHOOL_BADGE[k][2] + '"/></svg>') + (lock ? '<u>⚿</u>' : '') + '</i><span>' + nm + '</span></button>';
+    }).join('');
+    return '<section class="pz-sec"><h4>' + title + '</h4><p>' + sub + '</p><div class="pz-chips">' + chips + '</div></section>';
+  };
+  box.innerHTML = (un.length ? '' : '<p class="pz-none">Aucune école choisie pour l\'instant : réussis le premier examen à l\'Académie du clicker pour débloquer les couleurs de ton école.</p>') + sec('sigil', 'Sigil du profil', 'Le blason de ton profil prend le glyphe et les couleurs de ton école.') + sec('chest', 'Coffre', 'Le coffre et son halo aux couleurs de ton école (d\'autres coffres viendront, offerts pendant les évènements).') + sec('bg', 'Fond', 'Un fond sombre teinté, avec un texte conservant un contraste lisible (WCAG AA, ≥ 4,5:1).');
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', applyPerso); else applyPerso();
+function openPerso() { renderPerso(); document.getElementById('perso-modal').style.display = 'flex'; }
+function closePerso() { document.getElementById('perso-modal').style.display = 'none'; }
 
 function toggleProfilePanel() {
   isProfileOpen = !isProfileOpen;
