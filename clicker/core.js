@@ -4,7 +4,7 @@ if (/index\.html$/.test(location.pathname)) history.replaceState(null, "", locat
 const PREFS_KEY = CHANNEL.lsk("coffre-prefs"), readPrefs = () => { try { return Object.assign({ sound: true, vibe: true }, JSON.parse(localStorage.getItem(PREFS_KEY) || "{}")); } catch (e) { return { sound: true, vibe: true }; } };
 let SOUND = readPrefs().sound !== false;               // son activé ? (réglable ici et dans Options du Coffre)
 const KEY = CHANNEL.lsk("coffre-clicker"), $ = id => document.getElementById(id), M = (k, d) => Spells.mod(k, d);
-const U = ["nL","µL","mL","L","kL","ML","GL","TL","PL","EL"], SF = ["","K","M","Md","Bn","Bi","T"];
+const U = ["nL","µL","mL","L","kL","ML","MdL","BL","BiL","TL"], SF = ["","K","M","Md","Bn","Bi","T"];   // Éther = VOLUME en litres : nL µL mL L kL ML(méga) MdL(milliard) BL(billion) BiL(billiard) TL(trillion)
 const fE = v => { if (v < 1e3) return v.toFixed(v < 10 ? 2 : 1) + " nL"; const i = Math.min(Math.floor(Math.log10(v) / 3), 9), x = v / 1e3 ** i; return x.toFixed(x < 10 ? 2 : x < 100 ? 1 : 0) + " " + U[i]; };
 const fN = v => { if (v < 1e3) return v < 10 ? v.toFixed(1) : Math.floor(v) + ""; const i = Math.min(Math.floor(Math.log10(v) / 3), 6); return (v / 1e3 ** i).toFixed(2) + SF[i]; };
 // FORMATS-BEGIN (testé par scripts/tests/format.test.js)
@@ -17,6 +17,8 @@ const fFull = (v, kind, rate) => {
   const ab = v >= 1e3 ? (kind === "E" ? fE(v) : fN(v)) + s : "", sc = sciN(v);
   return [main, ab, sc].filter(Boolean).join("\n");
 };
+// Même valeur avec l'UNITÉ en police Inter (Cinzel n'a pas de minuscules : « mL » s'y affichait « ML », « µL » « ML »)
+const fEh = v => { const t = fE(v), i = t.lastIndexOf(" "); return t.slice(0, i) + " <span class='eu'>" + t.slice(i + 1) + "</span>"; };
 // FORMATS-END
 
 let S = { eth: 0, sg: 0, b: {}, seen: Date.now() };
@@ -210,7 +212,7 @@ async function cloudLoad(u) {
   } catch (e) { console.warn("cloudLoad", e); }
 }
 
-let heat = 0, hot = 0, hotMs = 5000, last = Date.now(), ac, tt;
+let lastEh = "", heat = 0, hot = 0, hotMs = 5000, last = Date.now(), ac, tt;
 const PG = { red: { p: .05, x: 4, d: 10, n: "Page Nécrotique" }, gold: { p: .01, x: 12, d: 8, n: "Page Dorée" } };
 
 // Audio (Web Audio) : [freq, type, durée, volume]
@@ -484,8 +486,9 @@ function tick() {
   const ccr = Math.round((n < hotG ? 1 : Math.max(0, (heatG - 35) / 65)) * 20) / 20; if (ccr !== lastCor) { lastCor = ccr; $("tome").style.setProperty("--cor", ccr); }   // encre d'avertissement
   if (n < hot) heat = (hot - n) / hotMs * 100; else { if (hot) { hot = 0; heat = 0; } heat = Math.max(0, heat - M("cps", CPS_PALIERS[0]) * 10 * dt); }
 
-  $("eth").textContent = fE(S.eth); $("sg").textContent = fN(S.sg);
-  if (stkOn) { $("eth2").textContent = $("eth").textContent; $("sg2").textContent = $("sg").textContent; }
+  { const eh = fEh(S.eth); if (eh !== lastEh) { lastEh = eh; $("eth").innerHTML = eh; $("eth2").innerHTML = eh; } }
+  $("sg").textContent = fN(S.sg);
+  if (stkOn) $("sg2").textContent = $("sg").textContent;
   $("ethps").textContent = "+" + fE(c.ethPS) + "/s"; $("sgps").textContent = "+" + fN(c.sgPS) + " Sg/s";
   $("heat").style.width = Math.min(100, heat) + "%"; $("heatBox").classList.toggle("hot", n < hot); $("orb").classList.toggle("hot", n < hot); document.body.classList.toggle("hot", n < hot);
   $("heatTxt").textContent = n < hot ? "Surchauffe — canalisation en pause " + Math.ceil((hot - n) / 1e3) + " s" : "Canalisation stable"; $("heatTxt").classList.toggle("red", n < hot);

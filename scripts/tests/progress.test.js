@@ -77,7 +77,7 @@ S = { spV: 2, sp: P.emptySp(), pend: [], pdone: [] }; P.startExam(S.sp, 1000, 1)
 ok(S.sp.exam.end === 1000 + P.EX.dur[0] * 1e3, "durée examen 1 = EX.dur[0]");
 ok(P.finishExam(S, 1000 + P.EX.dur[0] * 1e3 - 1e3) === 0 && S.sp.rank === 1, "pas fini");
 ok(P.finishExam(S, 9e9) === 1 && S.sp.rank === 2 && S.sp.exam === null && S.sp.exDone[1] === 1000 + P.EX.dur[0] * 1e3, "fini hors ligne : rang 2");
-eq(P.pending(S).map(e => e.k), ["exam:1"], "célébration en attente"); ok(P.slots(S.sp) === 2, "2 emplacements");
+eq(P.pending(S).map(e => e.k), ["exam:1:2"], "célébration en attente (clé = examen + version d'apprentissage)"); ok(P.slots(S.sp) === 2, "2 emplacements");
 ok(P.finishExam(S, 9e9) === 0 && S.pend.length === 1, "idempotent");
 
 // 8. Prix et temps

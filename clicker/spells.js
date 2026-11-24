@@ -255,7 +255,7 @@ const Spells = (() => {
       bars(); save(); if (window.cloudSave) cloudSave(true); if (window.Academy) Academy.refresh();
     }
     const ex = Prog.finishExam(S, n);                                         // examen terminé (même hors ligne : timestamp absolu)
-    if (ex) { dirty = 1; Stats.add("exam", 1); Stats.ms("exam" + ex); Stats.snap("exam" + ex); bars(); save(); if (window.cloudSave) cloudSave(true); toast("Examen du rang " + ex + " validé — un pli de l'Académie t'attend"); if (window.Academy) Academy.refresh(); }
+    if (ex) { dirty = 1; Stats.add("exam", 1); Stats.ms("exam" + ex); Stats.snap("exam" + ex); bars(); save(); if (window.cloudSave) cloudSave(true); if (window.Academy) Academy.examDone(ex); }
     { const b = mod("burn", 0); if (b > 0) { const x = Math.min(S.sg, b * Passives.calc().sgPS * dt); S.sg -= x; S.eth += x * 20; Stats.add("eth", x * 20); } }
     fxs = fxs.filter(f => f.u > n); sp().fx = fxs; sp().st = [mirror, presc, clicks]; tickBars(n); if (window.Academy) Academy.tick(n);
   };

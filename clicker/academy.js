@@ -74,7 +74,7 @@ window.Academy = (() => {
       else if (d === "eth") { S.eth = Math.max(S.eth, 1) * 10; toast("Démo : Éther ×10"); }
       else if (d === "back") {                                              // rejoue la célébration du dernier examen validé (comme à la réouverture du clicker)
         const last = Math.max(0, ...Object.keys(sp().exDone).map(Number)); if (!last) return toast("Valide d'abord un examen");
-        const k = "exam:" + last; S.pdone = (S.pdone || []).filter(x => x !== k); if (!(S.pend || []).some(e => e.k === k)) S.pend.push({ k, t: "exam", n: last, ts: Date.now() });
+        const k = Prog.examKey(S, last); S.pdone = (S.pdone || []).filter(x => x !== k); if (!(S.pend || []).some(e => e.k === k)) S.pend.push({ k, t: "exam", n: last, ts: Date.now() });
         celOpen = 0; snooze.clear(); closeExam(); refresh(); celebrate(); return;
       } else if (d === "rst") {                                             // retour à « examen 1 non validé » (les sorts du rang 1 restent appris, l'école aussi)
         const p = sp(); p.rank = 1; p.exam = null; p.exDone = {}; p.course = null; p.tut = Prog.emptySp().tut; Object.keys(p.learned).forEach(i => { if (+i[3] > 1) delete p.learned[i]; });
@@ -94,12 +94,20 @@ window.Academy = (() => {
   };
   const buzz2 = p => { try { if (readPrefs().vibe !== false && navigator.vibrate) navigator.vibrate(p); } catch (e) {} };
 
+  // Médaille d'examen en miniature (même famille que le sceau de l'Académie) : or = à passer, vert = validé, grise = verrouillé
+  const chipMedal = (n, st) => {
+    const i = ++uid, c = st === "done" ? ["#a7f3d0", "#10b981", "#065f46"] : st === "cur" ? ["#fde68a", "#d4af37", "#6b4710"] : ["#94a3b8", "#475569", "#1e293b"]; let p = ""; for (let a = 0; a < 16; a++) { const t = a * 22.5 * Math.PI / 180, t2 = (a * 22.5 + 11.25) * Math.PI / 180; p += (a ? "L" : "M") + (20 + Math.sin(t) * 18.5).toFixed(1) + " " + (20 - Math.cos(t) * 18.5).toFixed(1) + "L" + (20 + Math.sin(t2) * 16.5).toFixed(1) + " " + (20 - Math.cos(t2) * 16.5).toFixed(1); }
+    return "<svg class='ac-cm' viewBox='0 0 40 40' aria-hidden='true'><defs><radialGradient id='accm" + i + "' cx='35%' cy='30%'><stop offset='0' stop-color='" + c[0] + "'/><stop offset='.6' stop-color='" + c[1] + "'/><stop offset='1' stop-color='" + c[2] + "'/></radialGradient></defs><path d='" + p + "Z' fill='url(#accm" + i + ")' stroke='" + c[0] + "' stroke-opacity='.6' stroke-width='.8'/><circle cx='20' cy='20' r='12' fill='none' stroke='" + c[2] + "' stroke-opacity='.55'/>" +
+      (st === "done" ? "<path d='M13.5 20.5l4.2 4.2 8.8-9.4' fill='none' stroke='#052e1b' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/>" : st === "cur" || st === "fut" && false ? "" : "") + (st === "done" ? "" : "<text x='20' y='25.5' text-anchor='middle' font-family='Cinzel,serif' font-weight='900' font-size='15' fill='" + (st === "cur" ? "#3b2a0a" : "#0f172a") + "'>" + n + "</text>") + (st === "fut" || st === "seal" ? "<rect x='25' y='25' width='11' height='9' rx='2' fill='#0f172a' stroke='" + c[0] + "' stroke-width='1.2'/><path d='M27.5 25v-2.5a3 3 0 0 1 6 0V25' fill='none' stroke='" + c[0] + "' stroke-width='1.3'/>" : "") + "</svg>";
+  };
+
   // ---------- Barre du haut : rang, Sagesse, cours / examen en cours, pli de l'Académie, puces d'examens ----------
   const top = () => {
     const R = rk(), c = sp().course, ex = sp().exam, pend = Prog.pending(S).length;
-    const chips = [1, 2, 3, 4].map(n => {
-      const done = n < R, cur = n === R, ready = cur && Prog.doneAt(sp(), n) === 8 && !ex, sealed = n > Prog.EX.open;
-      return "<button class='" + (cur ? "on " : "") + (ready ? "ready " : "") + (done ? "done" : "") + "' data-n='" + n + "'>EXAMEN " + n + (done ? "<span class='ac-lk2'>" + ic.ok + "</span>" : n > R || sealed ? "<span class='ac-lk2'>" + ic.lock + "</span>" : "") + "</button>";
+    const chips = [1, 2, 3, 4].map(n => {                                  // tuiles : médaille + état ; l'examen À PASSER est doré, avec sa progression, et pulse quand il est prêt
+      const done = n < R, cur = n === R, k8 = Prog.doneAt(sp(), n), ready = cur && k8 === 8 && !ex, sealed = n > Prog.EX.open, run = !!ex && ex.n === n, st = done ? "done" : sealed ? "seal" : cur ? "cur" : "fut";
+      const sub = done ? "Validé" : sealed ? "Bientôt" : run ? "Épreuve en cours" : cur ? (ready ? "Prêt à passer" : k8 + " / 8 sorts appris") : "Rang " + n + " à ouvrir";
+      return "<button class='ac-ch " + st + (ready ? " ready" : "") + "' data-n='" + n + "'>" + chipMedal(n, st) + "<span class='ac-cht'><b>EXAMEN " + ROM[n] + "</b><small>" + sub + "</small>" + (cur && !run ? "<i class='ac-chb'><u style='width:" + Math.round(k8 / 8 * 100) + "%'></u></i>" : "") + "</span></button>";
     }).join("");
     const sc = sp().school, scd = sc && SCH.find(x => x[0] === sc);
     $("acTop").innerHTML = "<div class='ac-bar'><div class='ac-rank'><span>RANG</span><b>" + ROM[R] + "</b></div><div class='ac-wal'><span>Sagesse disponible</span><b id='acW'>" + fN(S.sg) + "</b></div></div>" +
@@ -163,11 +171,11 @@ window.Academy = (() => {
       h += "<div class='ac-conds'>" + info.conds.map((c, i) => { const t = ctext(c, n), pct = c.ok ? 100 : c.need ? Math.round(Math.min(1, c.have / c.need) * 100) : 0;
         return "<div class='ac-cd" + (c.ok ? " ok" : i === firstNo ? " wait" : "") + "'><span class='st'>" + ic.ok + "</span><div><b>" + t[0] + "</b>" + (c.need ? "<div class='bar'><i style='width:" + pct + "%'></i></div>" : c.id === "spe" && !c.ok ? "<small><button class='ac-mini' id='acSpeGo'>Choisir mon école</button></small>" : "<small>" + (c.ok ? "Validé" : "En attente de validation") + "</small>") + "</div><button class='ac-info' data-i='" + i + "' aria-label='Que faut-il faire ?'>i</button></div>"; }).join("") + "</div>";
     } else h += "<div class='ac-res'><b>RANG " + (n + 1) + " DÉBLOQUÉ</b><div>Un emplacement de plus au Voile et au Grimoire · les sorts du rang " + (n + 1) + " sont étudiables.</div></div>";
-    const why = info.can.why;
+    const why = info.can.why, unread = done && Prog.pending(S).some(e => e.k === Prog.examKey(S, n));          // examen validé dont le pli n'a pas encore été lu
     h += "<div class='ac-pay'><div class='ac-wallet'><span>Sagesse disponible</span><b>" + fN(S.sg) + " <small>Sg</small></b></div><div class='ac-r'><span>Frais d'inscription</span><b>" + fN(info.price) + " Sg</b></div><div class='ac-r'><span>Durée de l'examen<br><small>se poursuit hors ligne</small></span><b>" + tfmt(info.dur) + "</b></div>";
     if (running) { const ch = ex.ch || {}, gh = n >= Prog.CHEAT.first && !ch.over && (ch.tries | 0) < Prog.CHEAT.tries;          // bulle secrète : jamais expliquée
       h += "<div class='ac-runb'><div class='ac-tb' id='acTb'><div class='ac-ring' id='acRing'><span id='acRt'></span></div>" + (gh ? "<button class='ac-gb' id='acGhost' aria-label='Tricher'>" + EYE + "</button>" : "") + "</div><div>Épreuve en cours…<br><small>Tu peux fermer le jeu : elle continue.</small></div></div>"; }
-    else h += "<button class='ac-go' id='acGo' " + (info.can.ok ? "" : "disabled") + ">" + (done ? "EXAMEN VALIDÉ ✓" : sealed ? "BIENTÔT" : future ? "RANG VERROUILLÉ" : why === "locked" ? "INSCRIPTIONS CLOSES" : "PAYER ET M'INSCRIRE") + "</button>" +
+    else h += "<button class='ac-go" + (unread ? " ac-pulse" : "") + "' id='acGo' " + (info.can.ok || unread ? "" : "disabled") + ">" + (unread ? "LIRE LE RÉSULTAT" : done ? "EXAMEN VALIDÉ ✓" : sealed ? "BIENTÔT" : future ? "RANG VERROUILLÉ" : why === "locked" ? "INSCRIPTIONS CLOSES" : "PAYER ET M'INSCRIRE") + "</button>" +
       (done || future || sealed ? "" : "<div class='ac-note'>" + ({ locked: "Tu as été surpris en train de tricher. Tu pourras te réinscrire dans " + tfmt(Math.max(1, Math.ceil(((S.lock || 0) - Date.now()) / 1e3))) + ".", spells: "Apprends d'abord les 8 sorts du rang " + n + ".", conds: "Remplis toutes les conditions pour t'inscrire.", poor: "Sagesse insuffisante pour les frais d'inscription.", busy: "Un examen est déjà en cours.", course: "Termine d'abord ton cours en cours." }[why] || "") + "</div>");
     h += "</div>";
     const row = (c, l, p) => "<div class='ac-row " + c + "'><span>" + l + "</span>" + Array.from({ length: 4 }, (_, i) => "<span class='ac-sl " + (i < R ? "f" : "lock") + (done && i === n ? " new" : "") + "'>" + (i < R ? "✦" : ic.lock) + "</span>").join("") + "</div>";
@@ -178,7 +186,7 @@ window.Academy = (() => {
     { const tb = $("acTb"), gh = $("acGhost"); if (tb && cg.vis) tb.classList.add("g"); if (gh) gh.onclick = openCht; if (!tb) cg.init = 0; }
     body.querySelectorAll(".ac-info[data-i]").forEach(b => b.onclick = () => { const t = ctext(info.conds[+b.dataset.i], n); $("acInfoT").textContent = t[0]; $("acInfoP").textContent = t[1]; $("acInfo").hidden = false; $("acInfoOk").focus(); });
     const sg = $("acSpeGo"); if (sg) sg.onclick = openSpe; const r2 = $("acRev2"); if (r2) r2.onclick = () => diploma(n, null);
-    const go = $("acGo"); if (go) go.onclick = () => { const r = Spells.startExam(n); if (r.ok) { tone(220, 110, .25, .09, "triangle"); tone(1500, 700, .12, .04, "square"); buzz2(30); toast("Inscription validée : l'épreuve commence"); } };
+    const go = $("acGo"); if (go) go.onclick = () => { if (unread) { closeExam(); snooze.clear(); celebrate(true); return; } const r = Spells.startExam(n); if (r.ok) { tone(220, 110, .25, .09, "triangle"); tone(1500, 700, .12, .04, "square"); buzz2(30); toast("Inscription validée : l'épreuve commence"); } };
   };
   const openExam = n => { exN = n; $("acEx").hidden = false; exam(); const f = $("acExC"); if (f) f.focus(); };
   const closeExam = () => { $("acEx").hidden = true; };
@@ -353,5 +361,6 @@ window.Academy = (() => {
     if (Prog.proposeSpe(S, Date.now())) { save(); if (window.cloudSave) cloudSave(); }
     refresh();
   };
-  return { init, refresh, tick, celebrate, openExam, celebrating: () => !!celOpen, setAfter: f => { onCele = f; }, openSpe };
+  const examDone = () => { refresh(); if ($("acEx").hidden) { snooze.clear(); celebrate(); } else toast("Examen terminé — lis le résultat"); };
+  return { examDone, init, refresh, tick, celebrate, openExam, celebrating: () => !!celOpen, setAfter: f => { onCele = f; }, openSpe };
 })();

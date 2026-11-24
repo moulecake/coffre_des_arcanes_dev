@@ -36,7 +36,7 @@ const Passives = (() => {
     d.hidden = !(!b.p || own(b.p) > 0 || n > 0);                       // teasing N+1
     d.classList.toggle("can", S[b.s === "G" ? "sg" : "eth"] >= c);
     d.querySelector("em").textContent = "×" + n + (nx ? " · palier " + nx : " · max");
-    d.querySelector(".px").textContent = b.s === "G" ? fN(c) + " Sg" : fE(c);
+    { const px = d.querySelector(".px"), t = b.s === "G" ? fN(c) + " Sg" : fEh(c); if (px.dataset.h !== t) { px.dataset.h = t; px.innerHTML = t; } }
   });
   return { calc, build, update, L, cost };
 })();

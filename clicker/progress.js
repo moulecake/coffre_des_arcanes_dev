@@ -84,10 +84,11 @@ const ProgLib = (() => {
   }
   function startExam(sp, now, n) { sp.exam = { n, end: now + EX.dur[n - 1] * 1e3, ch: { tries: 0, last: 0, bonus: 0, played: 0, over: 0 } }; }
   // Fin d'un examen (en ligne ou hors ligne) : rang +1, célébration en attente. Renvoie le numéro d'examen validé ou 0.
+  const examKey = (S, n) => "exam:" + n + ":" + V(S);                      // la clé porte la version d'apprentissage : repasser un examen après un dernier recours doit de nouveau célébrer
   function finishExam(S, now) {
     const sp = S.sp; if (!sp || !sp.exam || now < sp.exam.end) return 0;
     const n = sp.exam.n; sp.exDone[n] = sp.exam.end; sp.rank = Math.max(sp.rank | 0 || 1, n + 1); sp.exam = null;
-    if (!Array.isArray(S.pend)) S.pend = []; S.pend = mergePend(S.pend, [{ k: "exam:" + n, t: "exam", n, ts: sp.exDone[n] }]); return n;
+    if (!Array.isArray(S.pend)) S.pend = []; S.pend = mergePend(S.pend, [{ k: examKey(S, n), t: "exam", n, ts: sp.exDone[n] }]); return n;
   }
   // ---- Spécialité d'école (v2.a3.7) : choix DÉFINITIF (sauf réinitialisation totale), −25 % de prix ET de temps sur les cours de l'école, jamais sur les examens ----
   const SCHOOLS = ["evo", "enc", "ill", "nec", "abj", "div", "tra", "con"];
@@ -132,7 +133,7 @@ const ProgLib = (() => {
     S.spV = V(S) + 1;                                                     // la sanction RETIRE de la progression : sans cet incrément, le cloud (plus avancé, il a encore le sort) la ferait annuler à la synchro (§21)
     return lost;
   }
-  return { SPV, COST, TIME, EX, TAXE, taxe, CHEAT, cheatOdds, cheatRoll, cheatCan, cheatWin, cheatCaught, SCHOOLS, chooseSchool, schoolMul, resetLearning, proposeSpe, emptySp, norm, migrate, score, decide, fixSp, mergePend, mergeDone, pending, ack, slots, doneAt, canLearn, conds, canExam, startExam, finishExam };
+  return { SPV, COST, TIME, EX, examKey, TAXE, taxe, CHEAT, cheatOdds, cheatRoll, cheatCan, cheatWin, cheatCaught, SCHOOLS, chooseSchool, schoolMul, resetLearning, proposeSpe, emptySp, norm, migrate, score, decide, fixSp, mergePend, mergeDone, pending, ack, slots, doneAt, canLearn, conds, canExam, startExam, finishExam };
 })();
 const Prog = ProgLib;
 if (typeof module !== "undefined") module.exports = ProgLib;

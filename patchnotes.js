@@ -7,6 +7,16 @@
 // ============================================================
 const PATCHNOTES = [
   {
+    v: '2.a3.12', name: 'Finitions de l’Académie', date: '2026-11-26',
+    gift: 'Cadeau de mise à jour : 3 clés offertes !',
+    sections: [
+      { t: '🛠 Améliorations', items: [
+        '**Unités d’Éther** : l’Éther est un volume en litres (nL, µL, mL, L, kL, ML, MdL, BL, BiL, TL). Le « mL » s’affichait par erreur « ML » : c’est corrigé.',
+        '**Examens** : des tuiles plus lisibles, avec l’examen à passer mis en avant et sa progression. Quand un examen se termine, le résultat s’affiche tout de suite (ou le bouton « Lire le résultat » pulse si tu es dans la fenêtre de l’examen).'
+      ] }
+    ]
+  },
+  {
     v: '2.a3.11', name: 'Les Épreuves', date: '2026-11-25',
     gift: 'Cadeau de mise à jour : 3 clés offertes !',
     sections: [
