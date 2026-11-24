@@ -23,7 +23,7 @@ window.Academy = (() => {
     tra1: "Alchimie Mineure : ne brûle que 10 % de la Sagesse", tra2: "Fonte des Runes : ×4 pendant 40 s", tra3: "Transmutation de Plomb en Or : 20 s, recharge 95 s", tra4: "Philosophie de la Matière : ×1,35, Bougie et Homoncule inclus",
     con1: "Portail Mineur : −8 % de coût", con2: "Invocation de Familier : 2 familiers", con3: "Cercle de Téléportation : remet 2 sorts à zéro, recharge 190 s", con4: "Invocation d'Avatar Arcanique : 14 s de pleine puissance"
   };
-  let navDone = 0, selK = null, snooze = new Set(), uid = 0, sel = null, exN = 0, last = {}, tEx = 0, celOpen = 0, onCele = null;
+  let dipClose = null, navDone = 0, selK = null, snooze = new Set(), uid = 0, sel = null, exN = 0, last = {}, tEx = 0, celOpen = 0, onCele = null;
   const tfmt = s => s < 60 ? Math.round(s) + " s" : s < 3600 ? Math.round(s / 60) + " min" : (s / 3600) % 1 ? (s / 3600).toFixed(1).replace(".", ",") + " h" : s / 3600 + " h";
   const clock = s => { s = Math.max(0, Math.ceil(s)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), q = s % 60; return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(q).padStart(2, "0"); };
   const set = (id, txt) => { const e = $(id); if (e && last[id] !== txt) { last[id] = txt; e.textContent = txt; } };
@@ -49,10 +49,12 @@ window.Academy = (() => {
       "<text x='50' y='61' text-anchor='middle' font-family='Cinzel,serif' font-weight='900' font-size='28' fill='#3b2a0a'>" + n + "</text><ellipse cx='38' cy='30' rx='12' ry='5' fill='#fff' opacity='.28' transform='rotate(-30 38 30)'/></svg>";
   }
 
-  const hold = (btn, ms, done) => {                                    // appui maintenu (souris, doigt, Espace/Entrée) : barre qui se remplit, `done` à 100 %
-    let raf = 0, t0 = 0; const stop = () => { cancelAnimationFrame(raf); raf = 0; t0 = 0; btn.style.setProperty("--p", 0); };
-    const step = t => { if (!t0) t0 = t; const p = Math.min(100, (t - t0) / ms * 100); btn.style.setProperty("--p", p); if (p >= 100) { raf = 0; done(); return; } raf = requestAnimationFrame(step); };
-    const start = e => { e.preventDefault(); stop(); raf = requestAnimationFrame(step); };
+  const tone = (f0, f1, d, v = .08, type = "sawtooth") => { if (!SOUND) return; try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime; o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t + d); g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.001, t + d); o.connect(g); g.connect(ac.destination); o.start(); o.stop(t + d); } catch (e) {} };
+  const tension = (sec) => { if (!SOUND) return null; try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime; o.type = "sawtooth"; o.frequency.setValueAtTime(70, t); o.frequency.exponentialRampToValueAtTime(260, t + sec); g.gain.setValueAtTime(.0001, t); g.gain.linearRampToValueAtTime(.06, t + sec * .9); o.connect(g); g.connect(ac.destination); o.start(); return () => { try { g.gain.cancelScheduledValues(ac.currentTime); g.gain.setTargetAtTime(.0001, ac.currentTime, .03); o.stop(ac.currentTime + .15); } catch (e) {} }; } catch (e) { return null; } };   // grondement qui monte tant qu'on maintient
+  const hold = (btn, ms, done, snd) => {                                    // appui maintenu (souris, doigt, Espace/Entrée) : barre qui se remplit, `done` à 100 %
+    let raf = 0, t0 = 0, off = null; const stop = () => { cancelAnimationFrame(raf); raf = 0; t0 = 0; btn.style.setProperty("--p", 0); if (off) { off(); off = null; } };
+    const step = t => { if (!t0) t0 = t; const p = Math.min(100, (t - t0) / ms * 100); btn.style.setProperty("--p", p); if (p >= 100) { raf = 0; if (off) { off(); off = null; } done(); return; } raf = requestAnimationFrame(step); };
+    const start = e => { e.preventDefault(); stop(); if (snd) off = tension(ms / 1e3); raf = requestAnimationFrame(step); };
     btn.addEventListener("pointerdown", start); ["pointerup", "pointerleave", "pointercancel"].forEach(ev => btn.addEventListener(ev, stop));
     btn.addEventListener("keydown", e => { if ((e.key === " " || e.key === "Enter") && !e.repeat) start(e); }); btn.addEventListener("keyup", stop);
   };
@@ -134,11 +136,12 @@ window.Academy = (() => {
       (done || future || sealed ? "" : "<div class='ac-note'>" + ({ spells: "Apprends d'abord les 8 sorts du rang " + n + ".", conds: "Remplis toutes les conditions pour t'inscrire.", poor: "Sagesse insuffisante pour les frais d'inscription.", busy: "Un examen est déjà en cours.", course: "Termine d'abord ton cours en cours." }[why] || "") + "</div>");
     h += "</div>";
     const row = (c, l, p) => "<div class='ac-row " + c + "'><span>" + l + "</span>" + Array.from({ length: 4 }, (_, i) => "<span class='ac-sl " + (i < R ? "f" : "lock") + (done && i === n ? " new" : "") + "'>" + (i < R ? "✦" : ic.lock) + "</span>").join("") + "</div>";
+    if (done) h += "<button class='ac-go sec' id='acRev2'>REVOIR MON DIPLÔME</button>";
     h += "<div class='ac-slots'>" + row("v", "VOILE") + row("g", "GRIMOIRE") + "</div>";
     body.innerHTML = h; last = {};
     body.querySelectorAll(".ac-info[data-i]").forEach(b => b.onclick = () => { const t = ctext(info.conds[+b.dataset.i], n); $("acInfoT").textContent = t[0]; $("acInfoP").textContent = t[1]; $("acInfo").hidden = false; $("acInfoOk").focus(); });
-    const sg = $("acSpeGo"); if (sg) sg.onclick = openSpe;
-    const go = $("acGo"); if (go) go.onclick = () => { const r = Spells.startExam(n); if (r.ok) { toast("Inscription validée : l'épreuve commence"); } };
+    const sg = $("acSpeGo"); if (sg) sg.onclick = openSpe; const r2 = $("acRev2"); if (r2) r2.onclick = () => diploma(n, null);
+    const go = $("acGo"); if (go) go.onclick = () => { const r = Spells.startExam(n); if (r.ok) { tone(220, 110, .25, .09, "triangle"); tone(1500, 700, .12, .04, "square"); buzz2(30); toast("Inscription validée : l'épreuve commence"); } };
   };
   const openExam = n => { exN = n; $("acEx").hidden = false; exam(); const f = $("acExC"); if (f) f.focus(); };
   const closeExam = () => { $("acEx").hidden = true; };
@@ -156,7 +159,7 @@ window.Academy = (() => {
     box.style.setProperty("--h", sc ? sc[2] : 260);
     box.innerHTML = "<div class='ac-cards'>" + cards + "</div><div class='ac-sdet'>" + det + "</div>";
     box.querySelectorAll(".ac-sc").forEach(b => b.onclick = () => { selK = b.dataset.k; speR(); });
-    const sl = $("acSeal"); if (sl) hold(sl, 1200, () => { if (Spells.chooseSchool(selK)) { const kk = selK; selK = null; $("acSpe").hidden = true; reveal(kk); } });
+    const sl = $("acSeal"); if (sl) hold(sl, 1200, () => { if (Spells.chooseSchool(selK)) { const kk = selK; selK = null; $("acSpe").hidden = true; reveal(kk); } }, true);
   };
   const openSpe = () => { snooze.clear(); selK = null; $("acSpe").hidden = false; speR(); };
   const closeSpe = () => { $("acSpe").hidden = true; };
@@ -167,8 +170,8 @@ window.Academy = (() => {
     const T = [], done = () => { T.forEach(clearTimeout); document.body.classList.remove("ac-shake"); el.className = ""; el.hidden = true; el.innerHTML = ""; refresh(); celebrate(); };
     if (rm) { el.className = "ph2 ph3"; if (window.sfx) sfx("gold"); }
     else {
-      el.className = "ph0"; document.body.classList.add("ac-shake"); buzz2([40, 40, 60, 40, 80, 40, 120, 40, 200]); if (window.sfx) sfx("rumble");
-      T.push(setTimeout(() => el.classList.add("ph1"), 1300), setTimeout(() => { document.body.classList.remove("ac-shake"); el.classList.add("ph2"); buzz2([200, 60, 300]); if (window.sfx) sfx("gold"); }, 1500), setTimeout(() => el.classList.add("ph3"), 3800));
+      el.className = "ph0"; document.body.classList.add("ac-shake"); buzz2([40, 40, 60, 40, 80, 40, 120, 40, 200]); tone(50, 35, 1.3, .16); tone(80, 50, 1.2, .1, "square");
+      T.push(setTimeout(() => { el.classList.add("ph1"); tone(900, 200, .5, .1, "triangle"); }, 1300), setTimeout(() => { document.body.classList.remove("ac-shake"); el.classList.add("ph2"); buzz2([200, 60, 300]); tone(523, 1046, 1.4, .07, "sine"); tone(784, 1568, 1.6, .05, "sine"); }, 1500), setTimeout(() => el.classList.add("ph3"), 3800));
     }
     $("acRvb").onclick = done; $("acRvb").focus();
   }
@@ -192,10 +195,43 @@ window.Academy = (() => {
         $("acSpeYes").focus(); $("acSpeYes").onclick = () => { celOpen = 0; el.hidden = true; openSpe(); }; $("acSpeLater").onclick = () => { snooze.add(e.k); celOpen = 0; el.hidden = true; top(); celebrate(); };
         return;
       }
-      box.innerHTML = "<div class='ac-dip'>" + seal(e.n) + "<h3>EXAMEN DU RANG " + e.n + " VALIDÉ</h3><div class='ac-up'>RANG " + (e.n + 1) + " DÉBLOQUÉ</div><p>Un emplacement de plus au Voile et au Grimoire.<br>Les sorts du rang " + (e.n + 1) + " sont désormais étudiables.</p><button class='ac-go' id='acGoOn'>POURSUIVRE</button></div>";
-      $("acGoOn").focus(); $("acGoOn").onclick = () => { Prog.ack(S, e.k); save(); if (window.cloudSave) cloudSave(true); celOpen = 0; el.hidden = true; top(); sel = null; grid(); detail(); celebrate(); };
+      el.hidden = true; diploma(e.n, e);
     };
   };
+  // ---------- Diplôme de fin d'examen (§23.2) : parchemin qui se déroule, confettis, sceau qui s'abat, signature à la plume, puis retour à la grille du nouveau rang ----------
+  function diploma(n, e) {                                              // e = célébration en attente (null = « revoir mon diplôme », sans acquittement)
+    const k = sp().school, sc = k && SCH.find(x => x[0] === k), h = sc ? sc[2] : 45, el = $("acDip"), rm = matchMedia("(prefers-reduced-motion: reduce)").matches, coarse = matchMedia("(pointer:coarse)").matches;
+    const cf = rm ? "" : Array.from({ length: coarse ? 36 : 70 }, (_, i) => "<i style='left:" + (Math.random() * 100).toFixed(1) + "%;animation-delay:" + (1.6 + Math.random() * 2.4).toFixed(2) + "s;animation-duration:" + (3 + Math.random() * 3).toFixed(2) + "s;background:hsl(" + (i % 3 ? 45 : h) + " 90% " + (55 + Math.random() * 25).toFixed(0) + "%);width:" + (5 + Math.random() * 7).toFixed(1) + "px;height:" + (8 + Math.random() * 10).toFixed(1) + "px'></i>").join("");
+    const nm = (typeof CK !== "undefined" && CK && CK.pseudo) || "le·la candidat·e", T = [];
+    el.style.setProperty("--h", h); el.hidden = false; if (e) celOpen = 1;
+    el.innerHTML = "<div class='ac-rays ac-gold'></div><div class='ac-confetti'>" + cf + "</div><div class='ac-dwrap'><div class='ac-dpl" + (rm ? " rm" : "") + "'><div class='ac-dcorner tl'></div><div class='ac-dcorner tr'></div><div class='ac-dcorner bl'></div><div class='ac-dcorner br'></div>" +
+      "<div class='ac-dh'>ACADÉMIE DES ARCANES</div><div class='ac-dsub'>Collège des Hautes Études Magiques</div><div class='ac-dt1'>DIPLÔME DE RANG " + ROM[n] + "</div><div class='ac-dline'></div>" +
+      "<p class='ac-dtx'>Il est certifié que <b class='ac-nm'>" + nm.replace(/</g, "&lt;") + "</b>" + (sc ? ", disciple de l'école de <b style='color:hsl(" + h + " 80% 38%)'>" + sc[1] + "</b>," : "") + " a satisfait avec honneur à l'examen du rang " + n + " et se voit conférer le droit d'accéder aux enseignements supérieurs.</p>" +
+      "<div class='ac-dseal'>" + seal(n) + "</div><ul class='ac-unl'><li>✦ Emplacement " + (n + 1) + " au Voile et au Grimoire</li><li>✦ Sorts du rang " + (n + 1) + " désormais étudiables</li></ul>" +
+      "<div class='ac-sigl'><svg class='ac-sig' viewBox='0 0 240 64' aria-hidden='true'><path d='M8 46c8-32 18-36 22-14 3 15-7 25-11 13 15 7 23-27 35-19 8 6-6 23 4 21 12-2 14-25 26-17 8 6-4 21 6 19 14-2 22-15 34-10 10 4 18 6 32-6M10 56c40-7 120-9 214-2'/></svg><span>Signature du candidat</span></div>" +
+      "<button class='ac-dbtn' id='acDbtn'>PARAPHER ET POURSUIVRE</button></div></div>";
+    el.scrollTop = 0; buzz2([30, 30, 30]); tone(180, 90, .6, .1);
+    if (!rm) T.push(setTimeout(() => { const d = el.querySelector(".ac-dpl"); if (!d) return; d.classList.add("hit"); buzz2([90, 40, 160]); tone(110, 40, .5, .14); tone(660, 1320, .9, .05, "sine"); setTimeout(() => d.classList.remove("hit"), 500); }, 2300));
+    const finish = () => {
+      T.forEach(clearTimeout); el.hidden = true; el.innerHTML = ""; const was = celOpen; celOpen = 0;
+      if (e) { Prog.ack(S, e.k); save(); if (window.cloudSave) cloudSave(true); top(); sel = null; grid(); detail(); const g = $("acGr"); if (g) { g.scrollIntoView({ block: "center", behavior: rm ? "auto" : "smooth" }); const th = g.querySelectorAll("th")[n + 1]; if (th) { th.classList.add("ac-newcol"); setTimeout(() => th.classList.remove("ac-newcol"), 4000); } } toast("Sorts du rang " + (n + 1) + " désormais étudiables"); celebrate(); }
+    };
+    dipClose = finish;
+    $("acDbtn").onclick = () => {                                       // paraphe : la plume suit le tracé (≈ 2 s), froissement de papier, puis retour à la grille
+      const b = $("acDbtn"); b.disabled = true; const svg = el.querySelector(".ac-sig"), path = svg.querySelector("path"), L = path.getTotalLength(); path.style.strokeDasharray = L; path.style.strokeDashoffset = L;
+      if (rm) { path.style.strokeDashoffset = 0; setTimeout(finish, 600); return; }
+      const q = document.createElement("div"); q.className = "ac-quill"; q.innerHTML = "<svg viewBox='0 0 24 24' width='34' height='34'><path d='M3 21L21 3l-5 11z' fill='#d4af37' stroke='#f59e0b' stroke-width='1.2' stroke-linejoin='round'/></svg>"; el.append(q);
+      svg.scrollIntoView({ block: "center", behavior: "smooth" }); const D = 2100; let t0 = 0, lastR = 0;
+      const step = now => {
+        if (!t0) t0 = now + 500; const p = Math.max(0, Math.min(1, (now - t0) / D)), ez = p < .5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2; path.style.strokeDashoffset = L * (1 - ez);
+        const pt = path.getPointAtLength(L * ez), m = svg.getScreenCTM(), x = pt.x * m.a + m.e, y = pt.y * m.d + m.f; q.style.transform = "translate(" + (x - 4) + "px," + (y - 30) + "px) rotate(" + Math.sin(p * 20) * 5 + "deg)";
+        if (p > 0 && p < 1 && now - lastR > 230 && window.sfx) { lastR = now; sfx("paper"); }
+        if (p < 1) requestAnimationFrame(step); else { buzz2(40); tone(300, 180, .25, .05, "triangle"); setTimeout(() => { q.remove(); finish(); }, 700); }
+      };
+      requestAnimationFrame(step);
+    };
+    $("acDbtn").focus({ preventScroll: true });
+  }
   const closeCele = () => { $("acCele").hidden = true; celOpen = 0; };
 
   // ---------- Mise à jour légère (appelée à chaque tick) ----------
@@ -222,6 +258,7 @@ window.Academy = (() => {
       Nav.add("acCele", { open: () => !$("acCele").hidden, close: closeCele });
       Nav.add("acSpe", { open: () => !$("acSpe").hidden, close: closeSpe });
       Nav.add("acRst", { open: () => !$("acRst").hidden, close: closeRst });
+      Nav.add("acDip", { open: () => !$("acDip").hidden, close: () => { if (dipClose) dipClose(); } });
     }
     if (Prog.proposeSpe(S, Date.now())) { save(); if (window.cloudSave) cloudSave(); }
     refresh();

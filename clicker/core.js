@@ -194,7 +194,7 @@ async function cloudSave(force) {
 async function cloudLoad(u) {
   try {
     const snap = await window.getDoc(window.doc(window.db, CHANNEL.col("players"), u.uid)), c = snap.exists() ? snap.data().clicker : null, st = snap.exists() ? snap.data().state : null;
-    if (st) { CK = { fr: st.fragments || 0, claimed: st.clickerClaimed || 0 }; lastT = lastE = -1; }   // lecture seule : segments de la clé
+    if (st) { CK = { fr: st.fragments || 0, claimed: st.clickerClaimed || 0, pseudo: st.pseudo || "" }; lastT = lastE = -1; }   // pseudo : nom du candidat sur le diplôme   // lecture seule : segments de la clé
     if (CHANNEL.ptu && !st) { toast("PTU : choisis d'abord ton compte PTU depuis le Coffre"); return; }   // le compte PTU est créé par le Coffre (copie du live ou départ à zéro) ; le clicker n'écrit rien avant
     let R = null; if (c && c.json) { try { R = JSON.parse(c.json); } catch (e) {} }
     const foreign = !!(S.uid && S.uid !== u.uid), base = Prog.decide(S, R, foreign);

@@ -7,6 +7,16 @@
 // ============================================================
 const PATCHNOTES = [
   {
+    v: '2.a3.8', name: 'Le Diplôme', date: '2026-11-25',
+    gift: 'Cadeau de mise à jour : 3 clés offertes !',
+    sections: [
+      { t: '🎁 Nouveautés', items: [
+        '**Diplôme de l’Académie** : réussir un examen te remet un vrai diplôme (parchemin qui se déroule, confettis, sceau qui s’abat). Tu le **paraphes** à la plume, puis l’Amphithéâtre s’ouvre sur le nouveau rang. « Revoir mon diplôme » reste disponible dans l’examen validé.',
+        '**Sons et vibrations** : un grondement monte quand tu scelles ta spécialité, la révélation et l’examen ont leurs sons, et le téléphone vibre (si les vibrations sont activées dans les Options).'
+      ] }
+    ]
+  },
+  {
     v: '2.a3.7', name: 'La Spécialité', date: '2026-11-25',
     gift: 'Cadeau de mise à jour : 3 clés offertes !',
     sections: [
