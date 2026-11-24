@@ -3,7 +3,7 @@ const Passives = (() => {
   const T = [10, 25, 50, 100], tm = n => 2 ** T.filter(t => n >= t).length, own = id => S.b[id] || 0;
   const L = [
     { id: "anc", s: "V", n: "Ancrage Runique",     ic: "⬡", base: 15,   d: "+1 nL/s" },
-    { id: "pyl", s: "V", n: "Pylône de Stase",     ic: "▲", base: 150,  d: "0,5 impulsion/s (= 1 clic)", p: "anc" },
+    { id: "pyl", s: "V", n: "Pylône de Stase",     ic: "▲", base: 150,  d: "0,5 impulsion/s (une impulsion vaut un clic)", p: "anc" },
     { id: "bou", s: "V", n: "Boussole Arcanique",  ic: "◎", base: 1200, d: "+1% micro-critique passif (×5)", p: "pyl" },
     { id: "lut", s: "G", n: "Lutin Scribe",        ic: "✎", base: 20,   d: "0,5 page/s" },
     { id: "bgi", s: "G", n: "Bougie d'Invocation", ic: "♨", base: 120,  d: "+20% Sg par page passive", p: "lut" },
@@ -38,5 +38,5 @@ const Passives = (() => {
     d.querySelector("em").textContent = "×" + n + (nx ? " · palier " + nx : " · max");
     d.querySelector(".px").textContent = b.s === "G" ? fN(c) + " Sg" : fE(c);
   });
-  return { calc, build, update, L };
+  return { calc, build, update, L, cost };
 })();

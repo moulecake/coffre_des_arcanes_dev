@@ -4,9 +4,20 @@ if (/index\.html$/.test(location.pathname)) history.replaceState(null, "", locat
 const PREFS_KEY = CHANNEL.lsk("coffre-prefs"), readPrefs = () => { try { return Object.assign({ sound: true, vibe: true }, JSON.parse(localStorage.getItem(PREFS_KEY) || "{}")); } catch (e) { return { sound: true, vibe: true }; } };
 let SOUND = readPrefs().sound !== false;               // son activé ? (réglable ici et dans Options du Coffre)
 const KEY = CHANNEL.lsk("coffre-clicker"), $ = id => document.getElementById(id), M = (k, d) => Spells.mod(k, d);
-const U = ["nL","µL","mL","L","kL","ML","GL","TL","PL","EL"], SF = ["","K","M","B","T","Qa","Qi"];
+const U = ["nL","µL","mL","L","kL","ML","GL","TL","PL","EL"], SF = ["","K","M","Md","Bn","Bi","T"];
 const fE = v => { if (v < 1e3) return v.toFixed(v < 10 ? 2 : 1) + " nL"; const i = Math.min(Math.floor(Math.log10(v) / 3), 9), x = v / 1e3 ** i; return x.toFixed(x < 10 ? 2 : x < 100 ? 1 : 0) + " " + U[i]; };
 const fN = v => { if (v < 1e3) return v < 10 ? v.toFixed(1) : Math.floor(v) + ""; const i = Math.min(Math.floor(Math.log10(v) / 3), 6); return (v / 1e3 ** i).toFixed(2) + SF[i]; };
+// FORMATS-BEGIN (testé par scripts/tests/format.test.js)
+// Suffixes FRANÇAIS (échelle longue) : K mille · M million · Md milliard · Bn billion · Bi billiard · T trillion. Indices inchangés, libellés seuls.
+const SUP = "⁰¹²³⁴⁵⁶⁷⁸⁹", sciN = v => { if (!(v >= 1e4)) return ""; let e = Math.floor(Math.log10(v)), m = v / 10 ** e; if (m >= 9.9995) { m = 1; e++; } return m.toFixed(3).replace(/\.?0+$/, "").replace(".", ",") + "·10" + String(e).split("").map(d => SUP[d]).join(""); };
+const spaced = v => Math.floor(v).toLocaleString("fr-FR");
+// Valeur COMPLÈTE (bulle au toucher / survol) : « 1 234 567 890 · 1,23 Md · 1,235·10⁹ » (Éther : nL puis volume). `rate` = par seconde (décimales gardées).
+const fFull = (v, kind, rate) => {
+  v = +v || 0; const s = rate ? " /s" : "", main = (rate && v < 1e3 ? v.toFixed(2).replace(".", ",") : spaced(v)) + (kind === "E" ? " nL" : kind === "S" ? " Sg" : "") + s;
+  const ab = v >= 1e3 ? (kind === "E" ? fE(v) : fN(v)) + s : "", sc = sciN(v);
+  return [main, ab, sc].filter(Boolean).join("\n");
+};
+// FORMATS-END
 
 let S = { eth: 0, sg: 0, b: {}, seen: Date.now() };
 try { Object.assign(S, JSON.parse(localStorage.getItem(KEY) || "{}")); } catch (e) {}
@@ -493,21 +504,66 @@ function tick() {
   Passives.update();
 }
 
+// ---- Valeur complète au toucher / survol (v2.a3.5) : un appui bref sur un compteur ouvre une bulle (valeur exacte, abrégée, scientifique) ; 4 s ou appui suivant = fermée ----
+function initNumTip() {
+  const tip = $("numtip"), SEL = "#eth,#sg,#eth2,#sg2,#ethps,#sgps";
+  const G = { eth: () => fFull(S.eth, "E"), eth2: () => fFull(S.eth, "E"), sg: () => fFull(S.sg, "S"), sg2: () => fFull(S.sg, "S"), ethps: () => fFull(Passives.calc().ethPS, "E", 1), sgps: () => fFull(Passives.calc().sgPS, "S", 1) };
+  let tm = 0, cur = null; const hit = t => t && t.closest && t.closest(SEL), hide = () => { clearTimeout(tm); tip.classList.remove("on"); cur = null; };
+  document.addEventListener("pointerdown", e => { if (!hit(e.target)) hide(); }, true);
+  document.addEventListener("click", e => {
+    const el = hit(e.target); if (!el) return; if (cur === el) return hide();
+    cur = el; tip.textContent = G[el.id](); tip.classList.add("on"); const r = el.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
+    tip.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2)) + "px"; tip.style.top = (r.top - h - 10 < 8 ? r.bottom + 10 : r.top - h - 10) + "px";
+    clearTimeout(tm); tm = setTimeout(hide, 4000);
+  });
+  document.addEventListener("mouseover", e => { const el = hit(e.target); if (el) el.title = G[el.id]().replace(/\n/g, " · "); });   // PC : info-bulle native
+  addEventListener("keydown", e => { if (e.key === "Escape") hide(); });
+}
+// ---- Lexique (onglet de la fenêtre « ? ») : définitions des mots du jeu (Examen / Spécialisation viendront avec la refonte des sorts) ----
+const LEX = [
+  ["Clic", "Appui physique sur le Voile ou le Grimoire. Seuls les clics font chauffer : au-delà de la limite de clics par seconde, c'est la surchauffe."],
+  ["Impulsion", "Clic automatique (Pylône, Familier, certains sorts). Une impulsion vaut un clic, mais ne chauffe pas."],
+  ["Effort", "Tout appui qui compte pour tes fragments : clic, sort lancé, achat, page… 5 minutes d'effort = 1 fragment (9 par jour au plus)."],
+  ["Action", "Lancer d'un sort actif. Changer ton équipement juste après une action déclenche la Taxe."],
+  ["Éther", "Ressource du Voile, en volume : nL, µL, mL, L, kL, ML… Le Voile et ses bâtiments en produisent."],
+  ["Sagesse", "Ressource du Grimoire. Elle paie les cours. Grands nombres : K (mille), M (million), Md (milliard), Bn (billion), Bi (billiard), T (trillion)."],
+  ["Page", "Le Grimoire se lit page après page. La Page Dorée multiplie la Sagesse par 12 (8 s), la Page Nécrotique par 4 (10 s)."],
+  ["Surchauffe", "Trop de clics par seconde et le Voile se bloque : pause égale à la limite en secondes. Le Grimoire, lui, sombre dans le chaos."],
+  ["Taxe", "Prix d'un changement de sorts fait juste après un effort (moins de 15 s) : payer en Éther, en Sagesse, ou subir 30 s de sorts actifs bloqués."],
+  ["Cours", "Apprendre un sort coûte de la Sagesse et du temps réel. Le cours continue même quand tu es absent."],
+  ["École", "Une des 8 écoles de magie. Chacune compte 4 sorts, du rang 1 au rang 4."],
+  ["Rang", "Niveau d'un sort, de 1 à 4. Le rang suivant s'ouvre quand le précédent est maîtrisé."],
+  ["Emplacement", "Une case de la barre de sorts, sous le Voile ou sous le Grimoire. Le sort qui l'occupe agit."],
+  ["Deck", "Ensemble de sorts nommé, à équiper d'un coup (8 decks au maximum)."],
+  ["Passif / Actif", "Un sort passif agit en permanence tant qu'il est équipé. Un sort actif se lance au toucher, puis se recharge."],
+  ["Recharge", "Temps d'attente avant de relancer un sort actif. L'ombre qui tourne sur la case en donne l'avancement."],
+  ["Fragment", "5 fragments = 1 clé du Coffre. L'effort en donne, et le flux passif d'Éther distille aussi des micro-fragments."],
+  ["Hors ligne", "Quand tu es absent, tes bâtiments continuent de produire, dans la limite de 8 heures."]
+];
+function introTab(t) {
+  const lex = t === "L"; $("introHome").hidden = lex; $("introLex").hidden = !lex; $("itA").setAttribute("aria-selected", String(!lex)); $("itL").setAttribute("aria-selected", String(lex));
+  $("introGo").textContent = lex ? "Fermer" : "Commencer l'aventure"; $("introLex").scrollTop = 0;
+}
+function initLex() {
+  $("introLex").innerHTML = LEX.map(([t, d], i) => "<div class='ir lx'><i class='lxm' style='--h:" + [45, 265, 190][i % 3] + "'>" + t[0] + "</i><div><b>" + t + "</b><small>" + d + "</small></div></div>").join("");
+  $("itA").onclick = () => introTab("A"); $("itL").onclick = () => introTab("L");
+}
+
 addEventListener("DOMContentLoaded", () => {
   Stats.add("sess", 1); const e = (Date.now() - S.seen) / 1e3; if (e > 10) away(e);
   Passives.build($("bV"), "V"); Passives.build($("bG"), "G"); Spells.init();
   S.g = S.g || { n: 0, t: "norm", need: 0, got: 0 }; if (!(S.g.need > 0)) nextPage(false);
-  $("orb").onclick = clickV; $("tome").onclick = clickG; initVeil(); initCursor(); initBook(); initKey(); initStars(); initTent(); initSticky();
+  $("orb").onclick = clickV; $("tome").onclick = clickG; initVeil(); initCursor(); initBook(); initKey(); initStars(); initTent(); initSticky(); initNumTip(); initLex();
   const snd = $("snd"), updSnd = () => { snd.classList.toggle("off", !SOUND); snd.title = "Sons : " + (SOUND ? "activés" : "coupés"); snd.setAttribute("aria-pressed", String(SOUND)); };
   updSnd(); snd.onclick = () => { const p = readPrefs(); p.sound = !SOUND; try { localStorage.setItem(PREFS_KEY, JSON.stringify(p)); } catch (e) {} SOUND = p.sound; updSnd(); if (SOUND) sfx("chime"); };
   addEventListener("storage", ev => { if (ev.key === PREFS_KEY) { SOUND = readPrefs().sound !== false; updSnd(); } });
   // Fenêtre d'accueil : s'affiche tant que « Ne plus afficher » n'est pas coché (S.introSeen, synchronisé avec le compte) ; bouton « ? » pour la relire
-  const showIntro = () => { $("introNo").checked = !!S.introSeen; $("intro").hidden = false; $("introGo").focus(); };
+  const showIntro = () => { introTab("A"); $("introNo").checked = !!S.introSeen; $("intro").hidden = false; $("introGo").focus(); };
   const closeIntro = () => { S.introSeen = $("introNo").checked; save(); cloudSave(true); $("intro").hidden = true; };
   $("introGo").onclick = closeIntro; $("help").onclick = showIntro; addEventListener("keydown", ev => { if (ev.key === "Escape" && !$("intro").hidden) closeIntro(); });
   if (!S.introSeen) setTimeout(showIntro, 500);
   // EFFORT : tout appui sur la page (achats, sorts, decks, onglets…) compte, sauf aide/son/retour. Capture + passif = aucun coût perceptible.
-  addEventListener("pointerdown", ev => { const t = ev.target; if (!t || !t.closest || t.closest("#intro,#help,#snd,a.back")) return; const n = Date.now(); if ((t.closest("#orb") && n < hot) || (t.closest("#tome") && n < hotG)) return; Spells.effort(); }, { capture: true, passive: true });   // (pas d'effort crédité pendant une pause de surchauffe)
+  addEventListener("pointerdown", ev => { const t = ev.target; if (!t || !t.closest || t.closest("#intro,#help,#snd,a.back,#eth,#sg,#eth2,#sg2,#ethps,#sgps,#numtip")) return; const n = Date.now(); if ((t.closest("#orb") && n < hot) || (t.closest("#tome") && n < hotG)) return; Spells.effort(); }, { capture: true, passive: true });   // (pas d'effort crédité pendant une pause de surchauffe)
   // Retour natif (◁) : ferme la fenêtre du dessus (nav.js) — mêmes actions que leurs boutons de fermeture
   if (typeof Nav !== "undefined") {
     Nav.add("intro", { open: () => !$("intro").hidden, close: closeIntro });

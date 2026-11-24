@@ -22,9 +22,9 @@ const Spells = (() => {
   ];
   // [id, nom, type A/P, panneau V/G/X(les deux), CD s, description]
   const SP = [
-    ["evo1", "Projectile Magique", "A", "V", 20, "10 clics parfaits d'Éther instantanés."],
+    ["evo1", "Projectile Magique", "A", "V", 20, "Libère d'un coup 10 impulsions d'Éther."],
     ["evo2", "Orbe Lumineux", "A", "V", 60, "Burst direct d'Éther Pur."],
-    ["evo3", "Boule de Feu Arcanique", "A", "V", 90, "Frénésie de clics automatiques pendant 10 s."],
+    ["evo3", "Boule de Feu Arcanique", "A", "V", 90, "Frénésie d'impulsions automatiques pendant 10 s (≈ 100 impulsions)."],
     ["evo4", "Météore de l'Académie", "P", "V", 0, "Tous les 100 clics : gains d'Éther ×2 pendant 15 s."],
     ["enc1", "Charme-Personne", "P", "G", 0, "−10% de coût en Sagesse des automatisations."],
     ["enc2", "Suggestion", "P", "G", 0, "+15% de vitesse des Scribes."],
@@ -33,13 +33,13 @@ const Spells = (() => {
     ["ill1", "Lumières Dansantes", "P", "G", 0, "+5% de chance de pages rares."],
     ["ill2", "Image Miroir", "A", "V", 45, "Le prochain clic du Voile compte ×5."],
     ["ill3", "Mot de Divertissement", "P", "G", 0, "Pages rares : lecture +25% · sceau d'Illusion +5 s."],
-    ["ill4", "Voile d'Illusion Majeure", "A", "G", 180, "Fausse page Dorée ×12."],
+    ["ill4", "Voile d'Illusion Majeure", "A", "G", 180, "Page Dorée illusoire : Sagesse ×12 pendant quelques secondes."],
     ["nec1", "Faucheur de Tome", "P", "G", 0, "Les pages doublent parfois la Sagesse (≈ +3%)."],
     ["nec2", "Invocation de Squelette Scribe", "P", "G", 0, "Un scribe spectral (0,5 page/s), actif hors-ligne."],
     ["nec3", "Transmutation Vitale", "A", "X", 300, "Convertit 10% de la Sagesse en Éther Pur."],
-    ["nec4", "Drain d'Éther", "P", "G", 0, "Pages Nécrotiques ×6 au lieu de ×4."],
+    ["nec4", "Encre Cramoisie", "P", "G", 0, "La Page Nécrotique rapporte ×6 au lieu de ×4."],
     ["abj1", "Bouclier d'Éther", "P", "V", 0, "Limite de clics/s relevée : 5 → 10 (Abjuration rang 1-2) → 15 (rang 3-4)."],
-    ["abj2", "Glyphe de Warding", "P", "X", 0, "Farm hors-ligne plafonné à 10 h au lieu de 8 h."],
+    ["abj2", "Glyphe de Warding", "P", "X", 0, "Gains hors ligne plafonnés à 10 h au lieu de 8 h."],
     ["abj3", "Disjonction de Mordenkainen", "A", "V", 60, "Nettoie instantanément la surchauffe."],
     ["abj4", "Sanctuaire Absolu", "P", "X", 0, "−15% de recharge des sorts actifs."],
     ["div1", "Augure", "P", "G", 0, "Aperçu de la rareté de la prochaine page."],
@@ -51,7 +51,7 @@ const Spells = (() => {
     ["tra3", "Transmutation de Plomb en Or", "A", "V", 120, "Gains d'Éther ×5 pendant 15 s."],
     ["tra4", "Philosophie de la Matière", "P", "X", 0, "+25% d'efficacité des bâtiments passifs et de micro-fragments."],
     ["con1", "Portail Mineur", "P", "X", 0, "−5% de coût des bâtiments."],
-    ["con2", "Invocation de Familier", "P", "V", 0, "Un familier clique 1×/s sur le Voile."],
+    ["con2", "Invocation de Familier", "P", "V", 0, "Un familier frappe le Voile : 1 impulsion par seconde."],
     ["con3", "Cercle de Téléportation", "A", "X", 240, "Remet à zéro le sort actif au plus long CD équipé."],
     ["con4", "Invocation d'Avatar Arcanique", "A", "X", 300, "Voile et Grimoire à pleine puissance (×3) pendant 10 s."]
   ].map(([id, n, t, pn, cd, d]) => ({ id, k: id.slice(0, 3), r: +id[3], n, t, pn, cd, d }));
@@ -74,7 +74,7 @@ const Spells = (() => {
     div2: P(["offlineSg", "*", 1.2], ["fragOff", "*", 1.2]), div4: P(["study", "*", .75]), tra1: P(["frag", "*", 1.15]), tra4: P(["ether", "*", 1.25], ["scribe", "*", 1.25], ["frag", "*", 1.25]),
     con1: P(["ethCost", "*", .95], ["sgCost", "*", .95]), con2: P(["famil", "+", 1])
   };
-  let ml = [], dirty = 1, fxs = [], mirror = 0, presc = 0, clicks = 0, cur = 0, pp = "V", si = 0, lastAct = 0, lastEffort = 0, ed = null;   // lastAct = farm (Gold Sink) ; lastEffort = tout appui (fragments d'effort)
+  let ml = [], dirty = 1, fxs = [], mirror = 0, presc = 0, clicks = 0, cur = 0, pp = "V", si = 0, lastAct = 0, lastEffort = 0, ed = null;   // lastAct = action récente (Taxe) ; lastEffort = tout appui (fragments d'effort)
   const ap = (r, m) => m[1] === "*" ? r * m[2] : m[1] === "+" ? r + m[2] : Math.max(r, m[2]);
   const mod = (k, d) => {
     if (dirty) { dirty = 0; ml = []; eqIds().forEach(id => PM[id] && ml.push(...PM[id]())); }
@@ -107,7 +107,7 @@ const Spells = (() => {
   };
   const cast = (s, p) => {
     const n = Date.now(); lastAct = lastEffort = n;
-    if (n < (sp().pen || 0)) { sfx("deny"); toast("Adaptation en cours — sorts actifs bloqués " + Math.ceil((sp().pen - n) / 1e3) + " s"); return; }
+    if (n < (sp().pen || 0)) { sfx("deny"); toast("Taxe en cours — sorts actifs bloqués " + Math.ceil((sp().pen - n) / 1e3) + " s"); return; }
     if (n < (sp().cd[s.id] || 0)) { sfx("deny"); return; }
     if (ACT[s.id]() === false) { toast("Aucun sort en recharge à réinitialiser"); return; }
     Stats.add("cast", 1); Stats.addIn("cast", s.id, 1); Stats.ms("cast");
@@ -141,11 +141,11 @@ const Spells = (() => {
     b.querySelector("b").textContent = r > 0 && r <= 9e3 ? Math.ceil(r / 1e3) : "";          // chiffres : 9 dernières secondes
   });
 
-  // ---- Gold Sink : changer un sort EN PLEIN FARM (clic/sort < 15 s) = payer ou subir 30 s de blocage des sorts actifs ----
-  const guard = (fn, change) => {
+  // ---- Taxe (ex-« Gold Sink », nom interne) : changer un sort juste après un effort (< 15 s) = payer ou subir 30 s de blocage des sorts actifs. La clé de sauvegarde `sp().pen` est conservée telle quelle. ----
+  const taxe = (fn, change) => {
     if (!change || Date.now() - lastAct > 15e3) return fn();                // hors action / Académie : gratuit
     const c = Passives.calc(), ce = Math.ceil(50 + 90 * c.ethPS), cs = Math.ceil(20 + 90 * c.sgPS), g = $("gbtns"); g.innerHTML = "";
-    $("gtxt").textContent = "Tu farmes activement : adapter ton équipement maintenant a un prix.";
+    $("gtxt").textContent = "Tu agis en ce moment : changer ton équipement de sorts maintenant coûte une taxe. Choisis comment la régler.";
     const add = (h, f, ok) => {
       const d = document.createElement("div"); d.className = "ps" + (ok ? "" : " off"); d.innerHTML = h;
       d.onclick = () => { if (!ok) return; $("gate").hidden = true; f(); fn(); }; g.append(d);
@@ -171,7 +171,7 @@ const Spells = (() => {
       if (id) for (const p of ["V", "G"]) E[p].forEach((x, i) => { if (x === id) E[p][i] = null; });
       E[pp][si] = id; if (!ed) { dirty = 1; bars(); Stats.add("chg", 1); } pickR(); save();
     };
-    guard(run, !ed && !!E[pp][si] && E[pp][si] !== id);                      // remplacer/retirer = changement
+    taxe(run, !ed && !!E[pp][si] && E[pp][si] !== id);                      // remplacer/retirer = changement
   };
   const pickR = () => {
     const L = sp().learned, n = nSlots(), sl = $("pslots"), list = $("plist"), E = eq(); sl.innerHTML = list.innerHTML = "";
@@ -185,7 +185,7 @@ const Spells = (() => {
     const mk = (h, f) => { const d = document.createElement("div"); d.className = "ps"; d.innerHTML = h; d.onclick = f; list.append(d); return d; };
     mk("<i>✕</i><div><b>Retirer le sort</b></div>", () => equip(null));
     SP.filter(s => L[s.id] && (s.pn === pp || s.pn === "X")).forEach(s => {
-      const d = mk("<i style='color:" + hue(s.k) + "'>" + gl(s.k) + "</i><div><b>" + s.n + "</b> <em>" + (s.t === "A" ? "Actif · CD " + s.cd + "s" : "Passif") + "</em><small>" + s.d + "</small></div>", () => equip(s.id));
+      const d = mk("<i style='color:" + hue(s.k) + "'>" + gl(s.k) + "</i><div><b>" + s.n + "</b> <em>" + (s.t === "A" ? "Actif · Recharge " + s.cd + " s" : "Passif") + "</em><small>" + s.d + "</small></div>", () => equip(s.id));
       if (inT(s.id)) d.classList.add("eq");
     });
     if (list.children.length === 1) list.insertAdjacentHTML("beforeend", "<div class='hint'>Aucun sort appris pour ce panneau — inscris-toi à l'Amphithéâtre.</div>");
@@ -199,7 +199,7 @@ const Spells = (() => {
     sides(d).forEach(p => { for (let i = 0; i < n; i++) { if (sp().lock[p + i]) continue; const id = d[p][i]; N[p][i] = id && L[id] ? id : null; } });
     N.G.forEach((id, i) => { if (id && N.V.includes(id) && !sp().lock["G" + i]) N.G[i] = null; });      // pas de doublon (Voile prioritaire)
     const change = ["V", "G"].some(p => E[p].some((id, i) => id && N[p][i] !== id));
-    guard(() => { sp().eq = N; dirty = 1; bars(); Stats.add("chgDeck", 1); save(); toast("Deck « " + d.name + " » équipé"); }, change);
+    taxe(() => { sp().eq = N; dirty = 1; bars(); Stats.add("chgDeck", 1); save(); toast("Deck « " + d.name + " » équipé"); }, change);
   };
   const dkR = () => {
     const el = $("dklist"); el.innerHTML = "";
@@ -277,5 +277,5 @@ const Spells = (() => {
     document.querySelectorAll(".gear[data-p]").forEach(g => g.onclick = () => pick(g.dataset.p));
     $("pclose").onclick = closePick; $("pick").onclick = e => { if (e.target.id === "pick") closePick(); };
   };
-  return { glyph: gl, hue, cast, SCH, mod, init, tick, onClick, force, forced, touch, effort, active, has, learn, SP, applyDeck, D, guard };
+  return { glyph: gl, hue, cast, SCH, mod, init, tick, onClick, force, forced, touch, effort, active, has, learn, SP, applyDeck, D, taxe };
 })();

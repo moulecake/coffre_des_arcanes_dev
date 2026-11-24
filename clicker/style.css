@@ -299,3 +299,19 @@ html.ptu .star{background:#ffb866;box-shadow:0 0 6px rgba(249,115,22,.6)}
 .ptu-badge{display:none}
 html.ptu .ptu-badge{display:block;position:fixed;top:8px;right:8px;z-index:30;padding:3px 9px;border-radius:8px;font:900 10px Cinzel,serif;letter-spacing:2px;color:#ffedd5;background:linear-gradient(135deg,#c2410c,#f97316);border:1px solid rgba(255,237,213,.55);box-shadow:0 2px 12px rgba(249,115,22,.45),inset 0 1px 0 rgba(255,255,255,.3);pointer-events:none}
 @media(pointer:coarse){html.ptu .chip,html.ptu .pane{background:rgba(31,17,7,.92)}}
+
+/* ===== v2.a3.5 : nombres complets, Lexique, Taxe ===== */
+#eth,#sg,#eth2,#sg2,#ethps,#sgps{cursor:help}
+.stkc{pointer-events:auto}
+#numtip{position:fixed;left:0;top:0;z-index:30;max-width:min(320px,90vw);padding:8px 12px;border-radius:12px;background:rgba(13,17,28,.96);border:1px solid rgba(212,175,55,.5);box-shadow:0 10px 30px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.07);font:500 11px Inter,sans-serif;line-height:1.55;color:var(--dim);white-space:pre-line;opacity:0;transform:translateY(4px);transition:opacity .18s,transform .18s;pointer-events:none}
+#numtip::first-line{font:700 14px Cinzel,serif;color:#f5d98a}
+#numtip.on{opacity:1;transform:none}
+.itabs{display:flex;gap:4px;padding:3px;border-radius:99px;background:rgba(255,255,255,.04);border:1px solid var(--bd);align-self:center}
+.itabs button{padding:6px 18px;border-radius:99px;border:0;background:transparent;color:var(--dim);font:700 12px Cinzel,serif;letter-spacing:1px;cursor:pointer;transition:background .2s,color .2s}
+.itabs button[aria-selected="true"]{background:linear-gradient(135deg,rgba(212,175,55,.3),rgba(139,92,246,.25));color:#fde68a;box-shadow:inset 0 0 0 1px rgba(245,217,138,.45)}
+.itabs button:focus-visible{outline:2px solid #a78bfa;outline-offset:2px}
+.intro-list[hidden]{display:none}
+.ir.lx{grid-template-columns:34px 1fr;padding:8px 10px}
+.lxm{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font:900 15px Cinzel,serif;font-style:normal;color:#fff1b0;background:radial-gradient(circle at 35% 30%,hsl(var(--h) 70% 55%),hsl(var(--h) 60% 22%));border:1px solid hsl(var(--h) 70% 65%);box-shadow:0 0 10px hsl(var(--h) 70% 50% / .35),inset 0 1px 0 rgba(255,255,255,.3)}
+.taxh{display:flex;align-items:center;gap:8px}
+@media(prefers-reduced-motion:reduce){#numtip,.itabs button{transition:none}}

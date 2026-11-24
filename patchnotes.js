@@ -7,6 +7,21 @@
 // ============================================================
 const PATCHNOTES = [
   {
+    v: '2.a3.5', name: 'Le Lexique de l’Académie', date: '2026-11-24',
+    gift: 'Cadeau de mise à jour : 3 clés offertes !',
+    sections: [
+      { t: '🎁 Nouveautés', items: [
+        '**Lexique** : le bouton « ? » du Clicker a maintenant un onglet « Lexique » qui explique les mots du jeu (clic, impulsion, effort, Taxe, surchauffe…).',
+        '**Nombres complets** : touche (ou survole) un compteur d’Éther ou de Sagesse pour voir la valeur exacte dans une bulle.'
+      ] },
+      { t: '🛠 Améliorations', items: [
+        '**Grands nombres en français** : K (mille), M (million), Md (milliard), Bn (billion), Bi (billiard), T (trillion).',
+        '**La Taxe** : l’ancienne « Adaptation en plein farm » s’appelle désormais la Taxe d’adaptation (même règle, textes plus clairs).',
+        '**Vocabulaire** : « impulsion » pour les clics automatiques, « Recharge » pour le temps d’attente des sorts. Le sort « Drain d’Éther » devient **Encre Cramoisie** (il agit sur la Page Nécrotique).'
+      ] }
+    ]
+  },
+  {
     v: '2.a3.4', name: 'Le Carnet de l’Académie', date: '2026-11-24',
     gift: 'Cadeau de mise à jour : 3 clés offertes !',
     sections: [
