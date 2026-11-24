@@ -9,7 +9,7 @@
 // ============================================================
 // Adresse propre : on masque « index.html » dans la barre d'adresse (affichage seulement).
 if (/index\.html$/.test(location.pathname)) history.replaceState(null, "", location.pathname.replace(/index\.html$/, "") + location.search + location.hash);
-const CURRENT_VERSION = "2.a3.3";
+const CURRENT_VERSION = "2.a3.4";
 document.querySelectorAll('[id="app-version"]').forEach(e => { e.textContent = CURRENT_VERSION; });   // 2 pieds de page (accueil + app)
 
 // DROP RATES — C:40 | PC:25 | R:20 | TR:8 | L:5 | A:2
@@ -1085,7 +1085,7 @@ mentions: {
     },
     confidentialite: {
         title: "Confidentialité & Cookies",
-        body: "<p>Conformément au RGPD, nous veillons à la protection de vos données. L'application n'utilise <strong>aucun traceur publicitaire tiers</strong>.</p><p><strong>Données collectées :</strong> L'utilisation de Firebase Auth implique la gestion de votre identifiant de connexion. Votre progression et vos clés sont synchronisées via votre compte. Si vous activez les notifications (Options), un jeton technique de votre appareil et les heures prévues de vos rappels (clés rechargées, clé du Clicker) sont enregistrés dans votre compte et utilisés uniquement pour vous envoyer ces notifications, via le service Google Firebase Cloud Messaging. Vous pouvez les désactiver à tout moment dans Options (le jeton est alors supprimé).</p><p><strong>Vos droits :</strong> Vous pouvez à tout moment effacer l'intégralité de vos données et réinitialiser votre profil directement depuis les paramètres de l'application.</p>"
+        body: "<p>Conformément au RGPD, nous veillons à la protection de vos données. L'application n'utilise <strong>aucun traceur publicitaire tiers</strong>.</p><p><strong>Données collectées :</strong> L'utilisation de Firebase Auth implique la gestion de votre identifiant de connexion. Votre progression et vos clés sont synchronisées via votre compte. Dans le Clicker, des statistiques de jeu (totaux d'Éther et de Sagesse gagnés, nombre de clics et de sorts lancés, temps de jeu, records et dates de progression) sont aussi enregistrées dans votre compte ; elles servent uniquement au jeu (équilibrage, défis, quêtes) et jamais à de la publicité. Si vous activez les notifications (Options), un jeton technique de votre appareil et les heures prévues de vos rappels (clés rechargées, clé du Clicker) sont enregistrés dans votre compte et utilisés uniquement pour vous envoyer ces notifications, via le service Google Firebase Cloud Messaging. Vous pouvez les désactiver à tout moment dans Options (le jeton est alors supprimé).</p><p><strong>Vos droits :</strong> Vous pouvez à tout moment effacer l'intégralité de vos données et réinitialiser votre profil directement depuis les paramètres de l'application.</p>"
     },
     accessibilite: {
         title: "Accessibilité",

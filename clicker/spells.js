@@ -87,13 +87,13 @@ const Spells = (() => {
 
   // ---- Sorts actifs ----
   const ACT = {
-    evo1: () => { S.eth += 10 * Passives.calc().clickV * M("click", 1); },
-    evo2: () => { const c = Passives.calc(); S.eth += 30 * c.ethPS + 20 * c.clickV; },
+    evo1: () => { const g = 10 * Passives.calc().clickV * M("click", 1); S.eth += g; Stats.add("eth", g); Stats.add("imp", 10); },
+    evo2: () => { const c = Passives.calc(), g = 30 * c.ethPS + 20 * c.clickV; S.eth += g; Stats.add("eth", g); },
     evo3: () => fx([["famil", "+", 10]], 10),
     enc3: () => fx([["ether", "*", 2], ["scribe", "*", 2]], 30),
     ill2: () => { mirror = 1; },
     ill4: () => fx([["sg", "*", PG.gold.x]], PG.gold.d + M("buffDur", 0)),
-    nec3: () => { const s = S.sg * .1; S.sg -= s; S.eth += s * 20; },
+    nec3: () => { const s = S.sg * .1; S.sg -= s; S.eth += s * 20; Stats.add("eth", s * 20); },
     abj3: () => { heat = 0; hot = 0; },
     div3: () => { presc = 5; },
     tra2: () => fx([["pylon", "*", 3]], 30),
@@ -110,6 +110,7 @@ const Spells = (() => {
     if (n < (sp().pen || 0)) { sfx("deny"); toast("Adaptation en cours — sorts actifs bloqués " + Math.ceil((sp().pen - n) / 1e3) + " s"); return; }
     if (n < (sp().cd[s.id] || 0)) { sfx("deny"); return; }
     if (ACT[s.id]() === false) { toast("Aucun sort en recharge à réinitialiser"); return; }
+    Stats.add("cast", 1); Stats.addIn("cast", s.id, 1); Stats.ms("cast");
     sp().cd[s.id] = n + s.cd * 1e3 * mod("cd", 1); const ix = SCH.findIndex(x => x[0] === s.k); sfx(s.k === "evo" ? "zap" : s.k === "nec" ? "rumble" : "chime", 1 + ix * .09);
     if (window.schoolFx) schoolFx(s.k, p, s);
     const sl = document.querySelector(".sl[data-id='" + s.id + "']"); if (sl) { sl.classList.add("cast"); setTimeout(() => sl.classList.remove("cast"), 450); }
@@ -149,11 +150,11 @@ const Spells = (() => {
       const d = document.createElement("div"); d.className = "ps" + (ok ? "" : " off"); d.innerHTML = h;
       d.onclick = () => { if (!ok) return; $("gate").hidden = true; f(); fn(); }; g.append(d);
     };
-    add("<i>💠</i><div><b>Payer " + fE(ce) + "</b></div>", () => { S.eth -= ce; }, S.eth >= ce);
-    add("<i>📖</i><div><b>Payer " + fN(cs) + " Sg</b></div>", () => { S.sg -= cs; }, S.sg >= cs);
-    add("<i>⏳</i><div><b>Pénalité : sorts actifs bloqués 30 s</b></div>", () => { sp().pen = Date.now() + 3e4; }, true);
+    add("<i>💠</i><div><b>Payer " + fE(ce) + "</b></div>", () => { S.eth -= ce; Stats.add("taxe", 1); Stats.add("taxeE", 1); Stats.ms("taxe"); }, S.eth >= ce);
+    add("<i>📖</i><div><b>Payer " + fN(cs) + " Sg</b></div>", () => { S.sg -= cs; Stats.add("taxe", 1); Stats.add("taxeS", 1); Stats.ms("taxe"); }, S.sg >= cs);
+    add("<i>⏳</i><div><b>Pénalité : sorts actifs bloqués 30 s</b></div>", () => { sp().pen = Date.now() + 3e4; Stats.add("taxe", 1); Stats.add("taxeT", 1); Stats.ms("taxe"); }, true);
     const x = document.createElement("div"); x.className = "ps"; x.innerHTML = "<i>✕</i><div><b>Annuler</b></div>"; x.onclick = () => { $("gate").hidden = true; }; g.append(x);
-    $("gate").hidden = false;
+    Stats.add("taxeAsk", 1); $("gate").hidden = false;
   };
 
   // ---- Sélecteur de sorts (équipement live OU pré-construction d'un deck : ed) ----
@@ -168,7 +169,7 @@ const Spells = (() => {
     if (id && !ed && ["V", "G"].some(p => E[p].some((x, i) => x === id && L[p + i] && !(p === pp && i === si)))) return toast("Sort verrouillé dans un autre emplacement");
     const run = () => {
       if (id) for (const p of ["V", "G"]) E[p].forEach((x, i) => { if (x === id) E[p][i] = null; });
-      E[pp][si] = id; if (!ed) { dirty = 1; bars(); } pickR(); save();
+      E[pp][si] = id; if (!ed) { dirty = 1; bars(); Stats.add("chg", 1); } pickR(); save();
     };
     guard(run, !ed && !!E[pp][si] && E[pp][si] !== id);                      // remplacer/retirer = changement
   };
@@ -198,7 +199,7 @@ const Spells = (() => {
     sides(d).forEach(p => { for (let i = 0; i < n; i++) { if (sp().lock[p + i]) continue; const id = d[p][i]; N[p][i] = id && L[id] ? id : null; } });
     N.G.forEach((id, i) => { if (id && N.V.includes(id) && !sp().lock["G" + i]) N.G[i] = null; });      // pas de doublon (Voile prioritaire)
     const change = ["V", "G"].some(p => E[p].some((id, i) => id && N[p][i] !== id));
-    guard(() => { sp().eq = N; dirty = 1; bars(); save(); toast("Deck « " + d.name + " » équipé"); }, change);
+    guard(() => { sp().eq = N; dirty = 1; bars(); Stats.add("chgDeck", 1); save(); toast("Deck « " + d.name + " » équipé"); }, change);
   };
   const dkR = () => {
     const el = $("dklist"); el.innerHTML = "";
@@ -223,7 +224,7 @@ const Spells = (() => {
     $("dkadd").onclick = () => {
       if (D().length >= 8) return toast("8 decks maximum");
       const d = { name: ($("dkname").value.trim() || "Deck " + (D().length + 1)).slice(0, 20), t: $("dkt").value, V: [], G: [] };
-      snap(d); D().push(d); $("dkname").value = ""; save(); dkR();
+      snap(d); D().push(d); Stats.add("deckN", 1); Stats.ms("deck"); $("dkname").value = ""; save(); dkR();
     };
   };
 
@@ -266,8 +267,8 @@ const Spells = (() => {
 
   const tick = (dt, n) => {
     const c = sp().course;
-    if (c && n >= c.end) { sp().learned[c.id] = 1; sp().course = null; dirty = 1; toast("Cours terminé : " + byId[c.id].n); bars(); buildLes(); save(); if (window.cloudSave) cloudSave(true); }
-    if (has("tra1")) { const x = Math.min(S.sg, .2 * Passives.calc().sgPS * dt); S.sg -= x; S.eth += x * 20; }
+    if (c && n >= c.end) { sp().learned[c.id] = 1; sp().course = null; dirty = 1; Stats.add("learn", 1); Stats.ms("learn"); toast("Cours terminé : " + byId[c.id].n); bars(); buildLes(); save(); if (window.cloudSave) cloudSave(true); }
+    if (has("tra1")) { const x = Math.min(S.sg, .2 * Passives.calc().sgPS * dt); S.sg -= x; S.eth += x * 20; Stats.add("eth", x * 20); }
     fxs = fxs.filter(f => f.u > n); sp().fx = fxs; sp().st = [mirror, presc, clicks]; tickBars(n); updLes(n);
   };
   const init = () => {

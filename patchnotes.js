@@ -7,6 +7,16 @@
 // ============================================================
 const PATCHNOTES = [
   {
+    v: '2.a3.4', name: 'Le Carnet de l’Académie', date: '2026-11-24',
+    gift: 'Cadeau de mise à jour : 3 clés offertes !',
+    sections: [
+      { t: '📜 En coulisses', items: [
+        '**Statistiques de jeu** : le Clicker note désormais, dans ton compte, tes totaux (Éther et Sagesse gagnés, clics, sorts lancés, temps de jeu), tes records et les dates de tes grandes étapes. Rien n’est affiché pour l’instant : c’est la base des futurs défis et quêtes, et de l’équilibrage des sorts.',
+        '**Confidentialité** : ces données ne servent qu’au jeu, jamais à de la publicité (voir « Confidentialité & Cookies »).'
+      ] }
+    ]
+  },
+  {
     v: '2.a3.0', name: 'Confort & Fluidité', date: '2026-11-23',
     gift: 'Cadeau de mise à jour : 3 clés offertes !',
     sections: [

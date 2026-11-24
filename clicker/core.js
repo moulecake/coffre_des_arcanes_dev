@@ -10,7 +10,7 @@ const fN = v => { if (v < 1e3) return v < 10 ? v.toFixed(1) : Math.floor(v) + ""
 
 let S = { eth: 0, sg: 0, b: {}, seen: Date.now() };
 try { Object.assign(S, JSON.parse(localStorage.getItem(KEY) || "{}")); } catch (e) {}
-const save = () => { S.seen = Date.now(); localStorage.setItem(KEY, JSON.stringify(S)); };
+const save = () => { Stats.flush(); S.seen = Date.now(); localStorage.setItem(KEY, JSON.stringify(S)); };
 
 // ---- Fragments de clés : EFFORT ACTIF uniquement (clic/sort < 10 s). 5 min d'effort = 1 fragment (5 fragments = 1 clé du Coffre).
 // 10-15 min tryhard ≈ 2-3 fragments · plafond 9/jour (≈ 1,8 clé) · le farm idle ne donne rien À CE NIVEAU (le flux passif = micro-fragments, ci-dessous). `fr.earned` est cumulatif : le Coffre
@@ -69,7 +69,7 @@ function grain(c, dt) {                                // grains du Voile → fi
 }
 function fragUI(f, c, dt) {
   const t = keyTotal(f);
-  if (lastT >= 0 && Math.floor(t / 5) > Math.floor(lastT / 5) && !keyBusy) keyFly();
+  if (lastT >= 0 && Math.floor(t / 5) > Math.floor(lastT / 5) && !keyBusy) { keyFly(); Stats.add("keys", 1); Stats.ms("key"); }
   lastT = t;
   if (lastE >= 0 && f.earned > lastE) { const v = $("fvial"); v.classList.remove("flash"); void v.offsetWidth; v.classList.add("flash"); }
   lastE = f.earned;
@@ -119,7 +119,7 @@ function fragTick(dt, c) {
   if (f.today < FR_DAY && Spells.active()) {
     f.eff += dt;
     if (f.eff >= FR_SEC) {
-      f.eff -= FR_SEC; f.earned++; f.today++; sfx("gold"); save(); cloudSave(true);
+      f.eff -= FR_SEC; f.earned++; f.today++; Stats.add("frA", 1); sfx("gold"); save(); cloudSave(true);
       toast("✦ Fragment de clé obtenu — envoyé au Coffre (" + f.today + "/" + FR_DAY + " aujourd'hui)");
     }
   }
@@ -127,7 +127,7 @@ function fragTick(dt, c) {
   $("fr").textContent = f.today + " / " + FR_DAY;
   $("frs").textContent = f.today >= FR_DAY ? "Quota du jour atteint" : "Prochain : " + Math.floor(r / 60) + ":" + String(r % 60).padStart(2, "0") + " d'effort";
   const np = microAdd(fragRate(c.ethPS) * dt);          // flux passif (silencieux : aucun son hors geste utilisateur)
-  if (np) { save(); cloudSave(true); toast("✦ Micro-fragments : +" + np + " fragment(s) passif(s) — envoyé au Coffre (" + f.pday + "/" + FR_PCAP + " aujourd'hui)"); }
+  if (np) { Stats.add("frP", np); save(); cloudSave(true); toast("✦ Micro-fragments : +" + np + " fragment(s) passif(s) — envoyé au Coffre (" + f.pday + "/" + FR_PCAP + " aujourd'hui)"); }
   fragUI(f, c, dt);
 }
 
@@ -165,12 +165,13 @@ let cloudT = 0, cloudReady = false, cloudUid = "";
 async function cloudSave(force) {
   pushSchedule(force);
   const u = window.auth && window.auth.currentUser, n = Date.now(); if (!u || !cloudReady || cloudUid !== u.uid || (!force && n - cloudT < 3e4)) return; cloudT = n;
-  const ref = window.doc(window.db, CHANNEL.col("players"), u.uid), body = () => ({ clicker: { json: JSON.stringify(S), earned: (S.fr && S.fr.earned) || 0, ts: n } });
+  const ref = window.doc(window.db, CHANNEL.col("players"), u.uid), body = () => (Stats.flush(), { clicker: { json: JSON.stringify(S), earned: (S.fr && S.fr.earned) || 0, ts: n } });
   try {
     if (!window.runTransaction) return void await window.setDoc(ref, body(), { merge: true });
     await window.runTransaction(window.db, async tx => {
       const cur = await tx.get(ref), C = cur.exists() && cur.data().clicker; let R = null;
       if (C && C.json) { try { R = JSON.parse(C.json); } catch (e) {} }
+      if (R) Stats.mergeFrom(S, R);                                                 // stats : max par clé, jamais de régression (même si l'autre appareil est plus avancé)
       if (R && progScore(R) > progScore(S)) throw new Error("STALE");                  // le cloud est plus avancé : on ne l'écrase pas
       tx.set(ref, body(), { merge: true });
     });
@@ -186,12 +187,13 @@ async function cloudLoad(u) {
     if (CHANNEL.ptu && !st) { toast("PTU : choisis d'abord ton compte PTU depuis le Coffre"); return; }   // le compte PTU est créé par le Coffre (copie du live ou départ à zéro) ; le clicker n'écrit rien avant
     let R = null; if (c && c.json) { try { R = JSON.parse(c.json); } catch (e) {} }
     const foreign = !!(S.uid && S.uid !== u.uid), lp = foreign ? -1 : progScore(S), cp = R ? progScore(R) : -1;
+    Stats.flush(); const keepSt = foreign ? null : Stats.pick(S);                       // stats locales à réappliquer si l'état cloud remplace S
     if (R && (cp > lp || (cp === lp && (R.seen || 0) > (S.seen || 0)))) {                // le cloud est plus avancé (ou égal et plus récent)
       const fr = mergeFr(foreign ? {} : S.fr || {}, R.fr || {});
-      Object.keys(S).forEach(k => delete S[k]); Object.assign(S, R); S.fr = fr; Spells.init(); toast("☁ Progression synchronisée");
+      Object.keys(S).forEach(k => delete S[k]); Object.assign(S, R); S.fr = fr; if (keepSt) Stats.mergeFrom(S, keepSt); Spells.init(); toast("☁ Progression synchronisée");
     } else if (foreign) {                                                                // compte sans sauvegarde, état local d'un AUTRE compte : on repart à zéro
       Object.keys(S).forEach(k => delete S[k]); Object.assign(S, { eth: 0, sg: 0, b: {}, seen: Date.now() }); Spells.init();
-    } else if (R) S.fr = mergeFr(S.fr || {}, R.fr || {});
+    } else if (R) { S.fr = mergeFr(S.fr || {}, R.fr || {}); Stats.mergeFrom(S, R); }
     S.uid = u.uid; if (!(S.g && S.g.need > 0)) { S.g = { n: 0, t: "norm", need: 0, got: 0 }; nextPage(false); }
     lastT = lastE = -1; save(); cloudReady = true; cloudUid = u.uid; cloudSave(true);
   } catch (e) { console.warn("cloudLoad", e); }
@@ -289,8 +291,8 @@ function nextPage(user) {
   if (t && user) sfx(t);                               // son UNIQUEMENT si le joueur est à l'origine
 }
 function gainSg(a, user) {
-  S.sg += a; const G = S.g; G.got += a; let k = 0;
-  while (G.got >= G.need && k++ < 50) { const left = G.got - G.need; G.n++; nextPage(user); G.got = left; }
+  S.sg += a; Stats.add("sg", a); const G = S.g; G.got += a; let k = 0;
+  while (G.got >= G.need && k++ < 50) { const left = G.got - G.need; G.n++; Stats.add("pg", 1); if (G.t === "gold") Stats.add("pgG", 1); else if (G.t === "red") Stats.add("pgR", 1); nextPage(user); G.got = left; }
   if (k >= 50) G.got = 0; if (k) turnPage(user);
 }
 
@@ -340,8 +342,8 @@ function initCursor() {                                // l'Orbe suit la souris 
 
 function clickV(e) {
   const n = Date.now(); if (n < hot) { if (n - lastDenyV > 250) { lastDenyV = n; sfx("deny"); ripple(e, .25); } return; }      // voile rigide pendant la surchauffe
-  heat += 10; const over = heat >= 100; if (over) { hotMs = M("cps", CPS_PALIERS[0]) * 1000; hot = n + hotMs; }   // surchauffe : pause = limite en secondes (5 cps → 5 s · 10 → 10 s · 15 → 15 s)
-  const m = Spells.onClick(), g = Passives.calc().clickV * M("click", 1) * m; S.eth += g;
+  Stats.click("V"); heat += 10; const over = heat >= 100; if (over) { Stats.add("ovV", 1); hotMs = M("cps", CPS_PALIERS[0]) * 1000; hot = n + hotMs; }   // surchauffe : pause = limite en secondes (5 cps → 5 s · 10 → 10 s · 15 → 15 s)
+  const m = Spells.onClick(), g = Passives.calc().clickV * M("click", 1) * m; S.eth += g; Stats.add("eth", g);
   sfx(over ? "rumble" : "zap"); ripple(e, over ? 1.8 : m > 1 ? 1.5 : 1); fl(e, "+" + fE(g), "#a78bfa");
   if (m > 1) critFx(e, "ill", "CRITIQUE ×" + m);        // Image Miroir : glyphe d'Illusion
 }
@@ -406,8 +408,8 @@ let heatG = 0, hotG = 0, hotGMs = 10000, lastDenyG = 0;
 function clickG(e) {
   const nG = Date.now();
   if (nG < hotG) { if (nG - lastDenyG > 500) { lastDenyG = nG; sfx("deny"); } return; }       // Grimoire verrouillé pendant le chaos
-  heatG += 10;
-  if (heatG >= 100) { hotGMs = CPS_GRIMOIRE * 1000; hotG = nG + hotGMs; startChaos(); }       // trop de clics/s : chaos (pause = limite en secondes)
+  Stats.click("G"); heatG += 10;
+  if (heatG >= 100) { Stats.add("ovG", 1); hotGMs = CPS_GRIMOIRE * 1000; hotG = nG + hotGMs; startChaos(); }       // trop de clics/s : chaos (pause = limite en secondes)
   const c = Passives.calc(), pt = S.g.t, g = c.pageClick * pageX() * M("sg", 1);
   Spells.touch(); clkPt = paneXY(e); gainSg(g, true); sfx("paper"); fl(e, "+" + fN(g) + " Sg", pt === "gold" ? "#d4af37" : pt === "red" ? "#e11d48" : "#f5d98a");
 }
@@ -448,23 +450,24 @@ function tentFrame() {
   tentRaf = (n < hotG || gr > 0) ? requestAnimationFrame(tentFrame) : 0;
 }
 function startChaos() {
+  Stats.add("chaos", 1);
   $("tome").classList.add("chaos"); document.querySelector(".grimoire").classList.add("chaos"); sfx("red");
   cancelAnimationFrame(tentRaf); tentRaf = requestAnimationFrame(tentFrame);
 }
 function endChaos() { $("tome").classList.remove("chaos"); document.querySelector(".grimoire").classList.remove("chaos"); }
 
 function away(sec) {                                   // hors-ligne : timestamps, plafond 8 h (extensible via sorts)
-  sec = Math.min(sec, M("offlineCap", 8) * 3600);
+  Stats.max("offMax", sec); sec = Math.min(sec, M("offlineCap", 8) * 3600);
   const c = Passives.calc(), e = c.ethPS * sec, s = c.sgPS * sec * M("offlineSg", 1);
-  S.eth += e; S.sg += s;
-  const nf = microAdd(fragRate(c.ethPS) * sec * M("fragOff", 1)); if (nf) save();   // micro-fragments hors-ligne (plafond passif/jour inclus)
+  S.eth += e; S.sg += s; Stats.add("eth", e); Stats.add("sg", s); Stats.add("off", sec); Stats.add("offN", 1); Stats.add("offEth", e); Stats.add("offSg", s);
+  const nf = microAdd(fragRate(c.ethPS) * sec * M("fragOff", 1)); if (nf) { Stats.add("frP", nf); Stats.add("offFr", nf); save(); }   // micro-fragments hors-ligne (plafond passif/jour inclus)
   if (e + s > 0) toast("Absence : +" + fE(e) + " · +" + fN(s) + " Sg" + (nf ? " · +" + nf + " fragment(s)" : ""));
 }
 
 function tick() {
   const n = Date.now(), dt = (n - last) / 1e3; last = n;
   if (dt > 5) { away(dt); return; }                    // onglet endormi
-  const c = Passives.calc(); S.eth += c.ethPS * dt;
+  const c = Passives.calc(); S.eth += c.ethPS * dt; Stats.add("eth", c.ethPS * dt); Stats.add("imp", c.impPS * dt); Stats.tick(dt, Spells.active(), c.ethPS, c.sgPS);
   if (c.sgPS > 0) gainSg(c.sgPS * dt * pageX(), false);             // lecture automatique : silencieuse
   fragTick(dt, c);
   if (n < hotG) heatG = (hotG - n) / hotGMs * 100; else { if (hotG) { hotG = 0; heatG = 0; endChaos(); } heatG = Math.max(0, heatG - CPS_GRIMOIRE * 10 * dt); }
@@ -491,7 +494,7 @@ function tick() {
 }
 
 addEventListener("DOMContentLoaded", () => {
-  const e = (Date.now() - S.seen) / 1e3; if (e > 10) away(e);
+  Stats.add("sess", 1); const e = (Date.now() - S.seen) / 1e3; if (e > 10) away(e);
   Passives.build($("bV"), "V"); Passives.build($("bG"), "G"); Spells.init();
   S.g = S.g || { n: 0, t: "norm", need: 0, got: 0 }; if (!(S.g.need > 0)) nextPage(false);
   $("orb").onclick = clickV; $("tome").onclick = clickG; initVeil(); initCursor(); initBook(); initKey(); initStars(); initTent(); initSticky();

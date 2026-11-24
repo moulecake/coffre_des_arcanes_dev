@@ -17,12 +17,13 @@ const Passives = (() => {
     const flat = a * tm(a) * M("passive", 1), clickV = 1 + .02 * flat, crit = Math.min(.5, .01 * b * tm(b));
     const ethPS = (flat + (p * .5 * tm(p) * M("pylon", 1) + M("famil", 0)) * clickV) * (1 + crit * 4) * M("ether", 1);
     const pagesPS = l * .5 * tm(l) * M("scribe", 1) + M("pagesFlat", 0), sgPage = 1 + .2 * c * tm(c), sgPS = pagesPS * sgPage * M("sg", 1);
-    return { clickV, ethPS, pagesPS, sgPage, sgPS, pageClick: 1 + .02 * sgPS, rare: (1 + .05 * h) * tm(h) };
+    const impPS = (p * .5 * tm(p) * M("pylon", 1) + M("famil", 0)) * (1 + crit * 4) * M("ether", 1);   // impulsions/s (stats)
+    return { clickV, ethPS, impPS, pagesPS, sgPage, sgPS, pageClick: 1 + .02 * sgPS, rare: (1 + .05 * h) * tm(h) };
   };
   const buy = b => {
     const k = b.s === "G" ? "sg" : "eth", c = cost(b);
     if (S[k] < c) return;
-    S[k] -= c; S.b[b.id] = own(b.id) + 1; cc = null; save(); update();
+    S[k] -= c; S.b[b.id] = own(b.id) + 1; cc = null; Stats.add("buy", 1); Stats.addIn("bld", b.id, 1); Stats.ms("buy"); save(); update();
   };
   const build = (el, s) => L.filter(b => b.s === s).forEach(b => {
     const d = document.createElement("div");
