@@ -827,3 +827,10 @@ html[data-bg] body::before{background:radial-gradient(ellipse 80% 50% at 50% -20
 .pz-chip.lk{opacity:.5;cursor:not-allowed;filter:grayscale(.6)}.pz-chip u{position:absolute;right:-4px;bottom:-4px;text-decoration:none;font-size:11px}
 .pz-none{margin:0 0 12px;padding:8px 10px;border-radius:10px;font-size:11px;background:rgba(212,175,55,.08);border:1px solid rgba(212,175,55,.3);color:#f5d98a}
 @media (prefers-reduced-motion:reduce){.pz-chip{transition:none}}
+
+/* v2.a3.22 : coffre d'école (rang 6) + pastille d'école du classement */
+html[data-chest="skin"] #chest-svg{filter:drop-shadow(0 0 22px hsl(var(--chh) 85% 58%/.55))}
+html[data-chest="skin"] .chest-glow{background:radial-gradient(circle,hsl(var(--chh) 85% 58%/.3),transparent 70%)}
+.sk-gem{animation:skGem 2.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center}@keyframes skGem{50%{filter:brightness(1.5) drop-shadow(0 0 3px #fff)}}
+@media (prefers-reduced-motion:reduce){.sk-gem{animation:none}}
+.lb-sc{display:inline-block;vertical-align:-4px;width:18px;height:18px;margin-right:6px}.lb-sc circle{fill:hsl(var(--h) 60% 28%);stroke:hsl(var(--h) 85% 65%);stroke-width:1.4}.lb-sc path{fill:none;stroke:#fff;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transform:scale(.6);transform-origin:12px 12px}

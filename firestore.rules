@@ -8,9 +8,10 @@ service cloud.firestore {
     function signedIn() { return request.auth != null; }
     function me(uid) { return signedIn() && request.auth.uid == uid; }
     function lbFieldsOk() {
-      return request.resource.data.keys().hasOnly(['pseudo', 'discovered', 'total', 'chests', 'updatedAt'])
+      return request.resource.data.keys().hasOnly(['pseudo', 'discovered', 'total', 'chests', 'updatedAt', 'school'])
         && request.resource.data.pseudo is string && request.resource.data.pseudo.size() <= 30
-        && request.resource.data.discovered is number && request.resource.data.total is number;
+        && request.resource.data.discovered is number && request.resource.data.total is number
+        && (!('school' in request.resource.data) || request.resource.data.school in ['evo', 'enc', 'ill', 'nec', 'abj', 'div', 'tra', 'con']);
     }
     // Codes promo : jamais créés/supprimés/listés par un client ; seul le destinataire (code individuel) ou le joueur qui l'utilise (code universel) peut le marquer.
     function promoNotExpired() { return !('expiresAt' in resource.data) || resource.data.expiresAt > request.time; }

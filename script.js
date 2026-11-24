@@ -9,7 +9,7 @@
 // ============================================================
 // Adresse propre : on masque « index.html » dans la barre d'adresse (affichage seulement).
 if (/index\.html$/.test(location.pathname)) history.replaceState(null, "", location.pathname.replace(/index\.html$/, "") + location.search + location.hash);
-const CURRENT_VERSION = "2.a3.21";
+const CURRENT_VERSION = "2.a3.22";
 document.querySelectorAll('[id="app-version"]').forEach(e => { e.textContent = CURRENT_VERSION; });   // 2 pieds de page (accueil + app)
 
 // DROP RATES — C:40 | PC:25 | R:20 | TR:8 | L:5 | A:2
@@ -251,6 +251,7 @@ function mergeStates(base, L, C) {
   M.patchSeen = newerVer(L.patchSeen, C.patchSeen);                        // dernier patchnote lu : le plus récent des deux
   M.lastRegen = keys >= MAX_KEYS ? Date.now() : (base ? Math.min(L.lastRegen || Date.now(), C.lastRegen || Date.now()) : (C.lastRegen || Date.now()));
   M.pseudo = C.pseudo || L.pseudo || '';
+  if (L.perso && (!C.perso || (L.perso.ts || 0) > (C.perso.ts || 0))) M.perso = L.perso;   // personnalisation : le dernier réglage (horodaté) l'emporte
   const seen = new Set(), adds = []; [].concat(C.mjAdded || [], L.mjAdded || []).forEach(a => { const id = (a && a.name) + '@' + (a && a.ts); if (!seen.has(id)) { seen.add(id); adds.push(a); } });
   if (adds.length) M.mjAdded = adds;
   M.forceLegendary = !!L.forceLegendary; M.mjActive = !!L.mjActive;
@@ -302,7 +303,7 @@ async function syncState(reason) {
     try { localStorage.setItem(LSKEY, JSON.stringify(serializeState())); } catch (e) {}
     if (res.mode !== 'push') { if (typeof renderInventory === 'function') renderInventory(); if (typeof updateTimer === 'function') updateTimer(); }
     if (res.mode === 'merge' && res.hadBase) showToast('☁ Progression fusionnée avec ton autre appareil', 4000);
-    syncLeaderboardDoc(); syncPushSchedule();
+    syncLeaderboardDoc(); syncPushSchedule(); if (typeof applyPerso === 'function') applyPerso();
     if (_dirty) scheduleSync();
     return res;
   } catch (e) { console.warn('[synchro] échec (hors-ligne ?) — la sauvegarde locale est conservée', e && (e.code || e.message)); _dirty = true; return false; }
@@ -460,10 +461,13 @@ async function syncLeaderboardDoc() {
   const inv = state.inventory || {};
   const discovered = Object.keys(inv).filter(k => inv[k] > 0).length;
   const total = Object.keys(inv).reduce((a, k) => a + (inv[k] > 0 ? inv[k] : 0), 0);
-  const chests = state.chestsOpened || 0, sig = [state.pseudo, discovered, total, chests].join('|');
+  const chests = state.chestsOpened || 0, school = clickerSp().school || '', sig = [state.pseudo, discovered, total, chests, school].join('|');
   if (sig === _lbSig) return; _lbSig = sig;
   try {
-    await window.setDoc(window.doc(window.db, CHANNEL.col('leaderboard'), u.uid), { pseudo: state.pseudo, discovered, total, chests, updatedAt: new Date().toISOString() });
+    const ref = window.doc(window.db, CHANNEL.col('leaderboard'), u.uid), body = { pseudo: state.pseudo, discovered, total, chests, updatedAt: new Date().toISOString() };
+    if (SCHOOL_BADGE[school]) body.school = school;
+    try { await window.setDoc(ref, body); }
+    catch (e1) { if (body.school && (e1.code === 'permission-denied')) { delete body.school; await window.setDoc(ref, body); } else throw e1; }   // règles Firestore pas encore à jour : on écrit sans l'école
   } catch (e) { _lbSig = ''; console.warn('Classement : écriture impossible (règles Firestore ?)', e.code || e); }
 }
 
@@ -477,7 +481,7 @@ async function loadState() {                                // lecture LOCALE se
   _base = loadBase();
   const raw = localStorage.getItem(LSKEY);
   if (!raw) { saveState(); return; }
-  try { const loc = JSON.parse(raw); loc.inventory = unpackInventory(loc.inventory); state = Object.assign(state, loc); }
+  try { const loc = JSON.parse(raw); loc.inventory = unpackInventory(loc.inventory); state = Object.assign(state, loc); try { applyPerso(); } catch (e2) {} }
   catch (e) { try { localStorage.setItem(LSKEY + '-corrompu', raw); } catch (x) {} console.error('Sauvegarde locale illisible : copie conservée', e); }   // on n'écrase pas une sauvegarde illisible
 }
 
@@ -1305,7 +1309,7 @@ async function openLeaderboardModal() {
       const lb = await window.getDocs(window.collection(window.db, CHANNEL.col('leaderboard')));
       lb.forEach(d => {
         if (EXCLUDED_UIDS.includes(d.id)) return;
-        const x = d.data(); players.push({ pseudo: x.pseudo || 'Mage Anonyme', discovered: x.discovered || 0 });
+        const x = d.data(); players.push({ pseudo: x.pseudo || 'Mage Anonyme', discovered: x.discovered || 0, school: x.school || '' });
       });
     } catch (e) { console.warn('Classement : collection leaderboard illisible, repli sur players', e.code || e); }
 
@@ -1353,7 +1357,7 @@ async function openLeaderboardModal() {
         html += `
           <div class="lb-row ${podiumClass}${extra}${me && p.pseudo === me ? ' lb-me' : ''}"${extra ? ' hidden' : ''}>
             <div class="lb-rank">${rankDisplay}</div>
-            <div class="lb-pseudo" title="${escapeLeaderboardHtml(p.pseudo)}">${escapeLeaderboardHtml(p.pseudo)}</div>
+            <div class="lb-pseudo" title="${escapeLeaderboardHtml(p.pseudo)}">${schoolDot(p.school)}${escapeLeaderboardHtml(p.pseudo)}</div>
             <div class="lb-score">${p.discovered} / ${totalUnique} obj.</div>
             <div class="lb-percent">${pct}%</div>
           </div>
@@ -1484,10 +1488,36 @@ function refreshSchoolBadge() {
   applyPerso();
 }
 // ---- PERSONNALISATION (v2.a3.20) : sigil du profil, coffre et fond aux couleurs de son école. Choix limités aux écoles choisies au clicker (sp.school / sp.school2). Stocké sur l'appareil (PAS dans state : pas de risque pour syncState) ; synchro cloud = plus tard.
-const PERSO_KEY = CHANNEL.lsk('coffre-perso');
+const PERSO_KEY = CHANNEL.lsk('coffre-perso');            // ancien stockage local (v2.a3.21) : migré une fois vers state.perso (ts = 1 → le cloud l'emporte)
 const clickerSp = () => { try { return (JSON.parse(localStorage.getItem(CHANNEL.lsk('coffre-clicker')) || '{}').sp) || {}; } catch (e) { return {}; } };
-const getPerso = () => { try { return Object.assign({ sigil: 'default', chest: 'default', bg: 'default' }, JSON.parse(localStorage.getItem(PERSO_KEY) || '{}')); } catch (e) { return { sigil: 'default', chest: 'default', bg: 'default' }; } };
+const PERSO0 = { sigil: 'default', chest: 'default', bg: 'default', skin: 'default' };
+const getPerso = () => {
+  if (state.perso) return Object.assign({}, PERSO0, state.perso);
+  try { const o = JSON.parse(localStorage.getItem(PERSO_KEY) || 'null'); if (o) { state.perso = Object.assign({}, PERSO0, o, { ts: 1 }); return state.perso; } } catch (e) {}
+  return Object.assign({}, PERSO0);
+};
 const unlockedSchools = () => { const sp = clickerSp(); return [sp.school, sp.school2].filter((k, i, a) => k && SCHOOL_BADGE[k] && a.indexOf(k) === i); };
+const skinUnlocked = () => { const sp = clickerSp(), r = sp.rank | 0; return r >= 6 ? unlockedSchools() : []; };   // coffre d'école : réservé au rang 6
+const schoolDot = k => SCHOOL_BADGE[k] ? '<svg class="lb-sc" viewBox="0 0 24 24" style="--h:' + SCHOOL_BADGE[k][1] + '" aria-label="' + SCHOOL_BADGE[k][0] + '"><title>' + SCHOOL_BADGE[k][0] + '</title><circle cx="12" cy="12" r="11" /><path d="' + SCHOOL_BADGE[k][2] + '"/></svg>' : '';
+// Coffre d'école (rang 6) : SVG sur mesure par école (corps teinté, sangles et clous d'or, médaillon au glyphe, gemme qui pulse)
+function chestSkinSvg(h, glyph) {
+  const B = (l, a) => 'hsl(' + h + ' ' + a + '% ' + l + '%)';
+  return '<defs><linearGradient id="sk1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="' + B(30, 55) + '"/><stop offset="1" stop-color="' + B(11, 60) + '"/></linearGradient>'
+    + '<linearGradient id="sk2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + B(40, 55) + '"/><stop offset="1" stop-color="' + B(18, 58) + '"/></linearGradient>'
+    + '<linearGradient id="sk3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff1b0"/><stop offset=".5" stop-color="#d4af37"/><stop offset="1" stop-color="#8a6a1d"/></linearGradient>'
+    + '<radialGradient id="sk4" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#fff"/><stop offset=".35" stop-color="' + B(72, 95) + '"/><stop offset="1" stop-color="' + B(34, 80) + '"/></radialGradient></defs>'
+    + '<ellipse cx="70" cy="126" rx="48" ry="6" fill="rgba(0,0,0,.45)"/>'
+    + '<rect x="20" y="72" width="100" height="50" rx="8" fill="url(#sk1)" stroke="url(#sk3)" stroke-width="1.6"/>'
+    + '<path d="M20 76V54Q20 28 70 28Q120 28 120 54V76Z" fill="url(#sk2)" stroke="url(#sk3)" stroke-width="1.6" stroke-linejoin="round"/>'
+    + '<path d="M26 54Q30 36 70 34" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="2" stroke-linecap="round"/>'
+    + '<rect x="35" y="31" width="7" height="91" rx="2" fill="url(#sk3)" opacity=".92"/><rect x="98" y="31" width="7" height="91" rx="2" fill="url(#sk3)" opacity=".92"/>'
+    + '<rect x="20" y="67" width="100" height="9" fill="url(#sk3)" opacity=".95"/><rect x="20" y="67" width="100" height="2" fill="rgba(255,255,255,.45)"/>'
+    + '<g fill="#fff1b0" stroke="#8a6a1d" stroke-width=".6"><circle cx="38.5" cy="44" r="2"/><circle cx="101.5" cy="44" r="2"/><circle cx="38.5" cy="100" r="2"/><circle cx="101.5" cy="100" r="2"/><circle cx="38.5" cy="114" r="2"/><circle cx="101.5" cy="114" r="2"/></g>'
+    + '<circle cx="70" cy="49" r="12" fill="' + B(10, 60) + '" stroke="url(#sk3)" stroke-width="1.8"/><circle cx="70" cy="49" r="9" fill="none" stroke="' + B(65, 90) + '" stroke-opacity=".5" stroke-width=".8"/>'
+    + '<g transform="translate(61.3 40.3) scale(.73)"><path d="' + glyph + '" fill="' + B(70, 90) + '" fill-opacity=".25" stroke="' + B(85, 100) + '" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g>'
+    + '<rect x="56" y="70" width="28" height="22" rx="5" fill="url(#sk3)" stroke="#8a6a1d" stroke-width="1"/><circle class="sk-gem" cx="70" cy="79" r="5" fill="url(#sk4)" stroke="#fff1b0" stroke-width=".8"/><rect x="68.6" y="82" width="2.8" height="6" rx="1" fill="' + B(10, 60) + '"/>'
+    + '<path d="M26 118Q70 124 114 118" fill="none" stroke="' + B(60, 90) + '" stroke-opacity=".5" stroke-width="1.2"/>';
+}
 // Contraste WCAG (luminance relative) : le fond teinté reste très sombre, le texte clair → on vérifie ≥ 4,5 pour le texte atténué
 const hsl2rgb = (h, s, l) => { s /= 100; l /= 100; const k = n => (n + h / 30) % 12, a = s * Math.min(l, 1 - l), f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1))); return [f(0), f(8), f(4)].map(v => Math.round(v * 255)); };
 const lum = ([r, g, b]) => { const f = v => { v /= 255; return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); }; return .2126 * f(r) + .7152 * f(g) + .0722 * f(b); };
@@ -1499,9 +1529,14 @@ function bgPalette(h) {            // fond très sombre + texte clair teinté ; 
 }
 function applyPerso() {
   try {
-    const P = getPerso(), un = unlockedSchools(), R = document.documentElement, ok = k => k !== 'default' && un.indexOf(k) >= 0;
+    const P = getPerso(), R = document.documentElement, ok = k => k !== 'default' && !!SCHOOL_BADGE[k];   // les choix déjà faits sont appliqués tels quels (débloqués au moment du choix, même sur un nouvel appareil)
     // coffre
-    if (ok(P.chest)) { const h = SCHOOL_BADGE[P.chest][1]; R.dataset.chest = P.chest; R.style.setProperty('--chh', h); R.style.setProperty('--chr', (h - 270) + 'deg'); } else { delete R.dataset.chest; }
+    const cs = document.getElementById('chest-svg'); if (cs && cs._def == null) cs._def = cs.innerHTML;
+    if (ok(P.skin)) { const h = SCHOOL_BADGE[P.skin][1]; R.dataset.chest = 'skin'; R.dataset.skin = P.skin; R.style.setProperty('--chh', h); if (cs && cs.dataset.sk !== P.skin) { cs.innerHTML = chestSkinSvg(h, SCHOOL_BADGE[P.skin][2]); cs.dataset.sk = P.skin; } }
+    else {
+      if (cs && cs.dataset.sk) { cs.innerHTML = cs._def; delete cs.dataset.sk; } delete R.dataset.skin;
+      if (ok(P.chest)) { const h = SCHOOL_BADGE[P.chest][1]; R.dataset.chest = P.chest; R.style.setProperty('--chh', h); R.style.setProperty('--chr', (h - 270) + 'deg'); } else { delete R.dataset.chest; }
+    }
     // fond
     if (ok(P.bg)) { const h = SCHOOL_BADGE[P.bg][1], q = bgPalette(h); R.dataset.bg = P.bg; R.style.setProperty('--bgh', h); [['--bg', q.bg], ['--surface', q.surface], ['--glass', q.glass], ['--border', q.border], ['--text', q.text], ['--text-dim', q.dim]].forEach(x => R.style.setProperty(x[0], x[1])); R.dataset.bgRatio = q.ratio.toFixed(2); }
     else { delete R.dataset.bg; ['--bg', '--surface', '--glass', '--border', '--text', '--text-dim'].forEach(x => R.style.removeProperty(x)); }
@@ -1519,17 +1554,18 @@ function applyPerso() {
     }
   } catch (e) {}
 }
-function setPerso(k, v) { const P = getPerso(); P[k] = v; try { localStorage.setItem(PERSO_KEY, JSON.stringify(P)); } catch (e) {} applyPerso(); renderPerso(); }
+function setPerso(k, v) { const P = getPerso(); P[k] = v; P.ts = Date.now(); state.perso = P; saveState(); applyPerso(); renderPerso(); }   // state.perso est synchronisé (syncState : le plus récent l'emporte)
 function renderPerso() {
   const P = getPerso(), un = unlockedSchools(), box = document.getElementById('perso-body'); if (!box) return;
+  const sk = skinUnlocked();
   const sec = (key, title, sub) => {
     const chips = ['default'].concat(Object.keys(SCHOOL_BADGE)).map(k => {
-      const lock = k !== 'default' && un.indexOf(k) < 0, h = k === 'default' ? 265 : SCHOOL_BADGE[k][1], nm = k === 'default' ? 'Défaut' : SCHOOL_BADGE[k][0];
+      const lock = k !== 'default' && (key === 'skin' ? sk : un).indexOf(k) < 0, h = k === 'default' ? 265 : SCHOOL_BADGE[k][1], nm = k === 'default' ? 'Défaut' : SCHOOL_BADGE[k][0];
       return '<button type="button" class="pz-chip' + (P[key] === k && !lock ? ' on' : '') + (lock ? ' lk' : '') + '" style="--h:' + h + '"' + (lock ? ' disabled title="Débloqué en choisissant cette école à l\'Académie"' : ' onclick="setPerso(\'' + key + '\',\'' + k + '\')"') + ' aria-pressed="' + (P[key] === k && !lock) + '"><i>' + (k === 'default' ? '' : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="' + SCHOOL_BADGE[k][2] + '"/></svg>') + (lock ? '<u>⚿</u>' : '') + '</i><span>' + nm + '</span></button>';
     }).join('');
     return '<section class="pz-sec"><h4>' + title + '</h4><p>' + sub + '</p><div class="pz-chips">' + chips + '</div></section>';
   };
-  box.innerHTML = (un.length ? '' : '<p class="pz-none">Aucune école choisie pour l\'instant : réussis le premier examen à l\'Académie du clicker pour débloquer les couleurs de ton école.</p>') + sec('sigil', 'Sigil du profil', 'Le blason de ton profil prend le glyphe et les couleurs de ton école.') + sec('chest', 'Coffre', 'Le coffre et son halo aux couleurs de ton école (d\'autres coffres viendront, offerts pendant les évènements).') + sec('bg', 'Fond', 'Un fond sombre teinté, avec un texte conservant un contraste lisible (WCAG AA, ≥ 4,5:1).');
+  box.innerHTML = (un.length ? '' : '<p class="pz-none">Aucune école choisie pour l\'instant : réussis le premier examen à l\'Académie du clicker pour débloquer les couleurs de ton école.</p>') + sec('sigil', 'Sigil du profil', 'Le blason de ton profil prend le glyphe et les couleurs de ton école.') + sec('chest', 'Coffre', 'Le coffre et son halo aux couleurs de ton école (d\'autres coffres viendront, offerts pendant les évènements).') + sec('skin', 'Coffre d\'école — rang VI', sk.length ? 'Un coffre sculpté à l\'effigie de ton école : sangles d\'or, médaillon et gemme. Il remplace le coffre ci-dessus.' : 'Réservé aux mages ayant atteint le rang VI à l\'Académie du clicker.') + sec('bg', 'Fond', 'Un fond sombre teinté, avec un texte conservant un contraste lisible (WCAG AA, ≥ 4,5:1).');
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', applyPerso); else applyPerso();
 function openPerso() { renderPerso(); document.getElementById('perso-modal').style.display = 'flex'; }
