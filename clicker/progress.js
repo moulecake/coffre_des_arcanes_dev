@@ -8,7 +8,7 @@ const ProgLib = (() => {
   const SPV = 2;
   // ★ RÉGLAGES (CONCEPTION_SORTS.md §3.4) — prix en Sagesse, temps en secondes, seuils CUMULÉS (statistiques à vie : Éther en nL).
   const COST = [2e5, 8e6, 8e7, 3e8], TIME = [30, 300, 1800, 10800];
-  const EX = { price: [2e6, 8e7, 8e8, 3e9], dur: [60, 60, 60, 60], durOrig: [120, 1200, 7200, 28800],   /* TEMPORAIRE (test, v2.a3.9) : tous les examens durent 1 min — À REMETTRE À `durOrig` AVANT LES BÊTA-TESTEURS */ eth: [1e6, 5e7, 3e8, 1e9], sg: [1e3, 2e8, 2e9, 1e10], open: 3, rankMax: 4 };   // open = examens jouables (le 4 est scellé)
+  const EX = { price: [2e6, 8e7, 8e8, 3e9, 1.2e10], dur: [60, 60, 60, 60, 60], durOrig: [120, 1200, 7200, 28800, 43200],   /* TEMPORAIRE (test, v2.a3.9) : tous les examens durent 1 min — À REMETTRE À `durOrig` AVANT LES BÊTA-TESTEURS */ eth: [1e6, 5e7, 3e8, 1e9, 3e9], sg: [1e3, 2e8, 2e9, 1e10, 4e10], open: 4, rankMax: 5 };   // open = examens jouables (1 à 4 ; le 5 reste scellé jusqu'aux sorts de rang 5) · rang 5 = 5 emplacements · valeurs de l'examen 5 = PLACEHOLDER à calibrer
   const emptySp = () => ({ learned: {}, eq: { V: [], G: [] }, lock: {}, cd: {}, course: null, decks: [], rank: 1, exam: null, exDone: {}, school: null, schoolAt: 0, school2: null, tut: { fill: {}, cast: 0, castIds: {}, deck: 0, equip: 0 } });
   const isO = v => v && typeof v === "object" && !Array.isArray(v), V = X => (X && X.spV) || 1, clone = v => JSON.parse(JSON.stringify(v == null ? null : v));
   function norm(sp) {                                  // complète un S.sp incomplet (idempotent) ; ne touche à aucun sort appris
@@ -61,11 +61,12 @@ const ProgLib = (() => {
   // Conditions d'un examen : [{id, ok, kind, have?, need?}] ; `st` = statistiques à vie (S.st). L'examen 4 est scellé.
   function conds(sp, st, n) {
     const t = sp.tut || {}, f = t.fill || {}, e = +(st && st.eth) || 0, g = +(st && st.sg) || 0, o = [];
-    if (n >= 4) return [];
+    if (n >= 5) return [];                                                     // examen 5 : scellé (conditions avec les sorts de rang 5)
     if (n <= 2) o.push({ id: "fill", ok: FILL[n - 1].every(k => f[k]) });
     if (n === 1) o.push({ id: "cast", ok: !!t.cast });
     if (n === 2) o.push({ id: "deck", ok: !!t.deck });
     if (n === 3) o.push({ id: "equip", ok: !!t.equip }, { id: "cast3", ok: Object.keys(t.castIds || {}).length >= 3, have: Object.keys(t.castIds || {}).length, need: 3 });
+    if (n === 4) o.push({ id: "deck4", ok: (sp.decks || []).some(d => [0, 1, 2, 3].every(i => d.V && d.G && d.V[i] && d.G[i])) }, { id: "ov", ok: ((st && st.ovV) | 0) >= 1 });   // un deck COMPLET (4 + 4) · avoir déclenché la surchauffe du Voile (condition « surchauffe » du §3.2, tranchée ici : tutoriel de la mécanique)
     o.push({ id: "eth", ok: e >= EX.eth[n - 1], have: e, need: EX.eth[n - 1] }, { id: "sg", ok: g >= EX.sg[n - 1], have: g, need: EX.sg[n - 1] });
     if (n === 1) o.push({ id: "spe", ok: !!sp.school });                      // v2.a3.7 : choisir sa spécialité pour pouvoir payer l'examen 1
     return o;
@@ -94,6 +95,13 @@ const ProgLib = (() => {
   const SCHOOLS = ["evo", "enc", "ill", "nec", "abj", "div", "tra", "con"];
   const chooseSchool = (sp, k, now) => { if (!sp || sp.school || SCHOOLS.indexOf(k) < 0) return false; sp.school = k; sp.schoolAt = now; return true; };
   const schoolMul = (sp, k) => sp && sp.school === k ? .75 : sp && sp.school2 === k ? .875 : 1;     // double spé : la moitié de l'effet
+  // Seconde spécialité (v2.a3.16) : récompense de l'examen 4 ; la seconde école agit à 50 % (Fx.sf = 0,5 ; schoolMul = −12,5 %). Choix définitif comme le premier.
+  const chooseSchool2 = (sp, k, now) => { if (!sp || !sp.school || sp.school2 || !sp.exDone || !sp.exDone[4] || k === sp.school || SCHOOLS.indexOf(k) < 0) return false; sp.school2 = k; sp.school2At = now; return true; };
+  function proposeSpe2(S, now) {
+    const sp = S.sp; if (!sp || !sp.school || sp.school2 || !sp.exDone || !sp.exDone[4]) return false;
+    const k = "spe2:" + V(S); if (!Array.isArray(S.pend)) S.pend = []; if (!Array.isArray(S.pdone)) S.pdone = [];
+    if (S.pdone.includes(k) || S.pend.some(e => e && e.k === k)) return false; S.pend = mergePend(S.pend, [{ k, t: "spe2", ts: now || 0 }]); return true;
+  }
   // Dernier recours (§3.3) : sorts, équipement, decks, cours, rang, examens, école et double spé à zéro, SANS remboursement. Bâtiments, Éther, Sagesse, fragments, stats : intacts.
   // Chaque réinitialisation INCRÉMENTE S.spV : la version la plus haute gagne pour sp/pend/pdone (§21) → le cloud n'annule jamais un reset.
   function resetLearning(S) { S.sp = emptySp(); S.spV = V(S) + 1; S.pend = (S.pend || []).filter(e => e && e.t !== "exam" && e.t !== "spe"); if (!Array.isArray(S.pdone)) S.pdone = []; return S.spV; }
@@ -133,7 +141,7 @@ const ProgLib = (() => {
     S.spV = V(S) + 1;                                                     // la sanction RETIRE de la progression : sans cet incrément, le cloud (plus avancé, il a encore le sort) la ferait annuler à la synchro (§21)
     return lost;
   }
-  return { SPV, COST, TIME, EX, examKey, TAXE, taxe, CHEAT, cheatOdds, cheatRoll, cheatCan, cheatWin, cheatCaught, SCHOOLS, chooseSchool, schoolMul, resetLearning, proposeSpe, emptySp, norm, migrate, score, decide, fixSp, mergePend, mergeDone, pending, ack, slots, doneAt, canLearn, conds, canExam, startExam, finishExam };
+  return { SPV, COST, TIME, EX, examKey, TAXE, taxe, CHEAT, cheatOdds, cheatRoll, cheatCan, cheatWin, cheatCaught, SCHOOLS, chooseSchool, chooseSchool2, proposeSpe2, schoolMul, resetLearning, proposeSpe, emptySp, norm, migrate, score, decide, fixSp, mergePend, mergeDone, pending, ack, slots, doneAt, canLearn, conds, canExam, startExam, finishExam };
 })();
 const Prog = ProgLib;
 if (typeof module !== "undefined") module.exports = ProgLib;

@@ -160,8 +160,27 @@ const Spells = (() => {
   // ---- Sélecteur de sorts (équipement live OU pré-construction d'un deck : ed) ----
   const eq = () => ed || sp().eq, lk = (p, i) => !ed && sp().lock[p + i];
   const inT = id => { const E = eq(); return E.V.includes(id) || E.G.includes(id); };
-  const pick = p => { ed = null; pp = p; if (si >= nSlots()) si = 0; $("pick").hidden = false; pickR(); };
-  const edit = (d, p) => { ed = d; pp = p; si = 0; $("pick").hidden = false; pickR(); };
+  // ---- Recherche et filtres de sorts (v2.a3.16) : mot-clé (nom, effet, école, rang, actif/passif, hors ligne) + type + école. Partagés par le sélecteur et la palette des decks. ----
+  const OFFL = new Set(["enc2", "enc4", "nec1", "nec2", "abj2", "div2", "tra4", "con2"]);        // passifs qui produisent aussi hors ligne (étiquette informative)
+  const nz = s => String(s).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");     // sans accents ni casse
+  const PNAME = { V: "voile", G: "grimoire", X: "voile grimoire" }, HAY = {};
+  const hay = s => HAY[s.id] || (HAY[s.id] = nz([s.n, s.d, SCH.find(x => x[0] === s.k)[1], s.t === "A" ? "actif" : "passif", PNAME[s.pn], OFFL.has(s.id) ? "hors ligne" : "", "rang " + s.r].join(" ")));
+  const newF = () => ({ q: "", t: "all", k: [] });
+  let pkF = newF(), dkF = newF();
+  const spOk = (s, f) => (f.t === "all" || (f.t === "A" && s.t === "A") || (f.t === "P" && s.t === "P") || (f.t === "O" && OFFL.has(s.id))) && (!f.k.length || f.k.indexOf(s.k) >= 0) && (!f.q || nz(f.q).split(/\s+/).filter(Boolean).every(w => hay(s).indexOf(w) >= 0));
+  const fOn = f => !!(f.q || f.t !== "all" || f.k.length);
+  const fbar = f => "<div class='spf'><label class='spf-s'>" + IC("<circle cx='11' cy='11' r='6.5'/><path d='M16 16l4.5 4.5'/>", 16, 2) + "<input type='search' class='spf-q' placeholder='Rechercher un sort, un effet…' value='" + f.q.replace(/'/g, "&#39;") + "' aria-label='Rechercher un sort' autocomplete='off'></label>" +
+    "<div class='spf-c' role='group' aria-label='Type de sort'>" + [["all", "Tous"], ["A", "Actifs"], ["P", "Passifs"], ["O", "Hors ligne"]].map(x => "<button data-t='" + x[0] + "' class='" + (f.t === x[0] ? "on" : "") + "'>" + x[1] + "</button>").join("") + "</div>" +
+    "<div class='spf-k' role='group' aria-label='École'>" + SCH.map(x => "<button data-k='" + x[0] + "' class='psi" + (f.k.indexOf(x[0]) >= 0 ? " on" : "") + "' style='--h:" + x[2] + "' title='" + x[1] + "' aria-label='" + x[1] + "'>" + gl(x[0], 15) + "</button>").join("") + "</div><div class='spf-n'></div></div>";
+  const fbind = (root, f, change) => {                                  // lie la barre : `change()` redessine la liste (la barre elle-même n'est pas reconstruite : la saisie garde le focus)
+    const q = root.querySelector(".spf-q"); q.oninput = () => { f.q = q.value; change(); };
+    root.querySelectorAll(".spf-c button").forEach(b => b.onclick = () => { f.t = b.dataset.t; root.querySelectorAll(".spf-c button").forEach(x => x.classList.toggle("on", x === b)); change(); });
+    root.querySelectorAll(".spf-k button").forEach(b => b.onclick = () => { const i = f.k.indexOf(b.dataset.k); if (i >= 0) f.k.splice(i, 1); else f.k.push(b.dataset.k); b.classList.toggle("on", i < 0); change(); });
+  };
+  const fcount = (root, shown, total) => { const n = root.querySelector(".spf-n"); if (n) n.textContent = shown === total ? total + " sorts" : shown + " / " + total + " sorts"; };
+  const pfBuild = () => { const r = $("pfilt"); r.innerHTML = fbar(pkF); fbind(r, pkF, pickR); };
+  const pick = p => { ed = null; pp = p; if (si >= nSlots()) si = 0; $("pick").hidden = false; pfBuild(); pickR(); };
+  const edit = (d, p) => { ed = d; pp = p; si = 0; $("pick").hidden = false; pfBuild(); pickR(); };
   const closePick = () => { $("pick").hidden = true; ed = null; if (!$("dk").hidden) dkR(); };
   const equip = id => {
     const E = eq(), L = sp().lock;
@@ -186,11 +205,12 @@ const Spells = (() => {
     }
     const mk = (h, f) => { const d = document.createElement("div"); d.className = "ps"; d.innerHTML = h; d.onclick = f; list.append(d); return d; };
     mk("<i class='psi psi-x'>" + ICON.minus + "</i><div><b>Retirer le sort</b><small>Vide l'emplacement sélectionné</small></div>", () => equip(null));
-    SP.filter(s => L[s.id] && (s.pn === pp || s.pn === "X")).forEach(s => {
+    const base = SP.filter(s => L[s.id] && (s.pn === pp || s.pn === "X")), shown = base.filter(s => spOk(s, pkF)); fcount($("pfilt"), shown.length, base.length);
+    shown.forEach(s => {
       const d = mk("<i class='psi' style='--h:" + SCH.find(x => x[0] === s.k)[2] + "'>" + gl(s.k, 20) + "</i><div><b>" + s.n + "</b> <span class='ps-tg " + (s.t === "A" ? "act" : "pas") + "'>" + (s.t === "A" ? "Actif · Recharge " + Math.round(Fx.cdOf(s.id, s.cd, sch(s.k))) + " s" : "Passif") + "</span><small>" + s.d + "</small></div>", () => equip(s.id));
       if (inT(s.id)) d.classList.add("eq");
     });
-    if (list.children.length === 1) list.insertAdjacentHTML("beforeend", "<div class='hint'>Aucun sort appris pour ce panneau — inscris-toi à l'Amphithéâtre.</div>");
+    if (list.children.length === 1) list.insertAdjacentHTML("beforeend", "<div class='hint'>" + (base.length ? "Aucun sort ne correspond à ta recherche." : "Aucun sort appris pour ce panneau — inscris-toi à l'Amphithéâtre.") + "</div>");
   };
 
   // ---- Decks nommés (Voile / Grimoire / Hybride) : équiper, mettre à jour, pré-construire, renommer, supprimer ----
@@ -228,21 +248,24 @@ const Spells = (() => {
     const d = D()[dkI], n = nSlots(), el = $("dkbody"), sd = sides(d); if (sd.indexOf(dkP) < 0) dkP = sd[0]; if (dkS >= n) dkS = 0;
     const rows = sd.map(p => "<div class='dke-r'><u>" + (p === "V" ? "Voile d'Éther" : "Grimoire") + "</u><div class='dke-s'>" + Array.from({ length: n }, (_, k) => "<button class='dke-sl' data-p='" + p + "' data-s='" + k + "' aria-label='Emplacement " + (k + 1) + "'>" + dkBadge(d[p][k] || null, p === dkP && k === dkS) + "</button>").join("") + "</div></div>").join("");
     const used = new Set([...d.V, ...d.G].filter(Boolean)), cur = d[dkP][dkS] || null;
-    const pal = SP.filter(s => sp().learned[s.id] && (s.pn === dkP || s.pn === "X")).map(s => "<button class='dkp-t" + (used.has(s.id) ? " used" : "") + (s.id === cur ? " cur" : "") + "' data-id='" + s.id + "' title='" + s.n.replace(/'/g, "’") + "'>" + dkBadge(s.id) + "<b>" + s.n + "</b><span class='ps-tg " + (s.t === "A" ? "act" : "pas") + "'>" + (s.t === "A" ? "Actif" : "Passif") + "</span></button>").join("");
+    const palAll = SP.filter(s => sp().learned[s.id] && (s.pn === dkP || s.pn === "X"));
+    const palHtml = () => { const sh = palAll.filter(s => spOk(s, dkF)); return sh.map(s => "<button class='dkp-t" + (used.has(s.id) ? " used" : "") + (s.id === cur ? " cur" : "") + "' data-id='" + s.id + "' title='" + s.n.replace(/'/g, "’") + "'>" + dkBadge(s.id) + "<b>" + s.n + "</b><span class='ps-tg " + (s.t === "A" ? "act" : "pas") + "'>" + (s.t === "A" ? "Actif" : "Passif") + "</span></button>").join("") || (palAll.length ? "<p class='dk-empty'>Aucun sort ne correspond. <button class='dke-clear' id='dkFRst'>Réinitialiser les filtres</button></p>" : "<p class='dk-empty'>Aucun sort appris pour ce panneau : inscris-toi aux cours de l'Amphithéâtre.</p>"); };
     el.innerHTML = dkHead("", true) +
       "<div class='dke-top'><input id='dkName' maxlength='20' value='" + d.name.replace(/'/g, "&#39;") + "' aria-label='Nom du deck'><div class='dke-seg' role='group' aria-label='Type de deck'>" + ["H", "V", "G"].map(t => "<button data-t='" + t + "' class='" + (d.t === t ? "on" : "") + "'>" + TN[t] + "</button>").join("") + "</div></div>" +
       "<div class='dke-slots'>" + rows + "</div>" +
-      "<div class='dke-pal'><div class='dke-pt'>Emplacement <b>" + (dkS + 1) + "</b> · " + (dkP === "V" ? "Voile d'Éther" : "Grimoire") + (cur ? " <button class='dke-clear' id='dkClear'>Vider</button>" : "") + "</div><div class='dkp-g'>" + (pal || "<p class='dk-empty'>Aucun sort appris pour ce panneau : inscris-toi aux cours de l'Amphithéâtre.</p>") + "</div></div>" +
+      "<div class='dke-pal'><div class='dke-pt'>Emplacement <b>" + (dkS + 1) + "</b> · " + (dkP === "V" ? "Voile d'Éther" : "Grimoire") + (cur ? " <button class='dke-clear' id='dkClear'>Vider</button>" : "") + "</div><div id='dkpf'>" + fbar(dkF) + "</div><div class='dkp-g' id='dkpg'>" + palHtml() + "</div></div>" +
       "<div class='dke-act'><button class='dkb pri' id='dkEq'>" + ICON.play + "<span>" + (dkSame(d) ? "Équipé" : "Équiper ce deck") + "</span></button><button class='dkb' id='dkCopy'>" + ICON.save + "<span>Copier mon équipement actuel</span></button><button class='dkb dng' id='dkDel'>" + ICON.trash + "<span>Supprimer</span></button></div>";
     $("dkBack").onclick = () => { dkI = -1; dkR(); };
     const nm = $("dkName"); nm.oninput = () => { d.name = nm.value.slice(0, 20); }; nm.onchange = nm.onblur = () => { d.name = (nm.value.trim() || d.name).slice(0, 20); save(); };
     el.querySelectorAll(".dke-seg button").forEach(b => b.onclick = () => { d.t = b.dataset.t; ["V", "G"].forEach(p => { if (!d[p]) d[p] = []; }); if (sides(d).indexOf(dkP) < 0) { dkP = sides(d)[0]; dkS = 0; } save(); dkR(); });
     el.querySelectorAll(".dke-sl").forEach(b => b.onclick = () => { dkP = b.dataset.p; dkS = +b.dataset.s; dkR(); });
-    el.querySelectorAll(".dkp-t").forEach(b => b.onclick = () => {                      // place le sort (jamais deux fois dans le deck), puis passe à l'emplacement vide suivant
-      const id = b.dataset.id; ["V", "G"].forEach(p => { d[p] = (d[p] || []).map(x => x === id ? null : x); }); d[dkP][dkS] = id;
+    const bindPal = () => { fcount($("dkpf"), palAll.filter(s => spOk(s, dkF)).length, palAll.length); const fr = $("dkFRst"); if (fr) fr.onclick = () => { dkF.q = ""; dkF.t = "all"; dkF.k = []; dkR(); }; el.querySelectorAll(".dkp-t").forEach(b => b.onclick = () => place(b.dataset.id)); };
+    const place = id => {                                                              // place le sort (jamais deux fois dans le deck), puis passe à l'emplacement vide suivant
+ ["V", "G"].forEach(p => { d[p] = (d[p] || []).map(x => x === id ? null : x); }); d[dkP][dkS] = id;
       const order = []; sides(d).forEach(p => { for (let k = 0; k < n; k++) order.push([p, k]); }); const at = order.findIndex(x => x[0] === dkP && x[1] === dkS), nx = order.slice(at + 1).concat(order.slice(0, at)).find(x => !d[x[0]][x[1]]);
       if (nx) { dkP = nx[0]; dkS = nx[1]; } save(); dkR();
-    });
+    };
+    fbind($("dkpf"), dkF, () => { $("dkpg").innerHTML = palHtml(); bindPal(); }); bindPal();
     const cl = $("dkClear"); if (cl) cl.onclick = () => { d[dkP][dkS] = null; save(); dkR(); };
     $("dkEq").onclick = () => { applyDeck(d); setTimeout(dkR, 60); }; $("dkCopy").onclick = () => { snap(d); save(); dkR(); toast("Équipement copié dans « " + d.name + " »"); };
     const del = $("dkDel"); del.onclick = () => {                                     // double appui (3 s)
@@ -270,6 +293,10 @@ const Spells = (() => {
   const chooseSchool = k => {                                   // choix DÉFINITIF (hors dernier recours) ; acquitte la proposition « spe » ; le facteur de chaque sort est recalculé
     if (!Prog.chooseSchool(sp(), k, Date.now())) return false;
     Prog.ack(S, "spe:" + (S.spV || 2)); dirty = 1; Stats.add("schoolPick", 1); Stats.ms("school"); Stats.snap("school"); bars(); save(); if (window.cloudSave) cloudSave(true); if (window.Academy) Academy.refresh(); return true;
+  };
+  const chooseSchool2 = k => {                                   // seconde spécialité (récompense de l'examen 4) : agit à 50 %
+    if (!Prog.chooseSchool2(sp(), k, Date.now())) return false;
+    Prog.ack(S, "spe2:" + (S.spV || 2)); dirty = 1; Stats.add("school2Pick", 1); Stats.ms("school2"); bars(); save(); if (window.cloudSave) cloudSave(true); if (window.Academy) Academy.refresh(); return true;
   };
   const resetLearning = () => {                                  // dernier recours : sorts/rang/examens/école à zéro, spV+1, rien n'est remboursé
     Prog.resetLearning(S); fxs = []; mirror = presc = clicks = 0; immune = 0; dirty = 1; Stats.add("reset", 1); Stats.ms("reset"); init(); save(); if (window.cloudSave) cloudSave(true); if (window.Academy) Academy.refresh();
@@ -308,5 +335,5 @@ const Spells = (() => {
     document.querySelectorAll(".gear[data-p]").forEach(g => g.onclick = () => pick(g.dataset.p));
     $("pclose").onclick = closePick; $("pick").onclick = e => { if (e.target.id === "pick") closePick(); };
   };
-  return { glyph: gl, hue, cast, SCH, mod, init, tick, onClick, force, forced, touch, effort, active, has, learn, SP, applyDeck, D, taxe, sp, byId, examInfo, startExam, COST, TIME, ft, quote, chooseSchool, resetLearning, sch, invalidate: () => { dirty = 1; }, immune: () => Date.now() < immune, augure: () => has("div1") ? Fx.augure(sch("div")) : 0 };
+  return { glyph: gl, hue, cast, SCH, mod, init, tick, onClick, force, forced, touch, effort, active, has, learn, SP, applyDeck, D, taxe, sp, byId, examInfo, startExam, COST, TIME, ft, quote, chooseSchool, chooseSchool2, resetLearning, OFFL, sch, invalidate: () => { dirty = 1; }, immune: () => Date.now() < immune, augure: () => has("div1") ? Fx.augure(sch("div")) : 0 };
 })();

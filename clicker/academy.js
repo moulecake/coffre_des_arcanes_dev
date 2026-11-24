@@ -4,7 +4,7 @@
 window.Academy = (() => {
   const $ = id => document.getElementById(id), sp = () => Spells.sp(), SCH = Spells.SCH, byId = Spells.byId, gl = Spells.glyph;
   const rk = () => sp().rank | 0 || 1, ROM = ["", "I", "II", "III", "IV", "V"];
-  const OFFL = new Set(["enc2", "enc4", "nec1", "nec2", "abj2", "div2", "tra4", "con2"]);        // passifs qui produisent aussi hors ligne (étiquette informative)
+  const OFFL = Spells.OFFL;                                                                  // passifs qui produisent aussi hors ligne (liste unique, dans spells.js)
   const PN = { V: "Voile", G: "Grimoire", X: "Voile & Grimoire" };
   const ic = {
     ok: "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 12l5 5L20 6'/></svg>",
@@ -23,7 +23,7 @@ window.Academy = (() => {
     tra1: "Alchimie Mineure : ne brûle que 10 % de la Sagesse", tra2: "Fonte des Runes : ×4 pendant 40 s", tra3: "Transmutation de Plomb en Or : 20 s, recharge 95 s", tra4: "Philosophie de la Matière : ×1,35, Bougie et Homoncule inclus",
     con1: "Portail Mineur : −8 % de coût", con2: "Invocation de Familier : 2 familiers", con3: "Cercle de Téléportation : remet 2 sorts à zéro, recharge 190 s", con4: "Invocation d'Avatar Arcanique : 14 s de pleine puissance"
   };
-  let miniDead = false, cg = { init: 0, vis: 0, hide: 0, next: 0 }, dipClose = null, navDone = 0, selK = null, snooze = new Set(), uid = 0, sel = null, exN = 0, last = {}, tEx = 0, celOpen = 0, onCele = null;
+  let speMode = 1, miniDead = false, cg = { init: 0, vis: 0, hide: 0, next: 0 }, dipClose = null, navDone = 0, selK = null, snooze = new Set(), uid = 0, sel = null, exN = 0, last = {}, tEx = 0, celOpen = 0, onCele = null;
   const EYE = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'><path d='M2 12c4-7 16-7 20 0-4 7-16 7-20 0z'/><circle cx='12' cy='12' r='3' fill='currentColor'/></svg>";
   const tfmt = s => s < 60 ? Math.round(s) + " s" : s < 3600 ? Math.round(s / 60) + " min" : (s / 3600) % 1 ? (s / 3600).toFixed(1).replace(".", ",") + " h" : s / 3600 + " h";
   const clock = s => { s = Math.max(0, Math.ceil(s)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), q = s % 60; return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(q).padStart(2, "0"); };
@@ -61,6 +61,8 @@ window.Academy = (() => {
     if (c.id === "fill") (n === 1 ? ["V0", "G0"] : ["V0", "V1", "G0", "G1"]).forEach(k => { t.fill[k] = 1; });
     else if (c.id === "cast") t.cast = 1; else if (c.id === "deck") t.deck = 1; else if (c.id === "equip") t.equip = 1;
     else if (c.id === "cast3") ["evo1", "evo2", "evo3"].forEach(i => { t.castIds[i] = 1; });
+    else if (c.id === "ov") S.st.ovV = Math.max(1, S.st.ovV || 0);
+    else if (c.id === "deck4") { const L = sp().learned, V = Spells.SP.filter(x => L[x.id] && (x.pn === "V" || x.pn === "X")).slice(0, 4).map(x => x.id), G = Spells.SP.filter(x => L[x.id] && (x.pn === "G" || x.pn === "X") && V.indexOf(x.id) < 0).slice(0, 4).map(x => x.id); if (V.length < 4 || G.length < 4) { toast("Apprends d'abord les sorts du rang"); return true; } sp().decks.push({ name: "Deck complet", t: "H", V, G }); }
     else if (c.id === "eth") S.st.eth = Math.max(S.st.eth || 0, c.need); else if (c.id === "sg") S.st.sg = Math.max(S.st.sg || 0, c.need);
     else return false; return true;
   };
@@ -105,18 +107,19 @@ window.Academy = (() => {
   // ---------- Barre du haut : rang, Sagesse, cours / examen en cours, pli de l'Académie, puces d'examens ----------
   const top = () => {
     const R = rk(), c = sp().course, ex = sp().exam, pend = Prog.pending(S).length;
-    const chips = [1, 2, 3, 4].map(n => {                                  // tuiles : médaille + état ; l'examen À PASSER est doré, avec sa progression, et pulse quand il est prêt
+    const chips = Array.from({ length: Math.max(4, R) }, (_, i) => i + 1).map(n => {                                  // tuiles : médaille + état ; l'examen À PASSER est doré, avec sa progression, et pulse quand il est prêt
       const done = n < R, cur = n === R, k8 = Prog.doneAt(sp(), n), ready = cur && k8 === 8 && !ex, sealed = n > Prog.EX.open, run = !!ex && ex.n === n, st = done ? "done" : sealed ? "seal" : cur ? "cur" : "fut";
       const sub = done ? "Validé" : sealed ? "Bientôt" : run ? "Épreuve en cours" : cur ? (ready ? "Prêt à passer" : k8 + " / 8 sorts appris") : "Rang " + n + " à ouvrir";
       return "<button class='ac-ch " + st + (ready ? " ready" : "") + "' data-n='" + n + "'>" + chipMedal(n, st) + "<span class='ac-cht'><b>EXAMEN " + ROM[n] + "</b><small>" + sub + "</small>" + (cur && !run ? "<i class='ac-chb'><u style='width:" + Math.round(k8 / 8 * 100) + "%'></u></i>" : "") + "</span></button>";
     }).join("");
     const sc = sp().school, scd = sc && SCH.find(x => x[0] === sc);
+    const sc2 = sp().school2, sd2 = sc2 && SCH.find(x => x[0] === sc2), can2 = sc && !sc2 && sp().exDone[4];
     $("acTop").innerHTML = "<div class='ac-bar'><div class='ac-rank'><span>RANG</span><b>" + ROM[R] + "</b></div><div class='ac-wal'><span>Sagesse disponible</span><b id='acW'>" + fN(S.sg) + "</b></div></div>" +
-      "<button class='ac-spe" + (sc ? " set" : "") + "' id='acSpeB' " + (sc ? "style='--h:" + scd[2] + "'" : "") + ">" + (sc ? med(sc) + "<span><small>SPÉCIALITÉ</small><b>" + scd[1].toUpperCase() + "</b></span>" : "<span><small>Aucune école choisie</small><b>CHOISIR MA SPÉCIALITÉ</b></span>") + "</button>" +
+      "<button class='ac-spe" + (sc ? " set" : "") + "' id='acSpeB' " + (sc ? "style='--h:" + scd[2] + "'" : "") + ">" + (sc ? med(sc) + "<span><small>SPÉCIALITÉ" + (sd2 ? " · + " + sd2[1].toUpperCase() + " (50 %)" : "") + "</small><b>" + scd[1].toUpperCase() + "</b></span>" : "<span><small>Aucune école choisie</small><b>CHOISIR MA SPÉCIALITÉ</b></span>") + "</button>" + (can2 ? "<button class='ac-spe' id='acSpe2B'><span><small>Récompense de l'examen IV</small><b>CHOISIR MA SECONDE ÉCOLE</b></span></button>" : "") +
       (pend ? "<button class='ac-pli' id='acPli'>" + ic.ok.replace("<svg", "<svg width='16' height='16'") + "<span>Un pli de l'Académie t'attend</span></button>" : "") +
       "<div class='ac-run' id='acRun' " + (c || ex ? "" : "hidden") + "></div><div class='ac-chips'>" + chips + "</div>";
     last = {}; $("acTop").querySelectorAll(".ac-chips button").forEach(b => b.onclick = () => openExam(+b.dataset.n)); const rn = $("acRun"); if (rn) rn.onclick = () => { if (ex) openExam(ex.n); else if (c) { sel = c.id; grid(); detail(); } };
-    const pl = $("acPli"); if (pl) pl.onclick = () => { snooze.clear(); celebrate(true); }; $("acSpeB").onclick = openSpe;
+    const pl = $("acPli"); if (pl) pl.onclick = () => { snooze.clear(); celebrate(true); }; $("acSpeB").onclick = () => openSpe(); const s2 = $("acSpe2B"); if (s2) s2.onclick = () => openSpe(2);
   };
 
   // ---------- Grille : 8 écoles × rangs (rang suivant grisé, au-delà masqué, rang 5 = « ??? ») ----------
@@ -141,11 +144,11 @@ window.Academy = (() => {
     const lock = s.r > R, done = !!L[s.id], lng = !!c && c.id === s.id, q = Spells.quote(s), price = q.price, time = q.time, busy = (!!c && !lng) || !!ex, poor = S.sg < price;
     const tags = "<span class='ac-tg " + (s.t === "A" ? "act" : OFFL.has(s.id) ? "off" : "on") + "'>" + (s.t === "A" ? "Actif" : OFFL.has(s.id) ? "Passif · hors ligne" : "Passif · en ligne") + "</span><span class='ac-tg'>" + PN[s.pn] + "</span><span class='ac-tg'>Rang " + s.r + "</span>";
     const btn = done ? "<button class='ac-learn' disabled>APPRIS ✓</button>" : lock ? "<button class='ac-learn' disabled>VERROUILLÉ</button>" : lng ? "<button class='ac-learn' disabled>COURS EN COURS</button>" :
-      "<button class='ac-learn' id='acL' " + (busy || poor ? "disabled" : "") + ">" + (ex ? "EXAMEN EN COURS" : busy ? "UN COURS EST DÉJÀ EN COURS" : poor ? "SAGESSE INSUFFISANTE" : "APPRENDRE") + "<small>" + (q.mul < 1 ? "<s>" + fN(q.basePrice) + " Sg · " + tfmt(q.baseTime) + "</s><br>" + fN(price) + " Sg · " + tfmt(time) + " (−" + Math.round((1 - q.mul) * 100) + " %)" : fN(price) + " Sg · " + tfmt(time)) + "</small></button>";
+      "<button class='ac-learn' id='acL' " + (busy || poor ? "disabled" : "") + ">" + (ex ? "EXAMEN EN COURS" : busy ? "UN COURS EST DÉJÀ EN COURS" : poor ? "SAGESSE INSUFFISANTE" : "APPRENDRE") + "<small>" + (q.mul < 1 ? "<s>" + fN(q.basePrice) + " Sg · " + tfmt(q.baseTime) + "</s><br>" + fN(price) + " Sg · " + tfmt(time) + " (−" + String(+((1 - q.mul) * 100).toFixed(1)).replace(".", ",") + " %)" : fN(price) + " Sg · " + tfmt(time)) + "</small></button>";
     const name = lock ? s.n.replace(/./g, (ch, i) => i < 2 ? ch : "·") : s.n;
     el.style.setProperty("--h", sc[2]);
     el.innerHTML = "<div class='ac-ico' style='color:hsl(" + sc[2] + " 80% 68%)'><span class='d'>" + gl(k, 62) + "</span><span class='l' id='acIcl' style='clip-path:inset(0 " + (done ? 0 : 100) + "% 0 0)'>" + gl(k, 62) + "</span></div>" +
-      "<div><h4 style='color:hsl(" + sc[2] + " 80% 72%)'>" + name + "</h4><div class='ac-tags'>" + tags + "</div><p>" + (lock ? "Réussis l'examen du rang " + R + " pour accéder à ce rang." : s.d) + "</p>" + (lock ? "" : "<div class='ac-spl" + (sp().school === k ? " on" : "") + "'>" + (sp().school === k ? "★ Spécialité : " : "Bonus de spécialité (si " + sc[1] + " est ton école) : ") + (SPE[s.id].indexOf(s.n + " : ") === 0 ? SPE[s.id].slice(s.n.length + 3) : SPE[s.id]) + "</div>") +
+      "<div><h4 style='color:hsl(" + sc[2] + " 80% 72%)'>" + name + "</h4><div class='ac-tags'>" + tags + "</div><p>" + (lock ? "Réussis l'examen du rang " + R + " pour accéder à ce rang." : s.d) + "</p>" + (lock ? "" : "<div class='ac-spl" + (sp().school === k || sp().school2 === k ? " on" : "") + "'>" + (sp().school === k ? "★ Spécialité : " : sp().school2 === k ? "½ Seconde spécialité (50 %) : " : "Bonus de spécialité (si " + sc[1] + " est ton école) : ") + (SPE[s.id].indexOf(s.n + " : ") === 0 ? SPE[s.id].slice(s.n.length + 3) : SPE[s.id]) + "</div>") +
       (lng ? "<div class='ac-clock' id='acClk'></div>" : lock || done ? "" : "<div class='ac-clock off'>Durée du cours : " + tfmt(time) + "</div>") + "</div>" + btn;
     const b = $("acL"); if (b) b.onclick = () => Spells.learn(s); last = {}; paint(Date.now());
   };
@@ -158,7 +161,9 @@ window.Academy = (() => {
     cast: ["Avoir lancé un sort actif", "Lance au moins une fois un sort actif depuis un emplacement, au Voile ou au Grimoire."],
     deck: ["Avoir créé un deck", "Dans l'Amphithéâtre, enregistre ton équipement dans un deck nommé (bouton « Mes Decks »)."],
     equip: ["Avoir équipé un deck", "Équipe un de tes decks depuis le menu Decks."],
-    cast3: ["3 sorts actifs différents lancés", "Lance au moins 3 sorts actifs différents."]
+    cast3: ["3 sorts actifs différents lancés", "Lance au moins 3 sorts actifs différents."],
+    deck4: ["Un deck complet", "Enregistre un deck dont TOUS les emplacements sont remplis : 4 au Voile et 4 au Grimoire (bouton « Mes Decks »)."],
+    ov: ["Avoir déclenché une surchauffe", "Frappe le Voile trop vite, au-delà de sa limite de clics par seconde, jusqu'à la surchauffe. C'est le meilleur moyen d'apprendre à la maîtriser."]
   };
   const ctext = (c, n) => c.id === "eth" ? [fE(c.need) + " d'Éther cumulé", "Total d'Éther gagné depuis le début : " + fE(c.need) + ". Touche le compteur d'Éther pour voir la valeur exacte."] :
     c.id === "sg" ? [fN(c.need) + " Sagesse cumulées", "Total de Sagesse gagnée depuis le début : " + fN(c.need) + ". Les pages lues et tes bâtiments la produisent."] : CT[c.id === "fill" ? "fill" + n : c.id];
@@ -166,7 +171,7 @@ window.Academy = (() => {
     const n = exN, R = rk(), body = $("acExB"), ex = sp().exam, info = Spells.examInfo(n), future = n > R, done = n < R, sealed = n > Prog.EX.open && !future, running = !!ex && ex.n === n;
     const pips = SCH.map(s => { const o = !!sp().learned[s[0] + n]; return "<span class='ac-pip" + (o ? "" : " off") + "' title='" + s[1] + "' style='color:hsl(" + s[2] + " 80% 65%);border-color:hsl(" + s[2] + " 70% 55%/.6)'>" + gl(s[0], 13) + "</span>"; }).join("");
     let h = "<div class='ac-exh'>" + seal(n) + "<div><div class='ac-acad'>ACADÉMIE DES ARCANES · SESSION D'EXAMENS</div><h3>EXAMEN DU RANG " + n + "</h3>" + (future ? "<div class='ac-sub'>Les sorts du rang " + n + " ne sont pas encore tous accessibles.</div>" : "<div class='ac-pips'>" + pips + "</div><div class='ac-sub'>" + info.learned + " / 8 sorts du rang " + n + " appris</div>") + "</div></div>";
-    if (future || sealed) h += "<div class='ac-blurc'><div class='ac-fake'>" + [1, 2, 3, 4].map(() => "<div class='ac-cd'><span class='st'>" + ic.ok + "</span><div><b>Objectif secret de l'examen</b><small>Description de l'objectif</small></div><span class='ac-info'>i</span></div>").join("") + "</div><div class='ac-veil'>" + ic.lock + "<b>" + (sealed ? "Bientôt" : "Des objectifs t'attendent") + "</b><span>" + (sealed ? "Cet examen s'ouvrira avec les sorts du rang " + (n + 1) + "." : "Ils se dévoileront à l'ouverture de ce rang.") + "</span></div></div>";
+    if (future || sealed) h += "<div class='ac-blurc'><div class='ac-fake'>" + [1, 2, 3, 4].map(() => "<div class='ac-cd'><span class='st'>" + ic.ok + "</span><div><b>Objectif secret de l'examen</b><small>Description de l'objectif</small></div><span class='ac-info'>i</span></div>").join("") + "</div><div class='ac-veil'>" + ic.lock + "<b>" + (sealed ? "Bientôt" : "Des objectifs t'attendent") + "</b><span>" + (sealed ? "Cet examen s'ouvrira avec les sorts du rang " + n + "." : "Ils se dévoileront à l'ouverture de ce rang.") + "</span></div></div>";
     else if (!done) {
       const firstNo = info.conds.findIndex(c => !c.ok);
       h += "<div class='ac-conds'>" + info.conds.map((c, i) => { const t = ctext(c, n), pct = c.ok ? 100 : c.need ? Math.round(Math.min(1, c.have / c.need) * 100) : 0;
@@ -179,7 +184,7 @@ window.Academy = (() => {
     else h += "<button class='ac-go" + (unread ? " ac-pulse" : "") + "' id='acGo' " + (info.can.ok || unread ? "" : "disabled") + ">" + (unread ? "LIRE LE RÉSULTAT" : done ? "EXAMEN VALIDÉ ✓" : sealed ? "BIENTÔT" : future ? "RANG VERROUILLÉ" : why === "locked" ? "INSCRIPTIONS CLOSES" : "PAYER ET M'INSCRIRE") + "</button>" +
       (done || future || sealed ? "" : "<div class='ac-note'>" + ({ locked: "Tu as été surpris en train de tricher. Tu pourras te réinscrire dans " + tfmt(Math.max(1, Math.ceil(((S.lock || 0) - Date.now()) / 1e3))) + ".", spells: "Apprends d'abord les 8 sorts du rang " + n + ".", conds: "Remplis toutes les conditions pour t'inscrire.", poor: "Sagesse insuffisante pour les frais d'inscription.", busy: "Un examen est déjà en cours.", course: "Termine d'abord ton cours en cours." }[why] || "") + "</div>");
     h += "</div>";
-    const row = (c, l, p) => "<div class='ac-row " + c + "'><span>" + l + "</span>" + Array.from({ length: 4 }, (_, i) => "<span class='ac-sl " + (i < R ? "f" : "lock") + (done && i === n ? " new" : "") + "'>" + (i < R ? "✦" : ic.lock) + "</span>").join("") + "</div>";
+    const row = (c, l, p) => "<div class='ac-row " + c + "'><span>" + l + "</span>" + Array.from({ length: Math.max(4, R) }, (_, i) => "<span class='ac-sl " + (i < R ? "f" : "lock") + (done && i === n ? " new" : "") + "'>" + (i < R ? "✦" : ic.lock) + "</span>").join("") + "</div>";
     if (done) h += "<button class='ac-go sec' id='acRev2'>REVOIR MON DIPLÔME</button>";
     h += "<div class='ac-slots'>" + row("v", "VOILE") + row("g", "GRIMOIRE") + "</div>";
     if (AC_DEMO) h += demoHtml();                                                  // DEMO (temporaire)
@@ -194,20 +199,21 @@ window.Academy = (() => {
 
   // ---------- Choix de la spécialité (définitif) ----------
   const speR = () => {
-    const done = sp().school, box = $("acSpeB2");
-    const cards = SCH.map(x => "<button class='ac-sc" + (selK === x[0] ? " on" : "") + (done && done !== x[0] ? " dim" : "") + "' data-k='" + x[0] + "' style='--h:" + x[2] + "' " + (done ? "disabled" : "") + "><div class='ac-motif ac-mo-" + x[0] + "'></div>" + med(x[0]) + "<b>" + x[1].toUpperCase() + "</b><small>" + MOT[x[0]] + "</small></button>").join("");
+    const m2 = speMode === 2, first = sp().school, done = m2 ? sp().school2 : first, box = $("acSpeB2");
+    $("acSpe").querySelector(".phead b").textContent = m2 ? "Choisis ta seconde école" : "Choisis ta spécialité"; $("acSpe").querySelector(".ac-lead").innerHTML = m2 ? "Récompense de l'examen IV : une <b>seconde école</b>. Ses bonus agissent à <b>50 %</b> et ses cours coûtent 12,5 % de moins. Choix définitif." : "À ton premier examen, tu t'engages auprès d'une école. Ce choix est <b>définitif</b> : elle réduit le prix et le temps de ses cours et renforce chacun de ses sorts.";
+    const cards = SCH.map(x => "<button class='ac-sc" + (selK === x[0] ? " on" : "") + ((done && done !== x[0]) || (m2 && x[0] === first) ? " dim" : "") + "' data-k='" + x[0] + "' style='--h:" + x[2] + "' " + (done || (m2 && x[0] === first) ? "disabled" : "") + "><div class='ac-motif ac-mo-" + x[0] + "'></div>" + med(x[0]) + "<b>" + x[1].toUpperCase() + "</b><small>" + MOT[x[0]] + "</small></button>").join("");
     const k = done || selK, sc = k && SCH.find(x => x[0] === k); let det;
     if (!k) det = "<div class='ac-sphint'>Touche une école pour voir ce qu'elle t'apporte.<br><small>Rien n'est définitif avant la confirmation maintenue.</small></div>";
     else det = "<div class='ac-sdh'>" + med(k) + "<div><h3>" + sc[1].toUpperCase() + "</h3><div class='ac-ssub'>" + MOT[k] + "</div></div></div><ul>" + [1, 2, 3, 4].map(i => "<li><i>✦</i><span>" + SPE[k + i] + "</span></li>").join("") + "</ul>" +
-      "<div class='ac-scom'><b>Pour toute école :</b> −25 % de prix et de temps sur ses cours.</div>" +
+      "<div class='ac-scom'>" + (m2 ? "<b>Seconde école :</b> bonus à 50 % (moitié des valeurs ci-dessus), −12,5 % de prix et de temps sur ses cours." : "<b>Pour toute école :</b> −25 % de prix et de temps sur ses cours.") + "</div>" +
       (done ? "<div class='ac-sealedtxt'>Spécialisation scellée. Tes cours de " + sc[1] + " coûtent 25 % de moins et durent 25 % de moins, et ses sorts sont renforcés.</div>" :
         "<div class='ac-warn'>" + ic.lock + "<span><b>Choix définitif.</b> Changer d'école = réinitialiser tout l'apprentissage des sorts, sans remboursement (bâtiments conservés).</span></div><button class='ac-hold' id='acSeal' style='--h:" + sc[2] + "'><span>MAINTENIR POUR SCELLER</span></button>");
     box.style.setProperty("--h", sc ? sc[2] : 260);
     box.innerHTML = "<div class='ac-cards'>" + cards + "</div><div class='ac-sdet'>" + det + "</div>";
     box.querySelectorAll(".ac-sc").forEach(b => b.onclick = () => { selK = b.dataset.k; speR(); });
-    const sl = $("acSeal"); if (sl) hold(sl, 1200, () => { if (Spells.chooseSchool(selK)) { const kk = selK; selK = null; $("acSpe").hidden = true; reveal(kk); } }, true);
+    const sl = $("acSeal"); if (sl) hold(sl, 1200, () => { if (m2) { if (Spells.chooseSchool2(selK)) { const kk = selK; selK = null; $("acSpe").hidden = true; toast("Seconde école scellée : " + SCH.find(x => x[0] === kk)[1] + " (50 %)"); buzz2([60, 40, 90]); tone(523, 1046, .8, .07, "sine"); refresh(); celebrate(); } } else if (Spells.chooseSchool(selK)) { const kk = selK; selK = null; $("acSpe").hidden = true; reveal(kk); } }, true);
   };
-  const openSpe = () => { snooze.clear(); selK = null; $("acSpe").hidden = false; speR(); };
+  const openSpe = mode => { speMode = mode === 2 ? 2 : 1; snooze.clear(); selK = null; $("acSpe").hidden = false; speR(); };
   const closeSpe = () => { $("acSpe").hidden = true; };
   // Révélation épique (§23.1) : assombrissement, tremblements + vibration, éclair, médaillon, rayons, ondes, titre, phrase d'école. Mouvement réduit = état final direct.
   function reveal(k) {
@@ -277,12 +283,18 @@ window.Academy = (() => {
     "<rect x='8' y='14' width='104' height='68' rx='5' fill='url(#acl1)' stroke='#8a6a22' stroke-width='1.2'/><path d='M8 18l52 34 52-34' fill='none' stroke='#8a6a22' stroke-width='1.2'/><path d='M8 80l38-30M112 80L74 50' fill='none' stroke='#8a6a22' stroke-opacity='.5'/><circle cx='60' cy='52' r='11' fill='url(#acl2)' stroke='#450a0a' stroke-width='1'/><path d='M60 46l1.8 4 4.2.5-3.1 2.9.8 4.2-3.7-2.1-3.7 2.1.8-4.2-3.1-2.9 4.2-.5z' fill='#fecaca' fill-opacity='.85'/></svg>";
   const buzz = () => { try { if (readPrefs().vibe !== false && navigator.vibrate) navigator.vibrate([40, 50, 90]); } catch (e) {} };
   const celebrate = manual => {
+    Prog.proposeSpe2(S, Date.now());                                      // récompense de l'examen IV : seconde école
     const list = Prog.pending(S).filter(e => !snooze.has(e.k)); if (celOpen) return;
     if (!list.length) { const f = onCele; onCele = null; if (f) f(); return; }
     const e = list[0], el = $("acCele"), box = $("acCeleB"); celOpen = 1; el.hidden = false;
     box.innerHTML = "<div class='ac-lt'>" + letter + "<h3>Un pli de l'Académie t'attend</h3><p>Il porte le sceau du Conseil des Examens.</p><button class='ac-go' id='acOpen'>OUVRIR LE PLI</button></div>";
     $("acOpen").focus(); $("acOpen").onclick = () => {
       if (window.sfx && SOUND) sfx("gold"); buzz();
+      if (e.t === "spe2") {
+        box.innerHTML = "<div class='ac-dip'>" + seal(4) + "<h3>UNE SECONDE VOIE S'OUVRE</h3><p>En réussissant l'examen du rang IV, tu gagnes le droit de t'initier à une <b>seconde école</b> : ses bonus agiront à moitié de leur puissance.</p><button class='ac-go' id='acSpeYes'>CHOISIR MA SECONDE ÉCOLE</button><button class='ac-lite' id='acSpeLater'>Plus tard</button></div>";
+        $("acSpeYes").focus(); $("acSpeYes").onclick = () => { celOpen = 0; el.hidden = true; openSpe(2); }; $("acSpeLater").onclick = () => { snooze.add(e.k); celOpen = 0; el.hidden = true; top(); celebrate(); };
+        return;
+      }
       if (e.t === "spe") {
         box.innerHTML = "<div class='ac-dip'>" + seal(1) + "<h3>L'ACADÉMIE T'INVITE À T'ENGAGER</h3><p>Tu as déjà passé ton premier examen : il est temps de choisir ta <b>spécialité</b>. Une école de magie réduira de 25 % le prix et le temps de ses cours, et renforcera chacun de ses sorts.</p><button class='ac-go' id='acSpeYes'>CHOISIR MON ÉCOLE</button><button class='ac-lite' id='acSpeLater'>Plus tard</button></div>";
         $("acSpeYes").focus(); $("acSpeYes").onclick = () => { celOpen = 0; el.hidden = true; openSpe(); }; $("acSpeLater").onclick = () => { snooze.add(e.k); celOpen = 0; el.hidden = true; top(); celebrate(); };
@@ -300,7 +312,7 @@ window.Academy = (() => {
     el.innerHTML = "<div class='ac-rays ac-gold'></div><div class='ac-confetti'>" + cf + "</div><div class='ac-dwrap'><div class='ac-dpl" + (rm ? " rm" : "") + "'><div class='ac-dcorner tl'></div><div class='ac-dcorner tr'></div><div class='ac-dcorner bl'></div><div class='ac-dcorner br'></div>" +
       "<div class='ac-dh'>ACADÉMIE DES ARCANES</div><div class='ac-dsub'>Collège des Hautes Études Magiques</div><div class='ac-dt1'>DIPLÔME DE RANG " + ROM[n] + "</div><div class='ac-dline'></div>" +
       "<p class='ac-dtx'>Il est certifié que <b class='ac-nm'>" + nm.replace(/</g, "&lt;") + "</b>" + (sc ? ", disciple de l'école de <b style='color:hsl(" + h + " 80% 38%)'>" + sc[1] + "</b>," : "") + " a satisfait avec honneur à l'examen du rang " + n + " et se voit conférer le droit d'accéder aux enseignements supérieurs.</p>" +
-      "<div class='ac-dseal'>" + seal(n) + "</div><ul class='ac-unl'><li>✦ Emplacement " + (n + 1) + " au Voile et au Grimoire</li><li>✦ Sorts du rang " + (n + 1) + " désormais étudiables</li></ul>" +
+      "<div class='ac-dseal'>" + seal(n) + "</div><ul class='ac-unl'><li>✦ Emplacement " + (n + 1) + " au Voile et au Grimoire</li><li>✦ Sorts du rang " + (n + 1) + " désormais étudiables</li>" + (n === 4 ? "<li>✦ Seconde spécialité à choisir (moitié d'efficacité)</li>" : "") + "</ul>" +
       "<div class='ac-sigl'><svg class='ac-sig' viewBox='0 0 240 64' aria-hidden='true'><path d='M8 46c8-32 18-36 22-14 3 15-7 25-11 13 15 7 23-27 35-19 8 6-6 23 4 21 12-2 14-25 26-17 8 6-4 21 6 19 14-2 22-15 34-10 10 4 18 6 32-6M10 56c40-7 120-9 214-2'/></svg><span>Signature du candidat</span></div>" +
       "<button class='ac-dbtn' id='acDbtn'>PARAPHER ET POURSUIVRE</button></div></div>";
     el.scrollTop = 0; buzz2([30, 30, 30]); tone(180, 90, .6, .1);
@@ -359,7 +371,7 @@ window.Academy = (() => {
       Nav.add("acCht", { open: () => !$("acCht").hidden, close: closeCht });
       Nav.add("acDip", { open: () => !$("acDip").hidden, close: () => { if (dipClose) dipClose(); } });
     }
-    if (Prog.proposeSpe(S, Date.now())) { save(); if (window.cloudSave) cloudSave(); }
+    { const a = Prog.proposeSpe(S, Date.now()), b = Prog.proposeSpe2(S, Date.now()); if (a || b) { save(); if (window.cloudSave) cloudSave(); } }
     refresh();
   };
   const examDone = () => { refresh(); if ($("acEx").hidden) { snooze.clear(); celebrate(); } else toast("Examen terminé — lis le résultat"); };

@@ -7,6 +7,16 @@
 // ============================================================
 const PATCHNOTES = [
   {
+    v: '2.a3.16', name: 'Le Rang IV', date: '2026-11-26',
+    gift: 'Cadeau de mise à jour : 3 clés offertes !',
+    sections: [
+      { t: '🎁 Nouveautés', items: [
+        '**Examen du rang IV** : il est ouvert ! Il demande un deck complet (4 sorts au Voile, 4 au Grimoire), d’avoir déclenché une surchauffe, 1 L d’Éther et 10 milliards de Sagesse cumulés. Le réussir ouvre le **rang V** (5 emplacements par panneau) et te permet de choisir une **seconde école**, à moitié de puissance.',
+        '**Recherche de sorts** : dans le choix des sorts et dans l’éditeur de decks, cherche par mot-clé (nom, effet, école…) et filtre par type (actif, passif, hors ligne) ou par école.'
+      ] }
+    ]
+  },
+  {
     v: '2.a3.15', name: 'Les Decks, simplement', date: '2026-11-26',
     gift: 'Cadeau de mise à jour : 3 clés offertes !',
     sections: [

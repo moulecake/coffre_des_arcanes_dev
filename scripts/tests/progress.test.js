@@ -52,7 +52,7 @@ P.ack(SS, "exam:2"); ok(P.pending(SS).length === 0, "ack");
 // 5. Rangs, emplacements, apprentissage
 let sp = P.emptySp(); ok(P.slots(sp) === 1 && P.canLearn(sp, 1) && !P.canLearn(sp, 2), "rang 1 : 1 emplacement, rang 2 grisé");
 sp.rank = 3; ok(P.slots(sp) === 3 && P.canLearn(sp, 3) && !P.canLearn(sp, 4), "rang 3");
-sp.rank = 5; ok(P.slots(sp) === 4, "plafond 4 emplacements en 2.a3.6");
+sp.rank = 5; ok(P.slots(sp) === 5, "rang 5 : 5 emplacements"); sp.rank = 6; ok(P.slots(sp) === 5, "plafond 5 emplacements");
 sp = P.emptySp(); sp.course = { id: "evo1", end: 1 }; ok(!P.canLearn(sp, 1), "un seul cours à la fois");
 sp = P.emptySp(); sp.exam = { n: 1, end: 1 }; ok(!P.canLearn(sp, 1), "pas de cours pendant un examen");
 
@@ -63,9 +63,9 @@ sp.tut.fill = { V0: 1, G0: 1 }; sp.tut.cast = 1; ok(P.canExam(sp, { eth: 999999,
 ok(P.canExam(sp, stOk, 1.9e6, 1).why === "poor", "Sagesse insuffisante pour les frais (2 M)");
 ok(P.canExam(sp, stOk, 2e6, 1).ok === true, "examen 1 possible");
 let sp2 = P.emptySp(); learnAll(sp2, 1); sp2.school = "evo"; delete sp2.learned.con1; sp2.tut.fill = { V0: 1, G0: 1 }; sp2.tut.cast = 1; ok(P.canExam(sp2, stOk, 1e9, 1).why === "spells", "7 sorts sur 8 : refusé");
-ok(P.canExam(sp, stOk, 1e9, 2).why === "future" && P.canExam(sp, stOk, 1e9, 4).why === "sealed", "futur / scellé");
+ok(P.canExam(sp, stOk, 1e9, 2).why === "future" && P.canExam(sp, stOk, 1e9, 5).why === "sealed", "futur / scellé (examen 5)");
 sp.exam = { n: 1, end: 9 }; ok(P.canExam(sp, stOk, 1e9, 1).why === "busy", "examen en cours");
-eq(P.conds(P.emptySp(), st0, 4), [], "examen 4 sans conditions (scellé)");
+eq(P.conds(P.emptySp(), st0, 5), [], "examen 5 sans conditions (scellé)");
 sp = P.emptySp(); sp.rank = 2; learnAll(sp, 2); sp.tut.fill = { V0: 1, G0: 1, V1: 1, G1: 1 }; sp.tut.deck = 1;
 ok(P.canExam(sp, { eth: 5e7, sg: 2e8 }, 8e7, 2).ok === true && P.canExam(sp, { eth: 5e7, sg: 2e8 - 1 }, 8e7, 2).why === "conds", "examen 2 : seuils 50 mL / 2·10⁸");
 sp.tut.fill.G1 = 0; ok(P.canExam(sp, { eth: 5e7, sg: 2e8 }, 8e7, 2).why === "conds", "examen 2 : 4 emplacements requis");
@@ -82,7 +82,7 @@ ok(P.finishExam(S, 9e9) === 0 && S.pend.length === 1, "idempotent");
 
 // 8. Prix et temps
 ok(P.COST.join() === "200000,8000000,80000000,300000000" && P.TIME.join() === "30,300,1800,10800", "table de prix §3.4");
-ok(P.EX.price.join() === "2000000,80000000,800000000,3000000000" && P.EX.durOrig.join() === "120,1200,7200,28800" && P.EX.dur.length === 4, "examens §3.4 (durées d'origine ; EX.dur = 1 min en test)");
+ok(P.EX.price.slice(0, 4).join() === "2000000,80000000,800000000,3000000000" && P.EX.durOrig.slice(0, 4).join() === "120,1200,7200,28800" && P.EX.dur.length === 5, "examens §3.4 (durées d'origine ; EX.dur = 1 min en test ; le 5 = valeurs provisoires)");
 console.log("progress.test.js : " + n + " vérifications OK");
 
 // ===== v2.a3.7 : spécialité, réinitialisation (spV incrémenté), proposition aux joueurs rang ≥ 2 =====
@@ -186,4 +186,27 @@ console.log("progress.test.js : " + n + " vérifications OK");
   const base = P.decide(local, cloud, false), X = JSON.parse(JSON.stringify(base === "cloud" ? cloud : local)); P.fixSp(X, JSON.parse(JSON.stringify(local)), cloud);
   assert(!X.sp.learned[lost] && Object.keys(X.sp.learned).length === 15 && X.sp.exam === null && X.lock === 5e3 + 864e5, "après synchro : le sort perdu reste perdu, l'examen reste annulé, le verrou reste posé"); n++;
   console.log("  (+2 vérifications sanction de triche / synchro) — total " + n);
+}
+
+
+// ===== v2.a3.16 : examen 4 jouable, rang 5, seconde spécialité =====
+{
+  let m = 0; const ok5 = (c, msg) => { assert(c, msg); n++; m++; };
+  let sp = P.emptySp(); sp.rank = 4; learnAll(sp, 4); sp.school = "evo";
+  const big = { eth: 1e9, sg: 1e10, ovV: 1 }; const full = () => ({ name: "d", t: "H", V: ["evo1", "evo2", "evo3", "evo4"], G: ["enc1", "enc2", "enc3", "enc4"] });
+  ok5(P.conds(sp, big, 4).map(c => c.id).join() === "deck4,ov,eth,sg", "examen 4 : deck complet, surchauffe, 1 L d'Éther, 10¹⁰ Sagesse");
+  ok5(P.canExam(sp, big, 1e12, 4).why === "conds", "examen 4 : sans deck complet");
+  sp.decks = [{ name: "x", t: "H", V: ["evo1", "evo2", "evo3", null], G: ["enc1", "enc2", "enc3", "enc4"] }]; ok5(P.canExam(sp, big, 1e12, 4).why === "conds", "deck incomplet (3 + 4) refusé");
+  sp.decks = [full()]; ok5(P.canExam(sp, { ...big, ovV: 0 }, 1e12, 4).why === "conds", "sans surchauffe déclenchée : refusé");
+  ok5(P.canExam(sp, big, 1e12, 4).ok === true, "examen 4 possible"); ok5(P.canExam(sp, big, 2.9e9, 4).why === "poor", "frais 3 Md de Sagesse");
+  ok5(P.canExam(sp, big, 1e12, 5).why === "sealed", "examen 5 scellé");
+  // validation de l'examen 4 : rang 5, célébration, seconde spécialité proposée
+  const S = { spV: 2, sp, pend: [], pdone: [] }; P.startExam(sp, 0, 4); ok5(P.finishExam(S, 1e9) === 4 && sp.rank === 5 && P.slots(sp) === 5 && sp.exDone[4], "examen 4 validé : rang 5, 5 emplacements");
+  ok5(P.proposeSpe2(S, 1) === true && P.pending(S).some(e => e.t === "spe2") && P.proposeSpe2(S, 1) === false, "seconde école proposée une seule fois");
+  ok5(P.chooseSchool2(sp, "evo", 5) === false && P.chooseSchool2(sp, "xxx", 5) === false, "ni la même école, ni une inconnue");
+  ok5(P.chooseSchool2(sp, "abj", 5) === true && sp.school2 === "abj" && P.chooseSchool2(sp, "div", 6) === false, "seconde école choisie, définitivement");
+  ok5(P.schoolMul(sp, "evo") === .75 && P.schoolMul(sp, "abj") === .875 && P.schoolMul(sp, "div") === 1, "−25 % (principale) / −12,5 % (seconde) / 0");
+  P.ack(S, S.pend.find(e => e.t === "spe2").k); ok5(P.proposeSpe2(S, 9) === false, "acquittée : ne revient pas");
+  const sp0 = P.emptySp(); sp0.school = "evo"; ok5(P.chooseSchool2(sp0, "abj", 1) === false, "interdit avant l'examen 4");
+  console.log("  (+" + m + " vérifications examen 4 / seconde spécialité)");
 }
