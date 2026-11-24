@@ -58,6 +58,13 @@ const Spells = (() => {
   const byId = Object.fromEntries(SP.map(s => [s.id, s])), COST = Prog.COST, TIME = Prog.TIME;     // v2.a3.6 : prix et durées dans clicker/progress.js (★ réglages)
   const hue = k => "hsl(" + SCH.find(s => s[0] === k)[2] + " 75% 68%)";
   const gl = (k, z = 20) => "<svg viewBox='0 0 24 24' width='" + z + "' height='" + z + "' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linejoin='round'>" + SCH.find(s => s[0] === k)[3] + "</svg>";
+  const IC = (d, z = 16, sw = 2) => "<svg class='ic' viewBox='0 0 24 24' width='" + z + "' height='" + z + "' fill='none' stroke='currentColor' stroke-width='" + sw + "' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'>" + d + "</svg>";
+  const ICON = {
+    minus: IC("<circle cx='12' cy='12' r='9'/><path d='M8 12h8'/>", 18), play: IC("<path d='M7 5l12 7-12 7z' fill='currentColor' stroke-width='1.2'/>", 14), save: IC("<path d='M5 4h11l3 3v13H5z'/><path d='M8 4v5h7V4M8 20v-6h8v6'/>", 14),
+    edit: IC("<path d='M4 20l4-1 11-11-3-3L5 16z'/><path d='M14 6l3 3'/>", 14), name: IC("<path d='M4 7h16M4 12h10M4 17h6'/>", 14), trash: IC("<path d='M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13M10 11v6M14 11v6'/>", 14),
+    hourglass: IC("<path d='M7 3h10M7 21h10M8 3c0 5 8 5 8 9s-8 4-8 9M16 3c0 5-8 5-8 9s8 4 8 9'/>", 20, 1.8), cross: IC("<path d='M6 6l12 12M18 6L6 18'/>", 18),
+    coin: IC("<circle cx='12' cy='12' r='8.5'/><path d='M12 7.5v9M14.6 9.6c-.4-.9-1.4-1.4-2.6-1.4-1.5 0-2.5.7-2.5 1.8 0 2.7 5.2 1.3 5.2 4 0 1.1-1.1 1.8-2.7 1.8-1.2 0-2.2-.5-2.6-1.5'/>", 20, 1.6)
+  };
   const ft = s => { s = Math.max(0, Math.ceil(s)); return s >= 3600 ? Math.floor(s / 3600) + "h" + String(Math.floor(s % 3600 / 60)).padStart(2, "0") : Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
 
   const sp = () => S.sp || (S.sp = Prog.emptySp());
@@ -144,9 +151,9 @@ const Spells = (() => {
       const d = document.createElement("div"); d.className = "ps" + (ok ? "" : " off"); d.innerHTML = h;
       d.onclick = () => { if (!ok) return; $("gate").hidden = true; f(); fn(); }; g.append(d);
     };
-    add("<i>💠</i><div><b>Payer " + fE(ce) + " + " + fN(cs) + " Sg</b><small>Éther ET Sagesse ensemble</small></div>", () => { S.eth -= ce; S.sg -= cs; Stats.add("taxe", 1); Stats.add("taxeP", 1); Stats.ms("taxe"); }, S.eth >= ce && S.sg >= cs);
-    add("<i>⏳</i><div><b>Attendre : sorts actifs bloqués " + fdur(tm) + "</b><small>Les passifs restent actifs</small></div>", () => { sp().pen = Math.max(sp().pen || 0, Date.now() + tm * 1e3); Stats.add("taxe", 1); Stats.add("taxeT", 1); Stats.ms("taxe"); }, true);
-    const x = document.createElement("div"); x.className = "ps"; x.innerHTML = "<i>✕</i><div><b>Annuler</b></div>"; x.onclick = () => { $("gate").hidden = true; }; g.append(x);
+    add("<i class='psi psi-g'>" + ICON.coin + "</i><div><b>Payer " + fEh(ce) + " + " + fN(cs) + " Sg</b><small>Éther ET Sagesse ensemble</small></div>", () => { S.eth -= ce; S.sg -= cs; Stats.add("taxe", 1); Stats.add("taxeP", 1); Stats.ms("taxe"); }, S.eth >= ce && S.sg >= cs);
+    add("<i class='psi psi-b'>" + ICON.hourglass + "</i><div><b>Attendre : sorts actifs bloqués " + fdur(tm) + "</b><small>Les passifs restent actifs</small></div>", () => { sp().pen = Math.max(sp().pen || 0, Date.now() + tm * 1e3); Stats.add("taxe", 1); Stats.add("taxeT", 1); Stats.ms("taxe"); }, true);
+    const x = document.createElement("div"); x.className = "ps"; x.innerHTML = "<i class='psi psi-x'>" + ICON.cross + "</i><div><b>Annuler</b><small>Garder mon équipement actuel</small></div>"; x.onclick = () => { $("gate").hidden = true; }; g.append(x);
     Stats.add("taxeAsk", 1); $("gate").hidden = false;
   };
 
@@ -178,9 +185,9 @@ const Spells = (() => {
       b.onclick = () => { si = i; pickR(); }; sl.append(b);
     }
     const mk = (h, f) => { const d = document.createElement("div"); d.className = "ps"; d.innerHTML = h; d.onclick = f; list.append(d); return d; };
-    mk("<i>✕</i><div><b>Retirer le sort</b></div>", () => equip(null));
+    mk("<i class='psi psi-x'>" + ICON.minus + "</i><div><b>Retirer le sort</b><small>Vide l'emplacement sélectionné</small></div>", () => equip(null));
     SP.filter(s => L[s.id] && (s.pn === pp || s.pn === "X")).forEach(s => {
-      const d = mk("<i style='color:" + hue(s.k) + "'>" + gl(s.k) + "</i><div><b>" + s.n + "</b> <em>" + (s.t === "A" ? "Actif · Recharge " + Math.round(Fx.cdOf(s.id, s.cd, sch(s.k))) + " s" : "Passif") + "</em><small>" + s.d + "</small></div>", () => equip(s.id));
+      const d = mk("<i class='psi' style='--h:" + SCH.find(x => x[0] === s.k)[2] + "'>" + gl(s.k, 20) + "</i><div><b>" + s.n + "</b> <span class='ps-tg " + (s.t === "A" ? "act" : "pas") + "'>" + (s.t === "A" ? "Actif · Recharge " + Math.round(Fx.cdOf(s.id, s.cd, sch(s.k))) + " s" : "Passif") + "</span><small>" + s.d + "</small></div>", () => equip(s.id));
       if (inT(s.id)) d.classList.add("eq");
     });
     if (list.children.length === 1) list.insertAdjacentHTML("beforeend", "<div class='hint'>Aucun sort appris pour ce panneau — inscris-toi à l'Amphithéâtre.</div>");
@@ -202,13 +209,20 @@ const Spells = (() => {
       const r = document.createElement("div"), h = document.createElement("div"), nm = document.createElement("b"), a = document.createElement("div"), pv = document.createElement("div");
       r.className = "dk"; h.className = "dkh"; a.className = "dka"; pv.className = "dkp"; nm.textContent = d.name;
       h.append(nm); h.insertAdjacentHTML("beforeend", "<em>" + TN[d.t] + "</em>");
-      pv.innerHTML = sides(d).map(p => "<span class='pv'>" + (p === "V" ? "Voile " : "Grimoire ") + (d[p].filter(Boolean).map(id => "<i style='color:" + hue(byId[id].k) + "' title='" + byId[id].n + "'>" + gl(byId[id].k, 16) + "</i>").join("") || "—") + "</span>").join("");
-      const bt = (t, f) => { const b = document.createElement("button"); b.className = "dkb"; b.textContent = t; b.onclick = f; a.append(b); };
-      bt("▶ Équiper", () => applyDeck(d));
-      bt("⟳ Enregistrer l'équipement", () => { snap(d); save(); dkR(); toast("Deck mis à jour"); });
-      sides(d).forEach(p => bt("✎ " + (p === "V" ? "Voile" : "Grimoire"), () => edit(d, p)));
-      bt("Aa Renommer", () => { const v = (prompt("Nom du deck (20 max) :", d.name) || "").trim().slice(0, 20); if (v) { d.name = v; save(); dkR(); } });
-      bt("✕", () => { if (confirm("Supprimer le deck « " + d.name + " » ?")) { D().splice(i, 1); save(); dkR(); } });
+      pv.innerHTML = sides(d).map(p => "<span class='pv'><u>" + (p === "V" ? "Voile" : "Grimoire") + "</u>" + (d[p].filter(Boolean).map(id => "<i class='pvb' style='--h:" + SCH.find(x => x[0] === byId[id].k)[2] + "' title='" + byId[id].n + "'>" + gl(byId[id].k, 14) + "</i>").join("") || "<span class='pv0'>vide</span>") + "</span>").join("");
+      const bt = (ico, t, f, k) => { const b = document.createElement("button"); b.className = "dkb" + (k ? " " + k : ""); b.innerHTML = ico + "<span>" + t + "</span>"; b.onclick = f; a.append(b); return b; };
+      bt(ICON.play, "Équiper", () => applyDeck(d), "pri");
+      bt(ICON.save, "Enregistrer l'équipement", () => { snap(d); save(); dkR(); toast("Deck mis à jour"); });
+      sides(d).forEach(p => bt(ICON.edit, p === "V" ? "Voile" : "Grimoire", () => edit(d, p)));
+      bt(ICON.name, "Renommer", () => {                                      // renommage EN PLACE (plus de boîte du navigateur)
+        const inp = document.createElement("input"); inp.className = "dk-ren"; inp.maxLength = 20; inp.value = d.name; nm.replaceWith(inp); inp.focus(); inp.select();
+        const ok = () => { const v = inp.value.trim().slice(0, 20); if (v) { d.name = v; save(); } dkR(); };
+        inp.onkeydown = e => { if (e.key === "Enter") ok(); else if (e.key === "Escape") dkR(); }; inp.onblur = ok;
+      });
+      const del = bt(ICON.trash, "Supprimer", () => {                          // double appui (3 s) au lieu d'une boîte de confirmation
+        if (!del.classList.contains("conf")) { del.classList.add("conf"); del.querySelector("span").textContent = "Confirmer ?"; setTimeout(() => { if (del.isConnected) { del.classList.remove("conf"); del.querySelector("span").textContent = "Supprimer"; } }, 3000); return; }
+        D().splice(i, 1); save(); dkR();
+      }, "dng");
       r.append(h, pv, a); el.append(r);
     });
   };

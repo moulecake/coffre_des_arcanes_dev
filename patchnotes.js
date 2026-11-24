@@ -7,6 +7,16 @@
 // ============================================================
 const PATCHNOTES = [
   {
+    v: '2.a3.14', name: 'Un Clicker plus beau', date: '2026-11-26',
+    gift: 'Cadeau de mise à jour : 3 clés offertes !',
+    sections: [
+      { t: '🛠 Améliorations', items: [
+        '**Fenêtres refaites** : le choix des sorts, les Decks et la Taxe d’adaptation reprennent le style de l’Académie (médaillons d’école, icônes dessinées, boutons plus clairs).',
+        '**Decks** : le renommage se fait directement dans la carte, et la suppression demande une seconde confirmation.'
+      ] }
+    ]
+  },
+  {
     v: '2.a3.13', name: 'Maîtrise de la chaleur', date: '2026-11-26',
     gift: 'Cadeau de mise à jour : 3 clés offertes !',
     sections: [
