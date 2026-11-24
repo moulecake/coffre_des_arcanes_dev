@@ -7,6 +7,17 @@
 // ============================================================
 const PATCHNOTES = [
   {
+    v: '2.a3.17', name: 'Les sorts se voient', date: '2026-11-26',
+    gift: 'Cadeau de mise à jour : 3 clés offertes !',
+    sections: [
+      { t: '🎁 Nouveautés', items: [
+        '**Effets visibles** : une barre sous chaque panneau montre les effets actifs (valeur et temps restant), le cumul « ×N » quand plusieurs se superposent, et un halo doré autour du panneau amplifié.',
+        '**Emplacements** : badges d’état (Météore 63/100, Image Miroir armé, Prescience…) et infobulle « Effet réel » avec les vraies valeurs.',
+        '**Bilan d’absence** : à ton retour, une fenêtre détaille Éther, Sagesse, pages, fragments, cours terminés, et les sorts sans effet hors ligne.'
+      ] }
+    ]
+  },
+  {
     v: '2.a3.16', name: 'Le Rang IV', date: '2026-11-26',
     gift: 'Cadeau de mise à jour : 3 clés offertes !',
     sections: [

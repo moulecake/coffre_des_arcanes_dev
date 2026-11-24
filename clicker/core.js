@@ -470,10 +470,12 @@ function startChaos() {
 function endChaos() { $("tome").classList.remove("chaos"); document.querySelector(".grimoire").classList.remove("chaos"); }
 
 function away(sec) {                                   // hors-ligne : timestamps, plafond 8 h (extensible via sorts) ; calcul pur dans effects.js (Fx.away, testé)
-  Stats.max("offMax", sec); const c = Passives.calc(), a = Fx.away(c, sec, M);
+  Stats.max("offMax", sec); const c = Passives.calc(), a = Fx.away(c, sec, M), raw = sec;
   S.eth += a.eth; S.sg += a.sg; Stats.add("eth", a.eth); Stats.add("sg", a.sg); Stats.add("off", a.sec); Stats.add("offN", 1); Stats.add("offEth", a.eth); Stats.add("offSg", a.sg);
   const nf = microAdd(fragRate(c.ethPS) * a.micro); if (nf) { Stats.add("frP", nf); Stats.add("offFr", nf); save(); }   // micro-fragments hors-ligne (plafond passif/jour inclus)
-  if (a.eth + a.sg > 0) toast("Absence : +" + fE(a.eth) + " · +" + fN(a.sg) + " Sg" + (nf ? " · +" + nf + " fragment(s)" : ""));
+  const nowT = Date.now(), done = []; if (S.sp && S.sp.course && S.sp.course.end <= nowT) done.push("Cours terminé : " + Spells.byId[S.sp.course.id].n); if (S.sp && S.sp.exam && S.sp.exam.end <= nowT) done.push("Examen du rang " + S.sp.exam.n + " terminé");
+  window.AWAYR = { raw, sec: a.sec, eth: a.eth, sg: a.sg, burn: a.burn, pages: c.pagesPS * a.sec, nf, mulE: M("ether", 1), offE: M("offlineEth", 1), offS: M("offlineSg", 1), done, idle: Spells.idleNames(), load: Spells.loadingNames ? Spells.loadingNames() : [] };   // bilan détaillé (clicker/hud.js)
+  if (raw < 60 && a.eth + a.sg > 0) toast("Absence : +" + fE(a.eth) + " · +" + fN(a.sg) + " Sg" + (nf ? " · +" + nf + " fragment(s)" : ""));
 }
 
 function tick() {
@@ -568,7 +570,7 @@ addEventListener("DOMContentLoaded", () => {
   const closeIntro = () => { S.introSeen = $("introNo").checked; save(); cloudSave(true); $("intro").hidden = true; };
   $("introGo").onclick = closeIntro; $("help").onclick = showIntro; addEventListener("keydown", ev => { if (ev.key === "Escape" && !$("intro").hidden) closeIntro(); });
   // La célébration en attente (pli de l'Académie) s'affiche EN PREMIER ; l'accueil vient ensuite.
-  setTimeout(() => { if (SP_MIGRATED) { toast("Apprentissage des sorts remis à zéro — Sagesse, Éther et bâtiments conservés"); save(); cloudSave(true); } Academy.setAfter(() => { if (!S.introSeen) setTimeout(showIntro, 300); }); Academy.celebrate(); }, 400);
+  setTimeout(() => { if (SP_MIGRATED) { toast("Apprentissage des sorts remis à zéro — Sagesse, Éther et bâtiments conservés"); save(); cloudSave(true); } Academy.setAfter(() => Hud.showAway(() => { if (!S.introSeen) setTimeout(showIntro, 300); })); Academy.celebrate(); }, 400);
   // EFFORT : tout appui sur la page (achats, sorts, decks, onglets…) compte, sauf aide/son/retour. Capture + passif = aucun coût perceptible.
   addEventListener("pointerdown", ev => { const t = ev.target; if (!t || !t.closest || t.closest("#intro,#help,#snd,a.back,#eth,#sg,#eth2,#sg2,#ethps,#sgps,#numtip,#acW")) return; const n = Date.now(); if ((t.closest("#orb") && n < hot) || (t.closest("#tome") && n < hotG)) return; Spells.effort(); }, { capture: true, passive: true });   // (pas d'effort crédité pendant une pause de surchauffe)
   // Retour natif (◁) : ferme la fenêtre du dessus (nav.js) — mêmes actions que leurs boutons de fermeture

@@ -238,7 +238,7 @@ body.hot #orbCur::before{background:radial-gradient(circle,#fff 0 14%,#fda4af 32
 @media(max-width:560px){.amh{grid-template-columns:1fr;justify-items:center}.amh h2,.dkbtn{grid-column:1;justify-self:center}}
 /* ---- Voile & Grimoire : MÊMES rangées (sous-grille) → pastille d'état, barre, texte, sorts alignés des deux côtés quel que soit le contenu ---- */
 @supports (grid-template-rows:subgrid){
-  .duo>.pane{display:grid;grid-row:span 8;grid-template-rows:subgrid;row-gap:16px}
+  .duo>.pane{display:grid;grid-row:span 9;grid-template-rows:subgrid;row-gap:16px}
   .duo>.pane>*{justify-self:stretch}
   .duo>.pane>.veil,.duo>.pane>.book,.duo>.pane>.orb,.duo>.pane>.tome,.duo>.pane>.buff{justify-self:center}
 }
@@ -586,3 +586,25 @@ body.ac-shake{animation:acShk .09s linear infinite}@keyframes acShk{0%{transform
 #pfilt{margin:2px 0}
 @media(max-width:560px){.spf{grid-template-columns:1fr}.spf-k{justify-content:flex-start}}
 @media(prefers-reduced-motion:reduce){.spf-k .psi,.spf-s,.spf-c button{transition:none}}
+
+/* ===== v2.a3.17 : retours visuels des sorts (barre d'effets, badges, aura) + bilan hors ligne ===== */
+.fxrow{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;min-height:0}
+.fxp{--h:45;display:inline-flex;align-items:center;gap:5px;padding:3px 9px 3px 6px;border-radius:99px;border:1px solid hsl(var(--h) 60% 50%/.5);background:linear-gradient(135deg,hsl(var(--h) 60% 18%/.85),rgba(13,17,28,.8));color:hsl(var(--h) 85% 76%);font:600 10.5px Inter,sans-serif;animation:fxIn .3s both;box-shadow:0 0 10px hsl(var(--h) 80% 50%/.18)}
+.fxp b{font-weight:700;color:#fff}.fxp em{font-style:normal;color:hsl(var(--h) 70% 72%);font-size:10px}.fxp svg{flex:none}
+.fxp.stack{border-color:#d4af37;background:linear-gradient(135deg,rgba(212,175,55,.3),rgba(139,92,246,.2));color:#fde68a;box-shadow:0 0 16px rgba(212,175,55,.35)}.fxp.stack b{color:#fff1b0;font-family:Cinzel,serif;letter-spacing:.5px}
+.fxp.arm{animation:fxIn .3s both,fxArm 1.4s ease-in-out infinite}.fxp.pas{opacity:.85}
+@keyframes fxIn{from{opacity:0;transform:translateY(4px) scale(.95)}}@keyframes fxArm{50%{box-shadow:0 0 16px hsl(var(--h) 85% 60%/.6)}}
+.sl{position:relative}.sl .bdg{position:absolute;left:0;right:0;bottom:-1px;text-align:center;font:700 8.5px Inter,sans-serif;text-decoration:none;color:#fff;text-shadow:0 0 4px #000,0 0 2px #000;pointer-events:none}
+.sl.lockd{filter:saturate(.35) brightness(.7)}.sl.lockd .bdg{color:#fda4af}
+.pane.amp{box-shadow:0 0 0 1px rgba(212,175,55,calc(.25 + var(--amp,0)*.5)),0 0 calc(18px + var(--amp,0)*34px) rgba(212,175,55,calc(.18 + var(--amp,0)*.4));animation:ampP 1.6s ease-in-out infinite}
+@keyframes ampP{50%{box-shadow:0 0 0 1px rgba(245,217,138,.8),0 0 calc(30px + var(--amp,0)*40px) rgba(245,217,138,.55)}}
+#acAway{position:fixed;inset:0;z-index:26;display:grid;place-items:center;padding:14px;background:rgba(0,0,0,.76);backdrop-filter:blur(8px)}#acAway[hidden]{display:none}
+.ac-awaybox{width:min(460px,100%);max-height:92vh;border-color:rgba(212,175,55,.35)}
+.aw-d{font:600 13px Cinzel,serif;letter-spacing:.5px;color:#f5d98a}.aw-d span{font:500 12px Inter,sans-serif;color:var(--dim)}.aw-d b{color:#fff}
+.aw-l{display:flex;flex-direction:column;gap:8px}.aw-r{display:grid;grid-template-columns:32px 1fr auto;gap:10px;align-items:center;padding:10px 12px;border-radius:12px;border:1px solid var(--bd);background:rgba(255,255,255,.03)}
+.aw-r i{display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.05);font-style:normal}.aw-r b{font:700 12.5px Cinzel,serif;letter-spacing:.4px}.aw-r small{display:block;font-size:10.5px;color:var(--dim);line-height:1.45}.aw-r span{font:600 14px Cinzel,serif}
+.aw-r.e span{color:#c4b5fd}.aw-r.s span{color:#f5d98a}.aw-r.f span{color:#fcd34d}.aw-r.p span{color:#cbd5e1}.aw-r.d{border-color:rgba(52,211,153,.4);background:rgba(52,211,153,.06)}
+.aw-i,.aw-w{font-size:11px;line-height:1.7;color:var(--dim)}.aw-i b,.aw-w b{color:#cbd5e1}.aw-i span{display:inline-block;margin:2px 4px 0 0;padding:1px 8px;border-radius:99px;border:1px dashed var(--bd);color:#64748b}.aw-w{color:#fcd34d}
+@media(prefers-reduced-motion:reduce){.fxp,.fxp.arm,.pane.amp{animation:none}}
+
+.fxrow{flex:none;align-items:flex-start;align-content:flex-start}.fxp{align-self:flex-start}

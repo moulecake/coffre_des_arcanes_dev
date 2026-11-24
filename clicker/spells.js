@@ -121,7 +121,7 @@ const Spells = (() => {
     for (let i = 0; i < n; i++) {
       const id = sp().eq[p][i], s = id && byId[id], b = document.createElement("button"); let t, lp = 0;
       b.className = "sl" + (sp().lock[p + i] ? " lk" : "") + (s && s.t === "A" ? " act" : "");
-      b.title = s ? s.n + " — " + s.d : "Emplacement libre";
+      b.title = s ? (window.Hud ? Hud.title(s) : s.n + " — " + s.d) : "Emplacement libre";
       if (s) { b.dataset.id = id; b.style.color = hue(s.k); b.innerHTML = gl(s.k, 22) + "<u></u><b></b>"; } else b.textContent = "✦";
       b.onpointerdown = () => { lp = 0; t = setTimeout(() => { lp = 1; sp().lock[p + i] = !sp().lock[p + i]; save(); bar(p); }, 500); };
       b.onpointerup = b.onpointerleave = () => clearTimeout(t);
@@ -161,7 +161,7 @@ const Spells = (() => {
   const eq = () => ed || sp().eq, lk = (p, i) => !ed && sp().lock[p + i];
   const inT = id => { const E = eq(); return E.V.includes(id) || E.G.includes(id); };
   // ---- Recherche et filtres de sorts (v2.a3.16) : mot-clé (nom, effet, école, rang, actif/passif, hors ligne) + type + école. Partagés par le sélecteur et la palette des decks. ----
-  const OFFL = new Set(["enc2", "enc4", "nec1", "nec2", "abj2", "div2", "tra4", "con2"]);        // passifs qui produisent aussi hors ligne (étiquette informative)
+  const OFFL = new Set(["enc2", "enc4", "nec1", "nec2", "abj2", "div2", "tra1", "tra4", "con2"]);        // passifs qui produisent aussi hors ligne (étiquette informative)
   const nz = s => String(s).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");     // sans accents ni casse
   const PNAME = { V: "voile", G: "grimoire", X: "voile grimoire" }, HAY = {};
   const hay = s => HAY[s.id] || (HAY[s.id] = nz([s.n, s.d, SCH.find(x => x[0] === s.k)[1], s.t === "A" ? "actif" : "passif", PNAME[s.pn], OFFL.has(s.id) ? "hors ligne" : "", "rang " + s.r].join(" ")));
@@ -317,7 +317,7 @@ const Spells = (() => {
     const ex = Prog.finishExam(S, n);                                         // examen terminé (même hors ligne : timestamp absolu)
     if (ex) { dirty = 1; Stats.add("exam", 1); Stats.ms("exam" + ex); Stats.snap("exam" + ex); bars(); save(); if (window.cloudSave) cloudSave(true); if (window.Academy) Academy.examDone(ex); }
     { const b = mod("burn", 0); if (b > 0) { const x = Math.min(S.sg, b * Passives.calc().sgPS * dt); S.sg -= x; S.eth += x * 20; Stats.add("eth", x * 20); } }
-    fxs = fxs.filter(f => f.u > n); sp().fx = fxs; sp().st = [mirror, presc, clicks]; tickBars(n); if (window.Academy) Academy.tick(n);
+    fxs = fxs.filter(f => f.u > n); sp().fx = fxs; sp().st = [mirror, presc, clicks]; tickBars(n); if (window.Academy) Academy.tick(n); if (window.Hud) Hud.tick(n);
   };
   // ---- Raccourcis clavier (§18.2, secret du jeu, PC seulement) : Voile = touches 1-5, Grimoire = 6-9 puis 0 (event.code : AZERTY et QWERTY, Maj toléré) ; comme un appui sur l'emplacement ; compte comme effort ----
   let kbd = 0;
@@ -335,5 +335,6 @@ const Spells = (() => {
     document.querySelectorAll(".gear[data-p]").forEach(g => g.onclick = () => pick(g.dataset.p));
     $("pclose").onclick = closePick; $("pick").onclick = e => { if (e.target.id === "pick") closePick(); };
   };
-  return { glyph: gl, hue, cast, SCH, mod, init, tick, onClick, force, forced, touch, effort, active, has, learn, SP, applyDeck, D, taxe, sp, byId, examInfo, startExam, COST, TIME, ft, quote, chooseSchool, chooseSchool2, resetLearning, OFFL, sch, invalidate: () => { dirty = 1; }, immune: () => Date.now() < immune, augure: () => has("div1") ? Fx.augure(sch("div")) : 0 };
+  return { glyph: gl, hue, cast, SCH, mod, init, tick, onClick, force, forced, touch, effort, active, has, learn, SP, applyDeck, D, taxe, sp, byId, examInfo, startExam, COST, TIME, ft, quote, chooseSchool, chooseSchool2, resetLearning, OFFL, sch, activIn: id => Math.max(0, ((sp().act || {})[id] || 0) - Date.now()), idleNames: () => eqIds().filter(id => !OFFL.has(id)).map(id => byId[id].n),
+    hudState: now => ({ fxs: fxs.filter(e => e.u > now), eq: eqIds(), mirror, mirrorX: Fx.ACT("ill2", sch("ill")).mult, presc, clicks, evo4: Fx.ACT("evo4", sch("evo")), cps: mod("cps", CPS_PALIERS[0]), cpsG: mod("cpsG", CPS_GRIMOIRE) }), sch, invalidate: () => { dirty = 1; }, immune: () => Date.now() < immune, augure: () => has("div1") ? Fx.augure(sch("div")) : 0 };
 })();

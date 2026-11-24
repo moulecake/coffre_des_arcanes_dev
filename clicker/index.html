@@ -30,6 +30,7 @@
 <script src="stats.js" defer></script>
 <script src="spells.js" defer></script>
 <script src="academy.js" defer></script>
+<script src="hud.js" defer></script>
 <script src="passives.js" defer></script>
 <script src="core.js" defer></script>
 </head>
@@ -166,6 +167,7 @@
     <div class="hint" id="heatLim"></div>
     <div class="hint" aria-hidden="true">&nbsp;</div>
     <div class="bar"><div class="slots" id="barV"></div><button class="gear" data-p="V" aria-label="Équiper des sorts">⚙</button></div>
+    <div class="fxrow" id="fxV"></div>
     <div class="blds" id="bV"></div>
   </section>
 
@@ -185,6 +187,7 @@
     <div class="hint" id="pgTxt"></div>
     <div class="hint" id="hintG"></div>
     <div class="bar"><div class="slots" id="barG"></div><button class="gear" data-p="G" aria-label="Équiper des sorts">⚙</button></div>
+    <div class="fxrow" id="fxG"></div>
     <div class="blds" id="bG"></div>
   </section>
 </main>
@@ -260,6 +263,7 @@
 <div id="acSpe" hidden><div class="pbox ac-spebox" role="dialog" aria-modal="true" aria-label="Choisis ta spécialité"><div class="phead"><b>Choisis ta spécialité</b><button id="acSpeC" aria-label="Fermer">✕</button></div><p class="ac-lead">À ton premier examen, tu t'engages auprès d'une école. Ce choix est <b>définitif</b> : elle réduit le prix et le temps de ses cours et renforce chacun de ses sorts.</p><div id="acSpeB2"></div></div></div>
 <div id="acRst" hidden><div class="pbox ac-infobox" role="dialog" aria-modal="true"><div class="phead"><b>Dernier recours</b><button id="acRstC" aria-label="Fermer">✕</button></div><p>Tes <b>sorts appris, ton rang, tes examens, tes decks et ton école</b> repartent de zéro. <b>Rien n'est remboursé.</b> Tes bâtiments, ton Éther, ta Sagesse, tes fragments, ton inventaire du Coffre et tes statistiques sont conservés.</p><button class="ac-hold ac-hold-red" id="acRstH"><span>MAINTENIR 2 S POUR CONFIRMER</span></button></div></div>
 <div id="acCht" hidden><div class="pbox ac-chtbox" id="acChtB" role="dialog" aria-modal="true"></div></div>
+<div id="acAway" hidden><div class="pbox ac-awaybox" id="acAwayB" role="dialog" aria-modal="true" aria-label="Pendant ton absence"></div></div>
 <div id="acRev" hidden></div>
 <div id="acDip" hidden></div>
 <div id="acCele" hidden><div id="acCeleB" class="ac-celeb" role="dialog" aria-modal="true"></div></div>
