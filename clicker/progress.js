@@ -8,7 +8,7 @@ const ProgLib = (() => {
   const SPV = 2;
   // ★ RÉGLAGES (CONCEPTION_SORTS.md §3.4) — prix en Sagesse, temps en secondes, seuils CUMULÉS (statistiques à vie : Éther en nL).
   const COST = [2e5, 8e6, 8e7, 3e8, 1.2e9], TIME = [30, 300, 1800, 10800, 21600];
-  const EX = { price: [2e6, 8e7, 8e8, 3e9, 1.2e10], dur: [60, 60, 60, 60, 60], durOrig: [120, 1200, 7200, 28800, 43200],   /* TEMPORAIRE (test, v2.a3.9) : tous les examens durent 1 min — À REMETTRE À `durOrig` AVANT LES BÊTA-TESTEURS */ eth: [1e6, 5e7, 3e8, 1e9, 3e9], sg: [1e3, 2e8, 2e9, 1e10, 4e10], open: 5, rankMax: 5 };   // open = examens jouables (1 à 4 ; le 5 reste scellé jusqu'aux sorts de rang 5) · rang 5 = 5 emplacements · valeurs de l'examen 5 = PLACEHOLDER à calibrer
+  const EX = { price: [2e6, 8e7, 8e8, 3e9, 1.2e10], dur: [120, 1200, 7200, 28800, 43200],   /* durées d'examen d'origine (rétablies en 2.a3.23) */ eth: [1e6, 5e7, 3e8, 1e9, 3e9], sg: [1e3, 2e8, 2e9, 1e10, 4e10], open: 5, rankMax: 5 };   // open = examens jouables (1 à 4 ; le 5 reste scellé jusqu'aux sorts de rang 5) · rang 5 = 5 emplacements · valeurs de l'examen 5 = PLACEHOLDER à calibrer
   const emptySp = () => ({ learned: {}, eq: { V: [], G: [] }, lock: {}, cd: {}, course: null, decks: [], rank: 1, exam: null, exDone: {}, chg: {}, act: {}, school: null, schoolAt: 0, school2: null, tut: { fill: {}, cast: 0, castIds: {}, deck: 0, equip: 0 } });
   const isO = v => v && typeof v === "object" && !Array.isArray(v), V = X => (X && X.spV) || 1, clone = v => JSON.parse(JSON.stringify(v == null ? null : v));
   function norm(sp) {                                  // complète un S.sp incomplet (idempotent) ; ne touche à aucun sort appris
