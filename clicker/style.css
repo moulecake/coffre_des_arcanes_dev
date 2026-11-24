@@ -404,7 +404,6 @@ table.ac-gr{border-collapse:separate;border-spacing:6px 8px;margin:0 auto}
 .ac-spl{margin-top:6px;font-size:12px;color:#64748b;line-height:1.5}.ac-spl.on{color:#f5d98a}
 .ac-mini{margin-top:4px;padding:5px 10px;border-radius:8px;border:1px solid rgba(212,175,55,.6);background:rgba(212,175,55,.12);color:#fde68a;font:700 11px Inter,sans-serif;cursor:pointer}
 .ac-lite{padding:8px;background:none;border:0;color:var(--dim);font:500 12px Inter,sans-serif;cursor:pointer;text-decoration:underline}
-.ac-rstlink{display:block;margin:12px auto 0;background:none;border:0;color:#64748b;font:500 11px Inter,sans-serif;cursor:pointer;text-decoration:underline dotted}.ac-rstlink:hover,.ac-rstlink:focus-visible{color:#fda4af;outline:0}
 #acSpe,#acRst{position:fixed;inset:0;display:grid;place-items:center;padding:12px;background:rgba(0,0,0,.74);backdrop-filter:blur(8px)}#acSpe{z-index:25}#acRst{z-index:26}#acSpe[hidden],#acRst[hidden],#acRev[hidden]{display:none}
 .ac-spebox{width:min(860px,100%);max-height:94vh;border-color:rgba(212,175,55,.3)}.ac-lead{font-size:12px;color:var(--dim);line-height:1.6}.ac-lead b{color:#fff}
 #acSpeB2{display:grid;grid-template-columns:1.2fr 1fr;gap:16px}

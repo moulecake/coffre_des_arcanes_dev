@@ -1,11 +1,11 @@
 # MEMOIRE — Le Coffre des Arcanes (ex-Arcane Vault) + Clicker
 
 > Handoff pour le Claude qui continue le dev. À lire en premier, à mettre à jour à la fin de chaque étape.
-> Dernière mise à jour : 2026-11-24. **Version : v2.a3.23** (code à jour = dossier de travail, pas le zip de handoff). Langue de travail : français. Utilisateur : MJ de JDR D&D, non-dev, colle les blocs à la main.
+> Dernière mise à jour : 2026-11-24. **Version : v2.a3.24** (code à jour = dossier de travail, pas le zip de handoff). Langue de travail : français. Utilisateur : MJ de JDR D&D, non-dev, colle les blocs à la main.
 
 ## ⏰ RAPPELS (à traiter par Claude dès qu'on est à la date)
 - **À TESTER EN MOBILE (375 px, navigateur MCP) À LA FIN DU LOT 5** (consigne utilisateur 2026-11-26) : grille et fiche de l'Amphithéâtre, tuiles d'examens, fenêtre d'examen + bulle de triche + mini-jeu, diplôme/plume, Mes decks (cartes, éditeur, palette, filtres), sélecteur de sorts + filtres, barre d'effets et badges d'emplacements, bilan hors ligne, Taxe, bulle des nombres complets, écran de spécialité (1 et 2).
-- **À RETIRER AVANT LES BÊTA-TESTEURS (reste, v2.a3.23)** : (1) le journal de diagnostic de la Taxe (`TAXE_LOG`, `console.info("[Taxe]")` dans spells.js). **Le bloc Démo a été RETIRÉ en 2.a3.22** (verrou de triche et délai entre tentatives = vraies valeurs 24 h / 5 min) ; son code est gardé dans la mémoire Claude (`aide-demo-clicker.md`), pas dans le dépôt.
+- **Nettoyage bêta-testeurs : FAIT (v2.a3.24)** — Démo, durées de test, `TAXE_LOG` retirés ; bouton « Réinitialiser mon apprentissage (dernier recours) » retiré (le choix d'école est définitif). Code Démo : mémoire Claude `aide-demo-clicker.md`.
 - **À partir du 2026-12-01** (repoussé d'une semaine par l'utilisateur le 2026-11-24, tous les alphatesteurs n'ont pas encore rechargé) : supprimer le correctif temporaire des raretés dans `script.js` (bloc `TEMP_RARITY_FIX` + sa branche dans `unpackInventory`, voir le commentaire « À SUPPRIMER APRÈS LE 2026-11-24 ») après avoir demandé à l'utilisateur si tous les alphatesteurs ont rechargé depuis la correction C/PC de `data.js`. Rappeler aussi : supprimer le bloc `#sync-modal` commenté dans `index.html` et décider du repli `players` du classement (à retirer une fois les règles Firestore resserrées).
 
 ## 0. Points à trancher AVANT de coder
@@ -286,6 +286,9 @@ Fait : lien (bouton ⚡ GRIMOIRE) et cache SW. Reste : équilibrage global, popo
 - **§16** : `Fx.loadDelay(agoMs)` (★ 0–3 min → 60 min · 3–5 → 20 · 5–10 → 8 · 10–15 → 3 · ≥15 → 0), `Fx.awaySlices(total, loads, slice)` (somme par tranches : un sort est exclu tant que le temps écoulé < son délai ; plafonné par l'absence, pas de dette), `Fx.awayRaw` (tranche sans plafond). `S.sp.chg[id]` = horodatage du dernier équipement ; `Spells.loadsAt(depart)` ne retient que les sorts `OFFL` équipés avec un `chg` (les sorts équipés AVANT cette version n'ont pas de délai). `core.js away()` calcule PAR TRANCHES avec `Spells.modFor(exclus)` + `Passives.calcWith(MM)` (calc0 est paramétrable) ; le bilan liste « Sorts en cours de chargement : X (−N min) ». Toast à l'équipement d'un sort hors ligne : « Chargement des sorts hors ligne : 60 min si tu pars maintenant ». **Changement de comportement** : le hors ligne n'inclut plus les effets TEMPORAIRES encore actifs (onglet endormi < 60 s) — négligeable.
 - **§17** : `Fx.activ(id, f)` (enc1, con1 : 10 min, 5 min en spé) ; `S.sp.act[id]` = fin de l'activation (horodatage absolu, persiste hors ligne) ; tant qu'elle n'est pas écoulée, le sort est exclu de `rebuild()` (effet inactif) ; retiré puis remis = repart de zéro ; toast « est maintenant actif » ; compte à rebours sur l'emplacement (`Hud` : badge `10′`, emplacement grisé) et dans l'infobulle. La Taxe s'applique en plus.
 - Tests : effects.test.js passe à 168 vérifications (délais, tranches, activation, cohérence avec `Fx.away`). Vérifié en navigateur : enc1 inactif puis actif, tra4 retardé (ratio 0,933 sur 3 h = 1 h sans le ×1,25).
+
+### v2.a3.24 — Prêt pour les bêta-testeurs (2026-11-24)
+- Retirés : journal `TAXE_LOG` (spells.js), bouton + fenêtre « dernier recours » (index.html `#acRstGo`/`#acRst`, handlers academy.js ; textes du Lexique et de la fiche de spécialité mis à jour : « choix définitif »). **Conservés** (inutilisés par l'interface) : `Prog.resetLearning` / `Spells.resetLearning` (testés, utiles à l'outil MJ ou à un futur besoin) et le CSS `#acRst`/`.ac-rstage`.
 
 ### v2.a3.23 — Vraies durées d'examen (2026-11-24)
 - `Prog.EX.dur` = `[120, 1200, 7200, 28800, 43200]` s (2 min, 20 min, 2 h, 8 h, 12 h) ; `durOrig` supprimé. Il ne reste à retirer que `TAXE_LOG`.

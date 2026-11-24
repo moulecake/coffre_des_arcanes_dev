@@ -547,7 +547,7 @@ const LEX = [
   ["Taxe", "Prix d'un changement de sorts fait juste après un effort : seuls les sorts retirés ou ajoutés comptent, et plus leur rang est haut plus c'est cher. Moins de 15 s après ton dernier effort : plein tarif ; entre 15 et 45 s : demi-tarif ; au-delà : gratuit. Tu paies en Éther ET Sagesse, ou tu attends (sorts actifs bloqués)."],
   ["Cours", "Apprendre un sort coûte de la Sagesse et du temps réel. Le cours continue même quand tu es absent."],
   ["École", "Une des 8 écoles de magie. Chacune compte un sort par rang."],
-  ["Spécialité", "L'école que tu choisis, une fois pour toutes, au premier examen : ses cours coûtent 25 % de moins et durent 25 % de moins, et chacun de ses sorts est renforcé. Seul le « dernier recours » (apprentissage remis à zéro) permet d'en changer."],
+  ["Spécialité", "L'école que tu choisis, une fois pour toutes, au premier examen : ses cours coûtent 25 % de moins et durent 25 % de moins, et chacun de ses sorts est renforcé. Ce choix est définitif."],
   ["Rang", "Ton niveau d'avancement à l'Amphithéâtre. Tu peux apprendre les sorts jusqu'à ton rang ; le suivant s'ouvre en réussissant l'examen."],
   ["Examen", "Épreuve de l'Académie qui ouvre le rang suivant : apprends les 8 sorts du rang, remplis les conditions, paie les frais et patiente (ça continue hors ligne)."],
   ["Emplacement", "Une case de la barre de sorts, sous le Voile ou sous le Grimoire. Tu en as autant que ton rang ; le sort qui l'occupe agit."],

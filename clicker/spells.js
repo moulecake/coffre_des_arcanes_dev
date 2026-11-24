@@ -161,12 +161,10 @@ const Spells = (() => {
 
   // ---- Taxe d'adaptation (§15, v2.a3.10) : changer des sorts juste après un effort. Détection par ENSEMBLE de sorts (ordre et déplacements ignorés) : seuls les sorts réellement RETIRÉS ou AJOUTÉS comptent.
   // Barème et gratuités : Prog.taxe (progress.js, testé). La clé de sauvegarde `sp().pen` (blocage des sorts actifs) est conservée telle quelle. ----
-  const TAXE_LOG = window.TAXE_LOG = [];                                           // JOURNAL DE DIAGNOSTIC TEMPORAIRE (à retirer avec la démo) : cause de chaque demande de Taxe, pour trouver le bug « demandée alors que je n'ai rien touché »
   const fdur = s => { s = Math.max(1, Math.ceil(s)); return s >= 60 ? Math.floor(s / 60) + " min" + (s % 60 ? " " + (s % 60) + " s" : "") : s + " s"; };
   const nm = ids => ids.length ? ids.map(i => byId[i].n).join(", ") : "—";
   const taxe = (fn, before, after, src) => {
     const now = Date.now(), ago = now - lastAct, removed = before.filter(x => after.indexOf(x) < 0), added = after.filter(x => before.indexOf(x) < 0), q = Prog.taxe(removed, added, ago);
-    const rec = { t: new Date(now).toTimeString().slice(0, 8), src: src || "?", ago: Math.round(ago / 100) / 10, removed, added, free: q.free, why: q.free ? q.why : "taxe", S: q.S }; TAXE_LOG.push(rec); if (TAXE_LOG.length > 30) TAXE_LOG.shift(); console.info("[Taxe]", JSON.stringify(rec));
     if (!q.free) { const tm = Math.max(0, mod("taxe", 1)); if (tm !== 1) { q.time *= tm; q.sg *= tm; q.eth *= tm; } }          // Pacte d'Exemption
     if (q.free) { fn(); return onEq(added, removed); }
     const ce = Math.ceil(q.eth), cs = Math.ceil(q.sg), tm = Math.ceil(q.time), g = $("gbtns"); g.innerHTML = "";

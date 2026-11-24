@@ -174,7 +174,7 @@ window.Academy = (() => {
     else det = "<div class='ac-sdh'>" + med(k) + "<div><h3>" + sc[1].toUpperCase() + "</h3><div class='ac-ssub'>" + MOT[k] + "</div></div></div><ul>" + [1, 2, 3, 4].map(i => "<li><i>✦</i><span>" + SPE[k + i] + "</span></li>").join("") + "</ul>" +
       "<div class='ac-scom'>" + (m2 ? "<b>Seconde école :</b> bonus à 50 % (moitié des valeurs ci-dessus), −12,5 % de prix et de temps sur ses cours." : "<b>Pour toute école :</b> −25 % de prix et de temps sur ses cours.") + "</div>" +
       (done ? "<div class='ac-sealedtxt'>Spécialisation scellée. Tes cours de " + sc[1] + " coûtent 25 % de moins et durent 25 % de moins, et ses sorts sont renforcés.</div>" :
-        "<div class='ac-warn'>" + ic.lock + "<span><b>Choix définitif.</b> Changer d'école = réinitialiser tout l'apprentissage des sorts, sans remboursement (bâtiments conservés).</span></div><button class='ac-hold' id='acSeal' style='--h:" + sc[2] + "'><span>MAINTENIR POUR SCELLER</span></button>");
+        "<div class='ac-warn'>" + ic.lock + "<span><b>Choix définitif.</b> Ton école ne pourra plus être changée.</span></div><button class='ac-hold' id='acSeal' style='--h:" + sc[2] + "'><span>MAINTENIR POUR SCELLER</span></button>");
     box.style.setProperty("--h", sc ? sc[2] : 260);
     box.innerHTML = "<div class='ac-cards'>" + cards + "</div><div class='ac-sdet'>" + det + "</div>";
     box.querySelectorAll(".ac-sc").forEach(b => b.onclick = () => { selK = b.dataset.k; speR(); });
@@ -194,9 +194,6 @@ window.Academy = (() => {
     }
     $("acRvb").onclick = done; $("acRvb").focus();
   }
-  // Dernier recours (§3.3) : fenêtre d'explication + appui maintenu 2 s ; remet l'apprentissage à zéro, sans remboursement
-  const openRst = () => { $("acRst").hidden = false; };
-  const closeRst = () => { $("acRst").hidden = true; };
 
   // ---------- Tricher (§24) : bulle secrète dès l'examen 2 ; 3 tentatives (5 min d'écart) ; mini-jeu « observer le surveillant » (1 par examen) ----------
   const chtBox = () => $("acChtB"), illu = () => Prog.CHEAT.illu * Fx.sf(sp(), "ill");
@@ -326,15 +323,12 @@ window.Academy = (() => {
   const init = () => {
     $("acExC").onclick = closeExam; $("acEx").onclick = e => { if (e.target.id === "acEx") closeExam(); };
     $("acSpeC").onclick = closeSpe; $("acSpe").onclick = e => { if (e.target.id === "acSpe") closeSpe(); };
-    $("acRstC").onclick = closeRst; $("acRst").onclick = e => { if (e.target.id === "acRst") closeRst(); }; $("acRstGo").onclick = openRst;
-    if (!$("acRstH").dataset.b) { $("acRstH").dataset.b = 1; hold($("acRstH"), 2000, () => { closeRst(); Spells.resetLearning(); sel = null; toast("Apprentissage réinitialisé — bâtiments, Éther et Sagesse conservés"); }); }
     $("acInfoOk").onclick = () => { $("acInfo").hidden = true; }; $("acInfo").onclick = e => { if (e.target.id === "acInfo") $("acInfo").hidden = true; };
     if (typeof Nav !== "undefined" && !navDone) {
       navDone = 1; Nav.add("acInfo", { open: () => !$("acInfo").hidden, close: () => { $("acInfo").hidden = true; } });
       Nav.add("acEx", { open: () => !$("acEx").hidden, close: closeExam });
       Nav.add("acCele", { open: () => !$("acCele").hidden, close: closeCele });
       Nav.add("acSpe", { open: () => !$("acSpe").hidden, close: closeSpe });
-      Nav.add("acRst", { open: () => !$("acRst").hidden, close: closeRst });
       Nav.add("acCht", { open: () => !$("acCht").hidden, close: closeCht });
       Nav.add("acDip", { open: () => !$("acDip").hidden, close: () => { if (dipClose) dipClose(); } });
     }
