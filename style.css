@@ -834,3 +834,9 @@ html[data-chest="skin"] .chest-glow{background:radial-gradient(circle,hsl(var(--
 .sk-gem{animation:skGem 2.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center}@keyframes skGem{50%{filter:brightness(1.5) drop-shadow(0 0 3px #fff)}}
 @media (prefers-reduced-motion:reduce){.sk-gem{animation:none}}
 .lb-sc{display:inline-block;vertical-align:-4px;width:18px;height:18px;margin-right:6px}.lb-sc circle{fill:hsl(var(--h) 60% 28%);stroke:hsl(var(--h) 85% 65%);stroke-width:1.4}.lb-sc path{fill:none;stroke:#fff;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transform:scale(.6);transform-origin:12px 12px}
+
+/* v2.a3.25 : slot Support (Discord) — clignement des yeux + halo blurple au survol */
+.dc-ic{filter:drop-shadow(0 0 6px rgba(88,101,242,.55));transition:transform .3s,filter .3s}
+.dc-eye{transform-box:fill-box;transform-origin:center;animation:dcBlink 5s ease-in-out infinite}@keyframes dcBlink{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.12)}}
+.sup-slot:hover .dc-ic,.sup-slot:focus-visible .dc-ic{transform:translateY(-1px) rotate(-6deg) scale(1.08);filter:drop-shadow(0 0 10px rgba(88,101,242,.85))}
+@media (prefers-reduced-motion:reduce){.dc-eye{animation:none}.dc-ic{transition:none}}

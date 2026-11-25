@@ -7,7 +7,7 @@
 // ============================================================
 const PATCHNOTES = [
   {
-    v: '2.a3.24', name: 'L’Académie des Arcanes', date: '2026-11-24',
+    v: '2.a3.25', name: 'L’Académie des Arcanes', date: '2026-11-24',
     gift: 'Cadeau de mise à jour : 3 clés offertes !',
     sections: [
       { t: '🎁 Nouveautés', items: [
@@ -18,7 +18,8 @@ const PATCHNOTES = [
         '**Lexique** et **Taxe d’adaptation** : un changement de sorts juste après un effort a un prix, expliqué dans le jeu.',
         '**Personnalisation** : un nouveau bouton du profil pour habiller ton sigil, ton coffre et le fond aux couleurs de ton école (texte lisible, norme WCAG AA), synchronisé avec ton compte.',
         '**Coffre d’école** : au rang VI, un coffre sculpté à l’effigie de ton école.',
-        '**Classement** : l’école de chaque mage s’affiche à côté de son pseudo.'
+        '**Classement** : l’école de chaque mage s’affiche à côté de son pseudo.',
+        '**Support** : un nouveau bouton du menu ouvre le serveur Discord du Coffre pour poser tes questions et signaler un souci.'
       ] },
       { t: '🛠 Améliorations', items: [
         '**Surchauffe** : limite de clics, pause et capacité revues, clavier (1-5 / 6-9, 0) pour lancer les sorts.',
