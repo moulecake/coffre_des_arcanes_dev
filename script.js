@@ -9,7 +9,7 @@
 // ============================================================
 // Adresse propre : on masque « index.html » dans la barre d'adresse (affichage seulement).
 if (/index\.html$/.test(location.pathname)) history.replaceState(null, "", location.pathname.replace(/index\.html$/, "") + location.search + location.hash);
-const CURRENT_VERSION = "2.a3.31";
+const CURRENT_VERSION = "2.a3.32";
 document.querySelectorAll('[id="app-version"]').forEach(e => { e.textContent = CURRENT_VERSION; });   // 2 pieds de page (accueil + app)
 
 // DROP RATES — C:40 | PC:25 | R:20 | TR:8 | L:5 | A:2
@@ -691,9 +691,9 @@ function createParticles(card, rarity){
 // EASTER EGG — LE MIMIC (v2.a3.31) : cliquer le coffre N fois d'affilée (chaque clic à moins de GAP ms du précédent, sinon on repart de zéro).
 // AUCUN retour visuel ni sonore pendant la saisie (pas d'indice). Un coffre mimic surgit DERRIÈRE le coffre, l'avale, le mâchouille, le recrache et repart.
 // Fonctionne sur tous les skins : on anime #chest-svg tel quel (son contenu n'est jamais touché). Dessin du mimic : DA « Trait Runique ».
-// ★ RÉGLAGE : MIMIC.n clics, MIMIC.gap ms max entre deux clics. Test : 10 / 450. Pour les joueurs (à décider) : voir MEMOIRE.md.
+// ★ RÉGLAGE : MIMIC.n clics, MIMIC.gap ms max entre deux clics (13 / 300, validé le 2026-11-27).
 // ============================================================
-const MIMIC = { n: 10, gap: 450 };
+const MIMIC = { n: 13, gap: 300 };                                // validé : rafale volontaire d'environ 4 s
 let _mmN = 0, _mmT = 0, _mmRun = false;
 function mimicSvg() {
   const T = (x, y, d) => { let p = ''; for (let i = 0; i < 9; i++) { const a = x + i * 10.6; p += 'M' + a.toFixed(1) + ' ' + y + 'l5.3 ' + d + 'l5.3 ' + (-d); } return p; };   // rangée de crocs (zigzag au trait)
@@ -707,7 +707,7 @@ function mimicSvg() {
     + '<rect x="20" y="72" width="100" height="50" rx="8" fill="url(#mm1)" stroke="rgba(168,85,247,.45)" stroke-width="1.5"/>'
     + '<path d="M20 98q50 10 100 0" fill="none" stroke="rgba(168,85,247,.3)" stroke-width="1"/>'
     + '<circle cx="34" cy="108" r="4" fill="rgba(168,85,247,.3)" stroke="rgba(168,85,247,.5)" stroke-width="1"/><circle cx="106" cy="108" r="4" fill="rgba(168,85,247,.3)" stroke="rgba(168,85,247,.5)" stroke-width="1"/>'
-    + '<text x="70" y="116" text-anchor="middle" fill="rgba(225,29,72,.45)" font-size="11" font-family="serif">ᛗᛁᛗ</text></g>'
+    + '<text x="70" y="116" text-anchor="middle" fill="rgba(225,29,72,.45)" font-size="11" font-family="serif" letter-spacing="1">ᛗᛁᛗᛁᚲ</text></g>'
     + '<g id="mm-lid" style="transform-origin:20px 74px"><rect x="20" y="32" width="100" height="44" rx="8" fill="url(#mm2)" stroke="rgba(168,85,247,.45)" stroke-width="1.5"/>'
     + '<path d="M20 60 Q70 20 120 60" fill="rgba(168,85,247,.08)" stroke="rgba(168,85,247,.3)" stroke-width="1"/>'
     + '<path d="' + T(22.5, 76, 7) + '" fill="rgba(255,241,214,.16)" stroke="rgba(255,241,214,.7)" stroke-width="1" stroke-linejoin="round"/>'

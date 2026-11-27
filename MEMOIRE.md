@@ -1,7 +1,7 @@
 # MEMOIRE — Le Coffre des Arcanes (ex-Arcane Vault) + Clicker
 
 > Handoff pour le Claude qui continue le dev. À lire en premier, à mettre à jour à la fin de chaque étape.
-> Dernière mise à jour : 2026-11-24. **Version : v2.a3.31** (code à jour = dossier de travail, pas le zip de handoff). Langue de travail : français. Utilisateur : MJ de JDR D&D, non-dev, colle les blocs à la main.
+> Dernière mise à jour : 2026-11-24. **Version : v2.a3.32** (code à jour = dossier de travail, pas le zip de handoff). Langue de travail : français. Utilisateur : MJ de JDR D&D, non-dev, colle les blocs à la main.
 
 ## ⏰ RAPPELS (à traiter par Claude dès qu'on est à la date)
 - **À TESTER EN MOBILE (375 px, navigateur MCP) À LA FIN DU LOT 5** (consigne utilisateur 2026-11-26) : grille et fiche de l'Amphithéâtre, tuiles d'examens, fenêtre d'examen + bulle de triche + mini-jeu, diplôme/plume, Mes decks (cartes, éditeur, palette, filtres), sélecteur de sorts + filtres, barre d'effets et badges d'emplacements, bilan hors ligne, Taxe, bulle des nombres complets, écran de spécialité (1 et 2).
@@ -289,7 +289,7 @@ Fait : lien (bouton ⚡ GRIMOIRE) et cache SW. Reste : équilibrage global, popo
 
 ### v2.a3.31 — Easter egg : le Mimic (2026-11-27) — SECRET : rien dans le patchnote
 - script.js : `MIMIC = { n: 10, gap: 450 }` (★ TEST : 10 clics d'affilée sur `#chest-svg`, ≤ 450 ms entre deux, sinon remise à zéro du compte). Aucun retour visuel/sonore pendant la saisie. `runMimic()` (Web Animations) : surgit DERRIÈRE le coffre et jette un œil → bondit gueule ouverte → croque (le coffre disparaît) → mâchouille ×4 (éclats, bruitage « croc ») → recrache (le coffre rebondit à sa place, DEVANT) → repart en arrière. ≈ 5 s, bouton d'ouverture bloqué pendant. Fonctionne sur tous les skins (on anime `#chest-svg` sans toucher son contenu). `prefers-reduced-motion` : simple apparition à côté. Compteur local `arcane-mimic` (futur succès éventuel). Dessin `mimicSvg()` en Trait Runique (crocs en zigzag au trait, langue translucide, yeux ambrés à pupille fendue).
-- **À décider pour les joueurs** (proposition) : 13 clics, ≤ 300 ms entre deux (rafale volontaire d'environ 4 s, impossible par simple impatience), OU un rythme « 3 + 3 + 3 » (trois rafales de 3 clics séparées de 0,6 à 1,5 s).
+- **v2.a3.32 : réglage joueurs VALIDÉ = 13 clics, ≤ 300 ms entre deux** (`MIMIC = { n: 13, gap: 300 }`). Runes du Mimic : ᛗᛁᛗᛁᚲ (« MIMIC »).
 
 ### v2.a3.30 — Rouages du coffre Bêta, rangée de clés adaptative, « Recommencer à zéro » aligné (2026-11-27)
 - Coffre **Bêta-testeur** : rouages animés au trait (Trait Runique : contour fin translucide, 8 dents, sens inverses, 10 s/tour, `prefers-reduced-motion`) aux coins du couvercle + coins renforcés. Règle validée : les coffres d'ÉVÈNEMENT peuvent modifier forme et décors, en restant au trait.
