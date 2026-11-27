@@ -291,6 +291,7 @@ Fait : lien (bouton ⚡ GRIMOIRE) et cache SW. Reste : équilibrage global, popo
 - Poussé par Claude depuis un clone séparé `../coffre_des_arcanes-live-push` (23 fichiers : app Coffre + Clicker, nav.js, channel.js, icônes -v2.3, manifest = manifest_LIVE.json) ; version 2.3.0 (CURRENT_VERSION, CACHE_NAME, patchnote) uniquement dans cette copie. Inchangés : data.js, workflow + send-push.js, clicker.html, favicon.ico ; anciennes icônes laissées sur l'officiel.
 - Avant : sauvegarde Firebase complète (`../SAUVEGARDES-FIREBASE/backup-players-2026-11-27.json`) + `check-migration.js` sans perte (16 joueurs, 800 copies, 778 uniques). Règles Firestore publiées par l'utilisateur.
 - Vérifié en ligne : sw.js et script.js en 2.3.0, manifest et icônes v2.3 servis (200), canal Live détecté (pas de thème PTU), aucune erreur console.
+- **Skin « Bêta-testeur » attribué sur le Live (2026-11-27)** avec `scripts/grant-event.js` (compte de service ; `--list` puis `--apply <uid>…` ; union dans `state.events` + `state.rev`+1 pour forcer la fusion côté client) à 10 comptes : les 7 comptes PTU (moulecake, Metzrinn, Ash, pub Killer, Lolajenilou, Eliéta, gueulle Danta) + la filature, Tcheu, Barbarossa (nouveau compte). Revérifié 30 s après : 10/10.
 - À surveiller : remises à zéro de saison chez les joueurs à leur 1re ouverture, icônes Android, `TEMP_RARITY_FIX` à garder plusieurs semaines. Prochaine version PTU : continuer la série alpha (ex. 2.a4.x) — elle reste « plus récente » que 2.3.0 pour cmpVer.
 
 ### v2.a3.34 — Préparation du passage sur le LIVE (2026-11-27)
