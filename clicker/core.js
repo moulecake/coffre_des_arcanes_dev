@@ -25,7 +25,22 @@ let S = { eth: 0, sg: 0, b: {}, seen: Date.now() };
 try { Object.assign(S, JSON.parse(localStorage.getItem(KEY) || "{}")); } catch (e) {}
 const save = () => { Stats.flush(); S.seen = Date.now(); localStorage.setItem(KEY, JSON.stringify(S)); };
 // v2.a3.6 : MIGRATION de l'apprentissage des sorts (S.spV < 2 → seul S.sp est remis à zéro ; bâtiments, Éther, Sagesse, fragments, stats intacts). Avant tout accès cloud.
-const SP_MIGRATED = Prog.migrate(S);                     // (la sauvegarde suit dans DOMContentLoaded : `save()` dépend de `dayKey`, défini plus bas)
+const SP_MIGRATED = Prog.migrate(S);
+// ============================================================
+// SAISON DU CLICKER (v2.a3.34) — ★ CK_SEASON : l'augmenter remet TOUT le Clicker à zéro (Éther, Sagesse, bâtiments, sorts, decks, école, rang, examens, STATISTIQUES)
+// au premier lancement de chaque joueur. Seuls `fr` (fragments gagnés : le pont vers le Coffre reste idempotent) et le compte sont gardés. S.rz+1 et S.spV+1 :
+// l'état remis à zéro gagne contre toute copie plus ancienne (cloud, autre appareil). La PTU n'est PAS remise à zéro (simple tampon) sauf SEASON_ON_PTU = true.
+// ============================================================
+const CK_SEASON = 1, SEASON_ON_PTU = false;
+function seasonCheck(rzFloor) {
+  if ((S.season || 0) >= CK_SEASON) return false;
+  if (CHANNEL.ptu && !SEASON_ON_PTU) { S.season = CK_SEASON; return false; }
+  const keep = { fr: S.fr, uid: S.uid, rz: Math.max(S.rz || 0, rzFloor || 0) + 1, spV: Math.max(S.spV || Prog.SPV, Prog.SPV) + 1, season: CK_SEASON };
+  Object.keys(S).forEach(k => delete S[k]); Object.assign(S, { eth: 0, sg: 0, b: {}, seen: Date.now(), g: { n: 0, t: "norm", need: 0, got: 0 } }, keep);
+  Prog.migrate(S); S.sp = Prog.emptySp(); S.pend = []; S.pdone = []; window.SEASON_RESET = 1; return true;
+}
+const sameSeason = (a, b) => ((a && a.season) || 0) === ((b && b.season) || 0);   // les statistiques d'une saison précédente ne sont jamais refusionnées
+seasonCheck(0);                     // (la sauvegarde suit dans DOMContentLoaded : `save()` dépend de `dayKey`, défini plus bas)
 
 // ---- Fragments de clés : EFFORT ACTIF uniquement (clic/sort < 10 s). 5 min d'effort = 1 fragment (5 fragments = 1 clé du Coffre).
 // 10-15 min tryhard ≈ 2-3 fragments · plafond 9/jour (≈ 1,8 clé) · le farm idle ne donne rien À CE NIVEAU (le flux passif = micro-fragments, ci-dessous). `fr.earned` est cumulatif : le Coffre
@@ -183,7 +198,7 @@ async function cloudSave(force) {
     await window.runTransaction(window.db, async tx => {
       const cur = await tx.get(ref), C = cur.exists() && cur.data().clicker; let R = null;
       if (C && C.json) { try { R = JSON.parse(C.json); } catch (e) {} }
-      if (R) { Stats.mergeFrom(S, R); if (Prog.fixSp(S, S, R)) spReload = 1; }      // stats : max par clé, jamais de régression ; sp : la version d'apprentissage la plus haute gagne, célébrations en union
+      if (R) { if (sameSeason(S, R)) Stats.mergeFrom(S, R); if (Prog.fixSp(S, S, R)) spReload = 1; }      // stats : max par clé, jamais de régression ; sp : la version d'apprentissage la plus haute gagne, célébrations en union
       if (R && progScore(R, S) > progScore(S, R)) throw new Error("STALE");                  // le cloud est plus avancé : on ne l'écrase pas
       tx.set(ref, body(), { merge: true });
     });
@@ -195,6 +210,9 @@ async function cloudSave(force) {
 }
 // Remise à zéro COMPLÈTE du clicker (v2.a3.27, demandée par le joueur, fenêtre de confirmation dans l'Académie) : Éther, Sagesse, bâtiments, sorts, rang, examens, decks, école.
 // CONSERVÉS : fragments gagnés (S.fr : le pont vers le Coffre reste idempotent), statistiques, verrou de triche, compte. S.rz+1 et S.spV+1 : la remise à zéro gagne contre le cloud.
+// v2.a3.34 : temps VISIBLE (onglet au premier plan) et temps d'ÉQUIPEMENT de chaque sort (équilibrage : quels sorts sont vraiment joués), par seconde
+let stT = 0;
+function statT(dt) { stT += dt; if (stT < 1) return; const k = Math.floor(stT); stT -= k; if (document.visibilityState !== "visible") return; Stats.add("vis", k); const q = (S.sp && S.sp.eq) || {}; ["V", "G"].forEach(p => (q[p] || []).forEach(id => { if (id) Stats.addIn("eqT", id, k); })); }
 async function resetAllProgress() {
   Stats.flush(); const keep = { fr: S.fr, lock: S.lock || 0, uid: S.uid, introSeen: S.introSeen, rz: (S.rz || 0) + 1, spV: (S.spV || Prog.SPV) + 1 }, st = Stats.pick(S);
   Object.keys(S).forEach(k => delete S[k]); Object.assign(S, { eth: 0, sg: 0, b: {}, seen: Date.now(), g: { n: 0, t: "norm", need: 0, got: 0 } }, keep);   // g : le tick tourne encore jusqu'au rechargement
@@ -210,13 +228,13 @@ async function cloudLoad(u) {
     if (CHANNEL.ptu && !st) { toast("PTU : choisis d'abord ton compte PTU depuis le Coffre"); return; }   // le compte PTU est créé par le Coffre (copie du live ou départ à zéro) ; le clicker n'écrit rien avant
     let R = null; if (c && c.json) { try { R = JSON.parse(c.json); } catch (e) {} }
     const foreign = !!(S.uid && S.uid !== u.uid), base = Prog.decide(S, R, foreign);
-    Stats.flush(); const keepSt = foreign ? null : Stats.pick(S), L0 = foreign ? { spV: Prog.SPV, sp: Prog.emptySp(), pend: [], pdone: [], lock: 0 } : { spV: S.spV, sp: S.sp, pend: S.pend, pdone: S.pdone, lock: S.lock };   // stats et apprentissage locaux à réappliquer si l'état cloud remplace S
+    Stats.flush(); const keepSt = foreign ? null : Stats.pick(S), L0 = foreign ? { spV: Prog.SPV, sp: Prog.emptySp(), pend: [], pdone: [], lock: 0 } : { spV: S.spV, sp: S.sp, pend: S.pend, pdone: S.pdone, lock: S.lock, season: S.season };   // stats et apprentissage locaux à réappliquer si l'état cloud remplace S
     if (base === "cloud") {                                                              // le cloud est plus avancé (ou égal et plus récent)
       const fr = mergeFr(foreign ? {} : S.fr || {}, R.fr || {});
-      Object.keys(S).forEach(k => delete S[k]); Object.assign(S, R); S.fr = fr; if (keepSt) Stats.mergeFrom(S, keepSt); Prog.migrate(S); Prog.fixSp(S, L0, R); Spells.init(); toast("☁ Progression synchronisée");
+      Object.keys(S).forEach(k => delete S[k]); Object.assign(S, R); S.fr = fr; if (keepSt && sameSeason(S, L0)) Stats.mergeFrom(S, keepSt); Prog.migrate(S); Prog.fixSp(S, L0, R); seasonCheck(R.rz || 0); Spells.init(); toast("☁ Progression synchronisée");
     } else if (base === "reset") {                                                       // compte sans sauvegarde, état local d'un AUTRE compte : on repart à zéro
       Object.keys(S).forEach(k => delete S[k]); Object.assign(S, { eth: 0, sg: 0, b: {}, seen: Date.now() }); Prog.migrate(S); Spells.init();
-    } else if (R) { S.fr = mergeFr(S.fr || {}, R.fr || {}); Stats.mergeFrom(S, R); if (Prog.fixSp(S, L0, R)) Spells.init(); }
+    } else if (R) { S.fr = mergeFr(S.fr || {}, R.fr || {}); if (sameSeason(S, R)) Stats.mergeFrom(S, R); if (Prog.fixSp(S, L0, R)) Spells.init(); }
     S.uid = u.uid; if (!(S.g && S.g.need > 0)) { S.g = { n: 0, t: "norm", need: 0, got: 0 }; nextPage(false); }
     lastT = lastE = -1; save(); cloudReady = true; cloudUid = u.uid; cloudSave(true);
   } catch (e) { console.warn("cloudLoad", e); }
@@ -500,7 +518,7 @@ function away(sec) {                                   // hors-ligne : timestamp
 function tick() {
   const n = Date.now(), dt = (n - last) / 1e3; last = n;
   if (dt > 5) { away(dt); return; }                    // onglet endormi
-  const c = Passives.calc(); S.eth += c.ethPS * dt; Stats.add("eth", c.ethPS * dt); Stats.add("imp", c.impPS * dt); Stats.tick(dt, Spells.active(), c.ethPS, c.sgPS);
+  const c = Passives.calc(); S.eth += c.ethPS * dt; Stats.add("eth", c.ethPS * dt); Stats.add("imp", c.impPS * dt); Stats.tick(dt, Spells.active(), c.ethPS, c.sgPS); statT(dt);
   if (c.sgPS > 0) gainSg(c.sgPS * dt * pageX(), false);             // lecture automatique : silencieuse
   fragTick(dt, c);
   const capG = Fx.cap(M("cpsG", CPS_GRIMOIRE)), capV = Fx.cap(M("cps", CPS_PALIERS[0]));                       // capacités (option A §5.1)

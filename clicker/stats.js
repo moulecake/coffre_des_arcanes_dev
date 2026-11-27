@@ -5,7 +5,7 @@
 // qui jouent en parallèle ne s'additionnent pas (limite connue). Écriture : tout en mémoire (accumulateur), versé dans S une fois par seconde et à chaque save().
 const StatsLib = (() => {
   const RET = 120, SNAP_MAX = 60, WEEK = 6048e5;
-  const DAY = new Set(["eth", "sg", "pg", "clV", "clG", "cast", "act", "off", "frA", "frP", "taxe", "exam"]);   // sous-ensemble tenu par jour (quêtes/défis)
+  const DAY = new Set(["eth", "sg", "pg", "clV", "clG", "cast", "act", "off", "frA", "frP", "taxe", "exam", "sess", "vis", "learn", "buy"]);   // v2.a3.34 : + sess, vis (temps visible), learn, buy   // sous-ensemble tenu par jour (quêtes/défis)
   const CHEAT = ["try", "win", "caught", "none", "mini", "miniBonusSum", "spellsLost"];                              // §24 : créés à 0, sans fonctionnalité pour l'instant
   const TH = [["eth", 1e6, "ether1mL"], ["eth", 1e9, "ether1L"], ["sg", 1e3, "sg1e3"], ["sg", 1e6, "sg1e6"], ["sg", 1e9, "sg1e9"], ["sg", 1e12, "sg1e12"]];   // 1 mL = 1e6 nL
   const num = v => typeof v === "number" && isFinite(v) ? v : 0, isO = v => v && typeof v === "object" && !Array.isArray(v);

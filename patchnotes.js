@@ -7,34 +7,28 @@
 // ============================================================
 const PATCHNOTES = [
   {
-    v: '2.a3.33', name: 'L’Académie des Arcanes', date: '2026-11-24',
+    v: '2.a3.34', name: 'L’Académie des Arcanes', date: '2026-11-27',
     gift: 'Cadeau de mise à jour : 3 clés offertes !',
     sections: [
       { t: '🎁 Nouveautés', items: [
-        '**L’Académie** : 8 écoles de magie, des examens pour monter du rang I au rang V, une spécialité à choisir (puis une seconde école au rang IV), un diplôme et une plume pour célébrer chaque réussite.',
-        '**40 sorts** : passifs et actifs, jusqu’à 5 emplacements par panneau, decks nommés, recherche et filtres. Le rang VI s’annonce.',
-        '**Hors ligne** : bilan détaillé à ton retour, préparation des sorts équipés juste avant de partir, plafond de 12 heures.',
-        '**Retours visuels** : barre des effets actifs, badges sur les emplacements, aura des amplifications, mots soulignés (touche-les pour leur définition) et gains teintés sous multiplicateur.',
-        '**Lexique** et **Taxe d’adaptation** : un changement de sorts juste après un effort a un prix, expliqué dans le jeu.',
-        '**Personnalisation** : un nouveau bouton du profil pour habiller ton sigil, ton coffre et le fond aux couleurs de ton école (texte lisible, norme WCAG AA), synchronisé avec ton compte.',
-        '**Coffre d’école** : au rang VI, un coffre sculpté à l’effigie de ton école.',
+        '!!**Remise à zéro du Grimoire** : ta progression du Clicker (Éther, Sagesse, bâtiments, sorts) repart de zéro pour faire place à une nouvelle version corrigée, améliorée et rééquilibrée. Ton inventaire du Coffre, tes clés et tes fragments sont conservés.!!',
+        '**L’Académie des Arcanes** : 8 écoles de magie, des examens du rang I au rang V, une spécialité puis une seconde école, un diplôme pour chaque réussite.',
+        '**40 sorts** : passifs et actifs, jusqu’à 5 emplacements par panneau, decks nommés avec résumé et carte détaillée de chaque sort, recherche et filtres.',
+        '**Barre de sorts** : rang discret sur chaque case ; un toucher rapide affiche le nom et l’effet du sort. Appui long : verrouiller l’emplacement.',
+        '**Hors ligne** : bilan détaillé à ton retour, préparation des sorts avant de partir, plafond de 12 heures.',
+        '**Lexique** et **Taxe d’adaptation** : touche un mot souligné pour sa définition ; changer ses sorts juste après un effort a un prix.',
+        '**Personnalisation** (Profil) : sceau, couleur et halo du coffre, fond et skins de coffre aux couleurs de ton école, à débloquer à l’Académie.',
+        '**Coffre de l’Artefact** : recycle un artefact en double pour obtenir un coffre spécial et sa clé, ouvert en priorité : 30 % de chance d’un Artefact, sinon un Légendaire et 1 à 5 fragments de clé.',
+        '**Recommencer à zéro** : depuis la fenêtre de spécialité, repars de zéro dans le Clicker si tu veux changer d’école.',
         '**Classement** : l’école de chaque mage s’affiche à côté de son pseudo.',
-        '**Support** : un nouveau bouton du menu ouvre le serveur Discord du Coffre pour poser tes questions et signaler un souci.',
-        '**Coffre de l’Artefact** : recycle un artefact en double pour obtenir un coffre spécial et sa clé. Il passe toujours en premier : 30 % de chance d’un Artefact, sinon un Légendaire et 1 à 5 fragments de clé.',
-        '**Personnalisation** revue : Sceau du profil (dès le choix de l’école), couleur & halo du coffre et fond (examen du rang III), skin de coffre (examen du rang VI, bientôt). Pour les bêta-testeurs : le coffre et le fond « Bêta-testeur ».',
-        '**Recommencer à zéro** : depuis la fenêtre « Choisis ta spécialité », tu peux repartir de zéro dans le Clicker (tes skins d’évènement, ton inventaire et tes fragments sont conservés).',
-        '**Decks** : chaque sort affiche un résumé de son effet ; touche-le pour voir sa carte détaillée, puis « Ajouter ».',
-        '**Barre de sorts** : chaque case porte discrètement le rang du sort, et un toucher rapide affiche son nom et son effet (en plus de le lancer s’il est actif).'
+        '**Support** : un bouton du menu ouvre le serveur Discord du Coffre.'
       ] },
       { t: '🛠 Améliorations', items: [
-        '**Surchauffe** : limite de clics, pause et capacité revues, clavier (1-5 / 6-9, 0) pour lancer les sorts.',
         '**Confort** : bouton retour (◁) natif, installation de l’application, compteurs collants, Top 10 du classement.',
-        '**Effort** : chaque appui dans le Clicker compte pour tes fragments de clé.',
-        '**Barre d’effets** : plus de clignotement, seul le compte à rebours bouge.',
-        '**Académie des Arcanes** : l’Amphithéâtre change de nom et de blason.',
-        '**Verrou** : un appui long verrouille aussi un emplacement dans « Équiper des sorts » ; équiper un deck remplace tout, même les emplacements verrouillés.',
-        '**Mobile** : les bulles d’examens ne débordent plus quand le texte du téléphone est agrandi ; ascenseurs aux couleurs du jeu ; mentions légales en bas du Clicker.',
-        '**Clés** : quand tu en as beaucoup, elles se rangent sur plusieurs lignes au lieu de déborder.'
+        '**Surchauffe** revue, raccourcis clavier des sorts (1-5 / 6-9, 0), effets visuels plus lisibles.',
+        '**Mobile** : bulles d’examens qui ne débordent plus, clés rangées sur plusieurs lignes quand tu en as beaucoup, ascenseurs aux couleurs du jeu.',
+        '**Mentions légales** accessibles depuis le Clicker.',
+        '**Nouvelle icône sur iPhone** : l’iPhone garde l’ancienne icône. Pour voir la nouvelle, supprime l’application de ton écran d’accueil puis réinstalle-la depuis le site (Partager › Sur l’écran d’accueil) : ta progression est conservée.'
       ] }
     ]
   },

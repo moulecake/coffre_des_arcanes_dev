@@ -8,8 +8,9 @@ if (!keyPath) { console.error('Usage : node scripts/backup-players.js <compte-de
 const admin = require('firebase-admin');
 admin.initializeApp({ credential: admin.credential.cert(JSON.parse(fs.readFileSync(keyPath, 'utf8'))) });
 (async () => {
-  const db = admin.firestore(), out = { savedAt: new Date().toISOString(), players: {}, leaderboard: {} };
-  for (const name of ['players', 'leaderboard']) {
+  const COLS = ['players', 'leaderboard', 'push', 'promo_codes', 'ptu_players', 'ptu_leaderboard', 'ptu_promo_codes'];   // v2.a3.34 : TOUTES les collections (live + PTU)
+  const db = admin.firestore(), out = { savedAt: new Date().toISOString() }; COLS.forEach(n => { out[n] = {}; });
+  for (const name of COLS) {
     const snap = await db.collection(name).get();
     snap.forEach(d => { out[name][d.id] = d.data(); });
     console.log(`${name} : ${snap.size} document(s)`);

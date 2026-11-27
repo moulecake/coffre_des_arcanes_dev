@@ -9,7 +9,7 @@
 // ============================================================
 // Adresse propre : on masque « index.html » dans la barre d'adresse (affichage seulement).
 if (/index\.html$/.test(location.pathname)) history.replaceState(null, "", location.pathname.replace(/index\.html$/, "") + location.search + location.hash);
-const CURRENT_VERSION = "2.a3.33";
+const CURRENT_VERSION = "2.a3.34";
 document.querySelectorAll('[id="app-version"]').forEach(e => { e.textContent = CURRENT_VERSION; });   // 2 pieds de page (accueil + app)
 
 // DROP RATES — C:40 | PC:25 | R:20 | TR:8 | L:5 | A:2
@@ -252,6 +252,7 @@ function mergeStates(base, L, C) {
   M.lastRegen = keys >= MAX_KEYS ? Date.now() : (base ? Math.min(L.lastRegen || Date.now(), C.lastRegen || Date.now()) : (C.lastRegen || Date.now()));
   M.pseudo = C.pseudo || L.pseudo || '';
   if (L.perso && (!C.perso || (L.perso.ts || 0) > (C.perso.ts || 0))) M.perso = L.perso;
+  { const st = cstMerge(L.st, C.st); if (st) M.st = st; }   // statistiques du Coffre : max par clé, jalons les plus anciens
   { const ev = [...new Set([].concat(C.events || [], L.events || []))]; if (ev.length) M.events = ev; }   // objets d'évènement (skins) : union, jamais retirés (même après une remise à zéro du clicker)   // personnalisation : le dernier réglage (horodaté) l'emporte
   delete M.forceLegendary; delete M.mjActive;                              // v2.a3.33 : ancien mode MJ supprimé (champs retirés des sauvegardes au fil des synchros ; mjAdded = simple historique conservé tel quel)
   return M;
@@ -471,7 +472,34 @@ async function syncLeaderboardDoc() {
   } catch (e) { _lbSig = ''; console.warn('Classement : écriture impossible (règles Firestore ?)', e.code || e); }
 }
 
+// ============================================================
+// STATISTIQUES DU COFFRE (v2.a3.34) — aucune interface : on COLLECTE pour le futur panneau MJ, les quêtes et le suivi d'activité (rétention, temps de jeu).
+// state.st = { c: compteurs à vie (clé → nombre, sous-clés « a.b »), d: { 'AAAA-MM-JJ': compteurs du jour } (120 j), ms: jalons { clé: horodatage de la 1re fois } }.
+// Fusion cloud (mergeStates) : max par clé (deux appareils en parallèle ne s'additionnent pas, comme le clicker), jalon = le plus ancien.
+// Écriture : en mémoire (accumulateur), versée dans state à chaque saveState() — aucune synchro supplémentaire.
+// ============================================================
+const CST_RET = 120, CST_DAY = new Set(['sess', 'vis', 'open', 'rec', 'regen', 'promo', 'clk', 'mimic']);
+const _cst = {};
+const cstDay = () => new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
+function cst(k, v) { _cst[k] = (_cst[k] || 0) + (v == null ? 1 : v); }            // compteur (« open.L » = sous-compteur)
+function cstMs(k) { const S0 = state.st || (state.st = {}); S0.ms = S0.ms || {}; if (!S0.ms[k]) S0.ms[k] = Date.now(); }
+function cstFlush() {
+  const keys = Object.keys(_cst).filter(k => _cst[k]); if (!keys.length) return;
+  const S0 = state.st || (state.st = {}); S0.c = S0.c || {}; S0.d = S0.d || {}; const d = cstDay(), D = S0.d[d] || (S0.d[d] = {});
+  keys.forEach(k => { const v = _cst[k]; _cst[k] = 0; S0.c[k] = Math.round(((S0.c[k] || 0) + v) * 100) / 100; const top = k.split('.')[0]; if (CST_DAY.has(top)) D[top] = Math.round(((D[top] || 0) + v) * 100) / 100; });
+  const cut = new Date(Date.now() - CST_RET * 864e5).toISOString().slice(0, 10); Object.keys(S0.d).forEach(x => { if (x < cut) delete S0.d[x]; });
+}
+const cstMax = (a, b) => { const o = {}; a = a || {}; b = b || {}; new Set([...Object.keys(a), ...Object.keys(b)]).forEach(k => { const x = a[k], y = b[k]; o[k] = (x && typeof x === 'object') || (y && typeof y === 'object') ? cstMax(x, y) : Math.max(+x || 0, +y || 0); }); return o; };
+function cstMerge(a, b) {
+  if (!a && !b) return undefined; a = a || {}; b = b || {}; const ms = {};
+  new Set([...Object.keys(a.ms || {}), ...Object.keys(b.ms || {})]).forEach(k => { const x = (a.ms || {})[k], y = (b.ms || {})[k]; ms[k] = x && y ? Math.min(x, y) : (x || y); });
+  return { c: cstMax(a.c, b.c), d: cstMax(a.d, b.d), ms };
+}
+// Session et temps VISIBLE (par paliers de 30 s, seulement onglet au premier plan) ; jours actifs = clés de state.st.d
+cst('sess'); setTimeout(() => cstMs('first'), 0);
+setInterval(() => { if (document.visibilityState === 'visible') cst('vis', 30); }, 30000);
 function saveState() {
+  cstFlush();
   _mut++; state.savedAt = Date.now();
   try { localStorage.setItem(LSKEY, JSON.stringify(serializeState())); } catch (e) { console.warn('localStorage plein ou indisponible', e); }
   _dirty = true; scheduleSync();                           // envoi au cloud différé (1,2 s) et fusionné : voir syncState()
@@ -492,6 +520,7 @@ async function loadState() {                                // lecture LOCALE se
 const patchPending = () => typeof PATCHNOTES !== 'undefined' && PATCHNOTES.length > 0 && cmpVer(state.patchSeen, PATCHNOTES[0].v) < 0;
 let _patchAuto = false, _entryDone = false;
 function richText(el, txt) {
+  if (/^!![\s\S]*!!$/.test(String(txt))) { el.classList.add('pn-alert'); txt = String(txt).slice(2, -2); }   // v2.a3.34 : « !!…!! » = ligne d'ALERTE en rouge
   String(txt).split(/(\*\*[^*]+\*\*)/).forEach(p => {
     if (/^\*\*[^*]+\*\*$/.test(p)) { const b = document.createElement('strong'); b.textContent = p.slice(2, -2); el.append(b); }
     else if (p) el.append(document.createTextNode(p));
@@ -515,6 +544,7 @@ function renderPatchnotes() {
   });
 }
 function openPatchnotes(auto) {
+  if (!auto) cst('patch');
   if (typeof PATCHNOTES === 'undefined' || !PATCHNOTES.length) return;
   _patchAuto = !!auto; renderPatchnotes();
   document.getElementById('patch-ok').textContent = auto ? 'Compris !' : 'Fermer';
@@ -552,6 +582,7 @@ function processRegen(){
   const elapsed = now - state.lastRegen;
   const charges = Math.floor(elapsed / REGEN_MS);
   if(charges > 0 && state.keys < MAX_KEYS){
+    cst('regen', Math.min(MAX_KEYS, state.keys + charges) - state.keys);
     state.keys = Math.min(MAX_KEYS, state.keys + charges);
     state.lastRegen += charges * REGEN_MS;
     if(state.keys >= MAX_KEYS) state.lastRegen = now;
@@ -731,7 +762,7 @@ function mimicClick() {
 }
 async function runMimic() {
   const wrap = document.getElementById('chest-wrap'), chest = document.getElementById('chest-svg'); if (!wrap || !chest || wrap.style.display === 'none') return;
-  _mmRun = true; isAnimating = true; const btn = document.getElementById('open-btn'), wasDis = btn.disabled; btn.disabled = true;
+  _mmRun = true; isAnimating = true; cst('mimic'); cstMs('mimic'); const btn = document.getElementById('open-btn'), wasDis = btn.disabled; btn.disabled = true;
   wrap.insertAdjacentHTML('beforeend', mimicSvg());
   const M = document.getElementById('mimic'), lid = document.getElementById('mm-lid'), crumbs = document.getElementById('mm-crumbs');
   const A = (el, kf, o) => el.animate(kf, Object.assign({ fill: 'forwards' }, o)).finished;
@@ -777,6 +808,8 @@ async function runMimic() {
   try { localStorage.setItem(CHANNEL.lsk('arcane-mimic'), String((+localStorage.getItem(CHANNEL.lsk('arcane-mimic')) || 0) + 1)); } catch (e) {}   // compteur local (futur succès éventuel)
 }
 document.addEventListener('DOMContentLoaded', () => { const c = document.getElementById('chest-svg'); if (c) c.addEventListener('click', mimicClick); });
+document.addEventListener('click', e => { const t = e.target.closest && e.target.closest('.card-link,[title="Accéder au Grimoire"],.sup-slot,[title="Soutenir le projet"],.inv-item'); if (!t) return;   // statistiques de navigation (aucun effet de jeu)
+  cst('clk'); cst('clk.' + (t.classList.contains('card-link') ? 'fiche' : t.classList.contains('inv-item') ? 'invFiche' : t.classList.contains('sup-slot') ? 'discord' : t.title === 'Soutenir le projet' ? 'kofi' : 'grimoire')); }, true);
 
 // ============================================================
 // OPEN CHEST
@@ -819,6 +852,7 @@ function openChest(){
 
       state.inventory[lootStr]=(state.inventory[lootStr]||0)+1;
       state.chestsOpened=(state.chestsOpened||0)+1;
+      cst('open'); cst('open.' + finalRarity); if(special){ cst('spOpen'); cst('spOpen.' + finalRarity); if(bonusFr) cst('spFr', bonusFr); } cstMs('open');
       let forged = 0;
       if(bonusFr){ state.fragments=(state.fragments||0)+bonusFr; while(state.fragments>=FRAGS_PER_KEY){ state.fragments-=FRAGS_PER_KEY; state.keys++; forged++; } }
       saveState();
@@ -877,7 +911,7 @@ function resetToChest(){
 // INVENTORY SIDEBAR
 // ============================================================
 let activeTab='all';
-function openSidebar(){ document.getElementById('sidebar').classList.add('open'); document.getElementById('overlay').classList.add('show'); renderInventory(); }
+function openSidebar(){ cst('inv'); document.getElementById('sidebar').classList.add('open'); document.getElementById('overlay').classList.add('show'); renderInventory(); }
 function closeSidebar(){
   if (isProfileOpen) {
     // Si on est dans le profil, fermer d'abord le détail ou le profil pour revenir à l'inventaire
@@ -945,15 +979,16 @@ function recycleItem(lootKey, e){
   e.stopPropagation();
   if(_authPending){ showToast('⏳ Synchronisation avec ton compte…'); return; }
   if((state.inventory[lootKey]||0) < 2) return;                  // on ne recycle qu'un DOUBLON : le dernier exemplaire n'est jamais retiré (et la fusion cloud garde un plancher de 1)
+  cst('rec'); cst('rec.' + lootKey.split('|')[3]);
   if(lootKey.split('|')[3]==='A'){                              // ARTEFACT (v2.a3.27) : coffre de l'Artefact + sa clé, ouvert en priorité
-    state.inventory[lootKey]--; state.spGot=(state.spGot||0)+1;
+    state.inventory[lootKey]--; state.spGot=(state.spGot||0)+1; cst('spGot'); cstMs('spGot');
     saveState(); updateTimer(); renderInventory(); refreshSpecialChest(true);
     showToast('🜂 Coffre de l\'Artefact obtenu, avec sa clé ! Il sera le prochain ouvert.', 6000);
     return;
   }
   const gain = recycleGain(lootKey);
   state.inventory[lootKey]--;
-  state.fragments = (state.fragments||0) + gain;
+  state.fragments = (state.fragments||0) + gain; cst('recFr', gain);
   // Fragments → clés (peut dépasser MAX_KEYS) ; plusieurs clés possibles d'un seul recyclage
   let forged = 0;
   while(state.fragments >= FRAGS_PER_KEY){ state.fragments -= FRAGS_PER_KEY; state.keys++; forged++; }
@@ -1344,6 +1379,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function openLeaderboardModal() {
+  cst('lb');
   const btn = document.getElementById('leaderboard-btn');
   if (btn) {
     btn.classList.remove('pulsing');
@@ -1467,11 +1503,12 @@ function escapeLeaderboardHtml(str) {
 
 // PONT CLICKER → FRAGMENTS (idempotent : earned − déjà réclamé)
 function claimClickerFragments(cloudEarned) {
+  // statistiques : voir cst('ckFr') plus bas
   let earned = cloudEarned || 0;
   try { const c = JSON.parse(localStorage.getItem(CHANNEL.lsk('coffre-clicker')) || '{}'); earned = Math.max(earned, (c.fr && c.fr.earned) || 0); } catch (e) {}
   const d = earned - (state.clickerClaimed || 0);
   if (d <= 0) return;
-  state.clickerClaimed = earned;
+  state.clickerClaimed = earned; cst('ckFr', d);
   state.fragments = (state.fragments || 0) + d;
   let k = 0;
   while (state.fragments >= FRAGS_PER_KEY) { state.fragments -= FRAGS_PER_KEY; state.keys++; k++; }
@@ -1675,7 +1712,7 @@ function applyPerso() {
     }
   } catch (e) {}
 }
-function setPerso(k, v) { const P = getPerso(); P[k] = v; P.ts = Date.now(); state.perso = P; saveState(); applyPerso(); renderPerso(); }   // state.perso est synchronisé (syncState : le plus récent l'emporte)
+function setPerso(k, v) { cst('perso'); cst('perso.' + k); const P = getPerso(); P[k] = v; P.ts = Date.now(); state.perso = P; saveState(); applyPerso(); renderPerso(); }   // state.perso est synchronisé (syncState : le plus récent l'emporte)
 function renderPerso() {
   const P = getPerso(), un = unlockedSchools(), box = document.getElementById('perso-body'); if (!box) return;
   const col = colorUnlocked(), sk = skinUnlocked(), ev = ownedEvents(), BETA = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 21V7.5C9.5 5 11.2 3.5 13.3 3.5c2.2 0 3.7 1.4 3.7 3.4 0 1.6-1 2.7-2.4 3.1 2 .3 3.3 1.8 3.3 3.8 0 2.5-1.8 4.1-4.3 4.1-1.7 0-3.1-.6-4.1-1.7"/></svg>';
@@ -1875,6 +1912,7 @@ async function validatePromoCode() {
     msgEl.textContent = `✨ Succès ! +${keysToAdd} clé(s) créditée(s) avec succès.`;
     msgEl.style.color = "#4ade80";
     msgEl.style.fontWeight = "bold";
+    cst('promo'); cst('promoKeys', keysToAdd); saveState();
     showToast(`🎟️ Code validé : +${keysToAdd} clé(s) !`);
   } catch (err) {
     console.error("Erreur promo code:", err);

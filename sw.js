@@ -2,7 +2,7 @@
 // le Cache Storage est PARTAGÉ par toute l'origine, chaque version ne doit donc jamais supprimer le cache de l'autre.
 const IS_PTU = !(self.location.hostname === 'moulecake.github.io' && /^[/]coffre_des_arcanes[/]/.test(self.location.pathname));
 const CACHE_PREFIX = IS_PTU ? 'ptu-arcane-vault-cache-' : 'arcane-vault-cache-';
-const CACHE_NAME = CACHE_PREFIX + 'v2.a3.33';
+const CACHE_NAME = CACHE_PREFIX + 'v2.a3.34';
 // Chemin de base DÉDUIT de l'emplacement du Service Worker (scope) : aucun préfixe de dépôt écrit en dur
 // → fonctionne à l'identique sur /coffre_des_arcanes/ (officiel) et /coffre_des_arcanes_dev/ (test) sans rien changer.
 const BASE = self.registration.scope;                     // ex. https://moulecake.github.io/coffre_des_arcanes/
@@ -27,11 +27,11 @@ const FILES_TO_CACHE = [
   BASE + 'clicker/spells.js',
   BASE + 'clicker/academy.js',
   BASE + 'clicker/hud.js',
-  BASE + 'android-chrome-192x192.png',
-  BASE + 'android-chrome-512x512.png',
-  BASE + 'apple-touch-icon.png',
-  BASE + 'favicon-32x32.png',
-  BASE + 'favicon-16x16.png',
+  BASE + 'android-chrome-192x192-v2.3.png',
+  BASE + 'android-chrome-512x512-v2.3.png',
+  BASE + 'apple-touch-icon-v2.3.png',
+  BASE + 'favicon-32x32-v2.3.png',
+  BASE + 'favicon-16x16-v2.3.png',
   BASE + 'favicon.ico'
 ];
 
@@ -84,8 +84,8 @@ self.addEventListener('push', event => {
   const title = d.title || 'Le Coffre des Arcanes';
   const options = {
     body: d.body || '',
-    icon: BASE + 'android-chrome-192x192.png',
-    badge: BASE + 'android-chrome-192x192.png',
+    icon: BASE + 'android-chrome-192x192-v2.3.png',
+    badge: BASE + 'android-chrome-192x192-v2.3.png',
     tag: d.tag || 'arcanes',                                          // une notification par type : pas d'empilement
     renotify: true,
     data: { url: d.url || BASE }

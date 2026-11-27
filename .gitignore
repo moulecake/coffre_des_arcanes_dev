@@ -6,3 +6,6 @@ backup-players-*.json
 sauvegarde-joueurs-*.json
 node_modules/
 scripts/node_modules/
+
+# Manifest de la PTU (gardé en local, voir commentaire dans le fichier)
+manifest_PTU.json
