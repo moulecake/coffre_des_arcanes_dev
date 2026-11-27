@@ -139,16 +139,25 @@ const Spells = (() => {
   const force = () => presc > 0 && (presc--, true), forced = () => presc, touch = () => { lastAct = lastEffort = Date.now(); }, effort = () => { lastEffort = Date.now(); }, active = () => Date.now() - lastEffort < 1e4;
 
   // ---- Barres de sorts ----
+  const ROM = ["", "I", "II", "III", "IV", "V", "VI"];
+  let tipT = 0;
+  const slTip = (b, s) => {                                                     // bulle fixe (directement sous <body>) : différencie deux sorts de la même école sur mobile
+    let t = $("slTip"); if (!t) { t = document.createElement("div"); t.id = "slTip"; t.setAttribute("role", "status"); document.body.append(t); }
+    t.style.setProperty("--h", SCH.find(x => x[0] === s.k)[2]); t.innerHTML = "<b>" + s.n + "</b><span>" + (sum(s) || (s.t === "A" ? "Actif" : "Passif")) + "</span>";
+    const r = b.getBoundingClientRect(); t.classList.add("on"); const w = t.offsetWidth; t.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2)) + "px"; t.style.top = Math.max(8, r.top - t.offsetHeight - 8) + "px";
+    clearTimeout(tipT); tipT = setTimeout(() => t.classList.remove("on"), 1500);
+  };
   const bar = p => {
     const el = $("bar" + p), n = nSlots(); el.innerHTML = "";
     for (let i = 0; i < n; i++) {
       const id = sp().eq[p][i], s = id && byId[id], b = document.createElement("button"); let t, lp = 0;
       b.className = "sl" + (sp().lock[p + i] ? " lk" : "") + (s && s.t === "A" ? " act" : "");
       b.title = s ? (window.Hud ? Hud.title(s) : s.n + " — " + s.d) : "Emplacement libre";
-      if (s) { b.dataset.id = id; b.style.color = hue(s.k); b.innerHTML = gl(s.k, 22) + "<u></u><b></b>"; } else b.textContent = "✦";
+      if (s) { b.dataset.id = id; b.style.color = hue(s.k); b.innerHTML = gl(s.k, 22) + "<u></u><b></b><i class='slr' aria-hidden='true'>" + ROM[s.r] + "</i>"; b.setAttribute("aria-label", s.n + " — " + sum(s)); } else b.textContent = "✦";
       b.onpointerdown = () => { lp = 0; t = setTimeout(() => { lp = 1; sp().lock[p + i] = !sp().lock[p + i]; save(); bar(p); }, 500); };
       b.onpointerup = b.onpointerleave = () => clearTimeout(t);
-      b.onclick = () => { if (lp) { lp = 0; return; } if (!s) return pick(p); if (s.t === "A") cast(s, p); else toast(s.n + " — " + s.d); };
+      // v2.a3.27 : toucher rapide = bulle « nom + résumé » 1,5 s au-dessus de la case (+ lancer si actif). ANCIEN (rollback) : ... else toast(s.n + " — " + s.d);
+      b.onclick = () => { if (lp) { lp = 0; return; } if (!s) return pick(p); slTip(b, s); if (s.t === "A") cast(s, p); };
       el.append(b);
     }
   };

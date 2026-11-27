@@ -7,7 +7,7 @@
 // ============================================================
 const PATCHNOTES = [
   {
-    v: '2.a3.27', name: 'L’Académie des Arcanes', date: '2026-11-24',
+    v: '2.a3.28', name: 'L’Académie des Arcanes', date: '2026-11-24',
     gift: 'Cadeau de mise à jour : 3 clés offertes !',
     sections: [
       { t: '🎁 Nouveautés', items: [
@@ -23,7 +23,8 @@ const PATCHNOTES = [
         '**Coffre de l’Artefact** : recycle un artefact en double pour obtenir un coffre spécial et sa clé. Il passe toujours en premier : 30 % de chance d’un Artefact, sinon un Légendaire et 1 à 5 fragments de clé.',
         '**Personnalisation** revue : Sceau du profil (dès le choix de l’école), couleur & halo du coffre et fond (examen du rang III), skin de coffre (examen du rang VI, bientôt). Pour les bêta-testeurs : le coffre et le fond « Bêta-testeur ».',
         '**Recommencer à zéro** : depuis l’Académie, tu peux repartir de zéro dans le Clicker (tes skins d’évènement, ton inventaire et tes fragments sont conservés).',
-        '**Decks** : chaque sort affiche un résumé de son effet ; touche-le pour voir sa carte détaillée, puis « Ajouter ».'
+        '**Decks** : chaque sort affiche un résumé de son effet ; touche-le pour voir sa carte détaillée, puis « Ajouter ».',
+        '**Barre de sorts** : chaque case montre le rang du sort, et un toucher rapide affiche son nom et son effet (en plus de le lancer s’il est actif).'
       ] },
       { t: '🛠 Améliorations', items: [
         '**Surchauffe** : limite de clics, pause et capacité revues, clavier (1-5 / 6-9, 0) pour lancer les sorts.',
