@@ -83,6 +83,10 @@ ok(P.finishExam(S, 9e9) === 0 && S.pend.length === 1, "idempotent");
 // 8. Prix et temps
 ok(P.COST.slice(0, 4).join() === "200000,8000000,80000000,300000000" && P.COST[4] === 1.2e9 && P.TIME[4] === 21600 && P.TIME.slice(0, 4).join() === "30,300,1800,10800", "table de prix §3.4");
 ok(P.EX.price.slice(0, 4).join() === "2000000,80000000,800000000,3000000000" && P.EX.dur.slice(0, 4).join() === "120,1200,7200,28800" && P.EX.dur.length === 5, "examens §3.4 (durées d'origine ; EX.dur = 1 min en test ; le 5 = valeurs provisoires)");
+// v2.a3.27 : remise à zéro volontaire (S.rz) — l'état remis à zéro l'emporte sur un cloud plus avancé
+{ const big = { b: { a: 50 }, g: { n: 900 }, fr: { earned: 40 }, spV: 3 }, fresh = { b: {}, g: { n: 0 }, fr: { earned: 40 }, spV: 4, rz: 1 };
+  ok(P.score(fresh, big) > P.score(big, fresh), "rz : l'état remis à zéro gagne"); ok(P.decide(fresh, big, false) === "local", "rz : decide garde le local remis à zéro");
+  ok(P.decide(big, fresh, false) === "cloud", "rz : un appareil resté ancien adopte la remise à zéro du cloud"); }
 console.log("progress.test.js : " + n + " vérifications OK");
 
 // ===== v2.a3.7 : spécialité, réinitialisation (spV incrémenté), proposition aux joueurs rang ≥ 2 =====

@@ -193,6 +193,16 @@ async function cloudSave(force) {
     else console.warn("cloudSave", e);
   }
 }
+// Remise à zéro COMPLÈTE du clicker (v2.a3.27, demandée par le joueur, fenêtre de confirmation dans l'Académie) : Éther, Sagesse, bâtiments, sorts, rang, examens, decks, école.
+// CONSERVÉS : fragments gagnés (S.fr : le pont vers le Coffre reste idempotent), statistiques, verrou de triche, compte. S.rz+1 et S.spV+1 : la remise à zéro gagne contre le cloud.
+async function resetAllProgress() {
+  Stats.flush(); const keep = { fr: S.fr, lock: S.lock || 0, uid: S.uid, introSeen: S.introSeen, rz: (S.rz || 0) + 1, spV: (S.spV || Prog.SPV) + 1 }, st = Stats.pick(S);
+  Object.keys(S).forEach(k => delete S[k]); Object.assign(S, { eth: 0, sg: 0, b: {}, seen: Date.now() }, keep);
+  Stats.mergeFrom(S, st); Stats.add("rz", 1); Prog.migrate(S); S.sp = Prog.emptySp(); S.pend = []; S.pdone = [];
+  save(); try { await cloudSave(true); } catch (e) {}
+  location.reload();
+}
+window.resetAllProgress = resetAllProgress;
 async function cloudLoad(u) {
   try {
     const snap = await window.getDoc(window.doc(window.db, CHANNEL.col("players"), u.uid)), c = snap.exists() ? snap.data().clicker : null, st = snap.exists() ? snap.data().state : null;
@@ -548,7 +558,7 @@ const LEX = [
   ["Cours", "Apprendre un sort coûte de la Sagesse et du temps réel. Le cours continue même quand tu es absent."],
   ["École", "Une des 8 écoles de magie. Chacune compte un sort par rang."],
   ["Spécialité", "L'école que tu choisis, une fois pour toutes, au premier examen : ses cours coûtent 25 % de moins et durent 25 % de moins, et chacun de ses sorts est renforcé. Ce choix est définitif."],
-  ["Rang", "Ton niveau d'avancement à l'Amphithéâtre. Tu peux apprendre les sorts jusqu'à ton rang ; le suivant s'ouvre en réussissant l'examen."],
+  ["Rang", "Ton niveau d'avancement à l'Académie des Arcanes. Tu peux apprendre les sorts jusqu'à ton rang ; le suivant s'ouvre en réussissant l'examen."],
   ["Examen", "Épreuve de l'Académie qui ouvre le rang suivant : apprends les 8 sorts du rang, remplis les conditions, paie les frais et patiente (ça continue hors ligne)."],
   ["Emplacement", "Une case de la barre de sorts, sous le Voile ou sous le Grimoire. Tu en as autant que ton rang ; le sort qui l'occupe agit."],
   ["Deck", "Ensemble de sorts nommé, à équiper d'un coup (8 decks au maximum)."],

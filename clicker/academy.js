@@ -1,5 +1,5 @@
 "use strict";
-// L'Amphithéâtre (v2.a3.6) — INTERFACE : grille des sorts (écoles × rangs), fiche d'un sort, fenêtre d'EXAMEN, « pli de l'Académie » (célébration en attente).
+// L'Académie des Arcanes (ex-Amphithéâtre, v2.a3.6) — INTERFACE : grille des sorts (écoles × rangs), fiche d'un sort, fenêtre d'EXAMEN, « pli de l'Académie » (célébration en attente).
 // Les RÈGLES sont dans clicker/progress.js (pures) et clicker/spells.js (learn, startExam, examInfo). DA = maquettes/sorts.html (classes préfixées ac-).
 window.Academy = (() => {
   const $ = id => document.getElementById(id), sp = () => Spells.sp(), SCH = Spells.SCH, byId = Spells.byId, gl = Spells.glyph;
@@ -7,6 +7,7 @@ window.Academy = (() => {
   const OFFL = Spells.OFFL;                                                                  // passifs qui produisent aussi hors ligne (liste unique, dans spells.js)
   const PN = { V: "Voile", G: "Grimoire", X: "Voile & Grimoire" };
   const ic = {
+    chest: "<svg viewBox='0 0 24 24' aria-hidden='true'><path d='M3 11V9a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v2z' fill='rgba(212,175,55,.25)' stroke='#f5d98a' stroke-width='1.5' stroke-linejoin='round'/><rect x='3' y='11' width='18' height='8' rx='2' fill='rgba(139,92,246,.25)' stroke='#f5d98a' stroke-width='1.5'/><rect x='10' y='9.5' width='4' height='4' rx='1' fill='#f5d98a'/></svg>",
     ok: "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 12l5 5L20 6'/></svg>",
     lock: "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><rect x='5' y='11' width='14' height='10' rx='2'/><path d='M8 11V8a4 4 0 0 1 8 0v3'/></svg>"
   };
@@ -125,7 +126,7 @@ window.Academy = (() => {
     fill1: ["Un sort dans chaque emplacement", "Place un sort dans ton emplacement du Voile ET dans celui du Grimoire (peu importe lequel). C'est ainsi que tu prépares ton équipement."],
     fill2: ["Tous les emplacements remplis", "Remplis au moins une fois chacun de tes 2 emplacements du Voile et de tes 2 du Grimoire."],
     cast: ["Avoir lancé un sort actif", "Lance au moins une fois un sort actif depuis un emplacement, au Voile ou au Grimoire."],
-    deck: ["Avoir créé un deck", "Dans l'Amphithéâtre, enregistre ton équipement dans un deck nommé (bouton « Mes Decks »)."],
+    deck: ["Avoir créé un deck", "Dans l'Académie des Arcanes, enregistre ton équipement dans un deck nommé (bouton « Mes Decks »)."],
     equip: ["Avoir équipé un deck", "Équipe un de tes decks depuis le menu Decks."],
     cast3: ["3 sorts actifs différents lancés", "Lance au moins 3 sorts actifs différents."],
     deck4: ["Un deck complet", "Enregistre un deck dont TOUS les emplacements sont remplis : 4 au Voile et 4 au Grimoire (bouton « Mes Decks »)."],
@@ -135,6 +136,8 @@ window.Academy = (() => {
   };
   const ctext = (c, n) => c.id === "eth" ? [fE(c.need) + " d'Éther cumulé", "Total d'Éther gagné depuis le début : " + fE(c.need) + ". Touche le compteur d'Éther pour voir la valeur exacte."] :
     c.id === "sg" ? [fN(c.need) + " Sagesse cumulées", "Total de Sagesse gagnée depuis le début : " + fN(c.need) + ". Les pages lues et tes bâtiments la produisent."] : CT[c.id === "fill" ? "fill" + n : c.id];
+  // Recommencer à zéro (v2.a3.27) : fenêtre d'explication + appui maintenu 3 s → core.js resetAllProgress()
+  const openRst = () => { $("acRst").hidden = false; }, closeRst = () => { $("acRst").hidden = true; };
   const exam = () => {
     const n = exN, R = rk(), body = $("acExB"), ex = sp().exam, info = Spells.examInfo(n), future = n > R, done = n < R, sealed = n > Prog.EX.open && !future, running = !!ex && ex.n === n;
     const pips = SCH.map(s => { const o = !!sp().learned[s[0] + n]; return "<span class='ac-pip" + (o ? "" : " off") + "' title='" + s[1] + "' style='color:hsl(" + s[2] + " 80% 65%);border-color:hsl(" + s[2] + " 70% 55%/.6)'>" + gl(s[0], 13) + "</span>"; }).join("");
@@ -154,7 +157,8 @@ window.Academy = (() => {
     h += "</div>";
     const row = (c, l, p) => "<div class='ac-row " + c + "'><span>" + l + "</span>" + Array.from({ length: Math.max(4, R) }, (_, i) => "<span class='ac-sl " + (i < R ? "f" : "lock") + (done && i === n ? " new" : "") + "'>" + (i < R ? "✦" : ic.lock) + "</span>").join("") + "</div>";
     if (done) h += "<button class='ac-go sec' id='acRev2'>REVOIR MON DIPLÔME</button>";
-    h += "<div class='ac-slots'>" + row("v", "VOILE") + row("g", "GRIMOIRE") + "</div>";
+    const REW = { 3: "Couleur & halo du coffre + fond aux couleurs de ton école", 6: "Skin de coffre à l'effigie de ton école" };   // gains de Personnalisation (Coffre › Profil › Personnalisation)
+    h += "<div class='ac-slots'>" + row("v", "VOILE") + row("g", "GRIMOIRE") + (REW[n] ? "<div class='ac-row k" + (done ? " got" : "") + "'><span>COFFRE</span><em class='ac-rew'>" + ic.chest + "<b>" + REW[n] + "</b></em></div>" : "") + "</div>";
     body.innerHTML = h; last = {};
     { const tb = $("acTb"), gh = $("acGhost"); if (tb && cg.vis) tb.classList.add("g"); if (gh) gh.onclick = openCht; if (!tb) cg.init = 0; }
     body.querySelectorAll(".ac-info[data-i]").forEach(b => b.onclick = () => { const t = ctext(info.conds[+b.dataset.i], n); $("acInfoT").textContent = t[0]; $("acInfoP").textContent = t[1]; $("acInfo").hidden = false; $("acInfoOk").focus(); });
@@ -323,12 +327,14 @@ window.Academy = (() => {
   const init = () => {
     $("acExC").onclick = closeExam; $("acEx").onclick = e => { if (e.target.id === "acEx") closeExam(); };
     $("acSpeC").onclick = closeSpe; $("acSpe").onclick = e => { if (e.target.id === "acSpe") closeSpe(); };
+    if ($("acRst") && !$("acRstH").dataset.b) { $("acRstH").dataset.b = 1; $("acRstC").onclick = closeRst; $("acRst").onclick = e => { if (e.target.id === "acRst") closeRst(); }; $("acRstGo").onclick = openRst; hold($("acRstH"), 3000, () => { $("acRstH").disabled = true; toast("Remise à zéro…"); window.resetAllProgress(); }); }
     $("acInfoOk").onclick = () => { $("acInfo").hidden = true; }; $("acInfo").onclick = e => { if (e.target.id === "acInfo") $("acInfo").hidden = true; };
     if (typeof Nav !== "undefined" && !navDone) {
       navDone = 1; Nav.add("acInfo", { open: () => !$("acInfo").hidden, close: () => { $("acInfo").hidden = true; } });
       Nav.add("acEx", { open: () => !$("acEx").hidden, close: closeExam });
       Nav.add("acCele", { open: () => !$("acCele").hidden, close: closeCele });
       Nav.add("acSpe", { open: () => !$("acSpe").hidden, close: closeSpe });
+      Nav.add("acRst", { open: () => !$("acRst").hidden, close: closeRst });
       Nav.add("acCht", { open: () => !$("acCht").hidden, close: closeCht });
       Nav.add("acDip", { open: () => !$("acDip").hidden, close: () => { if (dipClose) dipClose(); } });
     }

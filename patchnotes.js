@@ -7,7 +7,7 @@
 // ============================================================
 const PATCHNOTES = [
   {
-    v: '2.a3.26', name: 'L’Académie des Arcanes', date: '2026-11-24',
+    v: '2.a3.27', name: 'L’Académie des Arcanes', date: '2026-11-24',
     gift: 'Cadeau de mise à jour : 3 clés offertes !',
     sections: [
       { t: '🎁 Nouveautés', items: [
@@ -19,13 +19,20 @@ const PATCHNOTES = [
         '**Personnalisation** : un nouveau bouton du profil pour habiller ton sigil, ton coffre et le fond aux couleurs de ton école (texte lisible, norme WCAG AA), synchronisé avec ton compte.',
         '**Coffre d’école** : au rang VI, un coffre sculpté à l’effigie de ton école.',
         '**Classement** : l’école de chaque mage s’affiche à côté de son pseudo.',
-        '**Support** : un nouveau bouton du menu ouvre le serveur Discord du Coffre pour poser tes questions et signaler un souci.'
+        '**Support** : un nouveau bouton du menu ouvre le serveur Discord du Coffre pour poser tes questions et signaler un souci.',
+        '**Coffre de l’Artefact** : recycle un artefact en double pour obtenir un coffre spécial et sa clé. Il passe toujours en premier : 30 % de chance d’un Artefact, sinon un Légendaire et 1 à 5 fragments de clé.',
+        '**Personnalisation** revue : Sceau du profil (dès le choix de l’école), couleur & halo du coffre et fond (examen du rang III), skin de coffre (examen du rang VI, bientôt). Pour les bêta-testeurs : le coffre et le fond « Bêta-testeur ».',
+        '**Recommencer à zéro** : depuis l’Académie, tu peux repartir de zéro dans le Clicker (tes skins d’évènement, ton inventaire et tes fragments sont conservés).',
+        '**Decks** : chaque sort affiche un résumé de son effet ; touche-le pour voir sa carte détaillée, puis « Ajouter ».'
       ] },
       { t: '🛠 Améliorations', items: [
         '**Surchauffe** : limite de clics, pause et capacité revues, clavier (1-5 / 6-9, 0) pour lancer les sorts.',
         '**Confort** : bouton retour (◁) natif, installation de l’application, compteurs collants, Top 10 du classement.',
         '**Effort** : chaque appui dans le Clicker compte pour tes fragments de clé.',
-        '**Barre d’effets** : plus de clignotement, seul le compte à rebours bouge.'
+        '**Barre d’effets** : plus de clignotement, seul le compte à rebours bouge.',
+        '**Académie des Arcanes** : l’Amphithéâtre change de nom et de blason.',
+        '**Verrou** : un appui long verrouille aussi un emplacement dans « Équiper des sorts » ; équiper un deck remplace tout, même les emplacements verrouillés.',
+        '**Mobile** : les bulles d’examens ne débordent plus quand le texte du téléphone est agrandi ; ascenseurs aux couleurs du jeu ; mentions légales en bas du Clicker.'
       ] }
     ]
   },
@@ -34,7 +41,7 @@ const PATCHNOTES = [
     gift: 'Cadeau de mise à jour : 3 clés offertes !',
     sections: [
       { t: '🎁 Nouveautés', items: [
-        '**Le Clicker** (bouton ⚡ GRIMOIRE) : le Voile d’Éther et le Grimoire aux Pages Infinies. Frappe, lis, recrute des serviteurs et rends-toi à l’Amphithéâtre. Le reste, à toi de le découvrir !',
+        '**Le Clicker** (bouton ⚡ GRIMOIRE) : le Voile d’Éther et le Grimoire aux Pages Infinies. Frappe, lis, recrute des serviteurs et rends-toi à l’Académie. Le reste, à toi de le découvrir !',
         '**Fragments de clé** : le Clicker en produit, par ton effort comme tout seul avec le temps. Ils deviennent des clés pour le Coffre, avec une animation quand la clé arrive.',
         '**Notifications** : sois prévenu quand tes clés sont rechargées ou qu’une clé est prête dans le Clicker. Activées par défaut, modifiables dans Menu › Options.',
         '**Options** (Menu) : coupe les sons et les vibrations.',

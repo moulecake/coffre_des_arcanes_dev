@@ -9,7 +9,7 @@
 // ============================================================
 // Adresse propre : on masque « index.html » dans la barre d'adresse (affichage seulement).
 if (/index\.html$/.test(location.pathname)) history.replaceState(null, "", location.pathname.replace(/index\.html$/, "") + location.search + location.hash);
-const CURRENT_VERSION = "2.a3.26";
+const CURRENT_VERSION = "2.a3.27";
 document.querySelectorAll('[id="app-version"]').forEach(e => { e.textContent = CURRENT_VERSION; });   // 2 pieds de page (accueil + app)
 
 // DROP RATES — C:40 | PC:25 | R:20 | TR:8 | L:5 | A:2
@@ -215,7 +215,7 @@ const serializeState = () => serializeStateOf(state);
 const unpackState = cs => Object.assign({}, cs, { inventory: unpackInventory(cs.inventory) });
 const snapLocal = () => Object.assign({}, state, { inventory: copyInv(state.inventory), mjAdded: (state.mjAdded || []).slice() });
 const freshState = () => ({ version: CURRENT_VERSION, keys: MAX_KEYS, lastRegen: Date.now(), inventory: {}, chestsOpened: 0, fragments: 0, forceLegendary: false, mjActive: false, pseudo: '' });
-const snapBase = st => ({ uid: st.uid || '', rev: st.rev || 0, inv: copyInv(st.inventory), keys: st.keys || 0, fragments: st.fragments || 0, clickerClaimed: st.clickerClaimed || 0, chestsOpened: st.chestsOpened || 0 });
+const snapBase = st => ({ uid: st.uid || '', rev: st.rev || 0, inv: copyInv(st.inventory), keys: st.keys || 0, fragments: st.fragments || 0, clickerClaimed: st.clickerClaimed || 0, chestsOpened: st.chestsOpened || 0, spGot: st.spGot || 0, spUsed: st.spUsed || 0 });
 function loadBase() { try { const b = JSON.parse(localStorage.getItem(BASE_KEY) || 'null'); if (b) b.inv = unpackInventory(b.inv); return b; } catch (e) { return null; } }
 function storeBase(b) { _base = b; try { localStorage.setItem(BASE_KEY, JSON.stringify(Object.assign({}, b, { inv: packInventory(b.inv) }))); } catch (e) {} }
 function ensureSuperset(inv, ref) { for (const k in (ref || {})) if (ref[k] > 0 && !(inv[k] > 0)) inv[k] = ref[k]; return inv; }
@@ -243,6 +243,8 @@ function mergeStates(base, L, C) {
   M.inventory = mergeInventories(base && base.inv, L.inventory, C.inventory);
   const delta = f => Math.max(0, (C[f] || 0) + ((L[f] || 0) - (base[f] || 0)));
   M.chestsOpened = base ? delta('chestsOpened') : Math.max(L.chestsOpened || 0, C.chestsOpened || 0);
+  M.spGot = base ? delta('spGot') : Math.max(L.spGot || 0, C.spGot || 0);                      // coffres d'artefact gagnés (recyclage) : additifs entre appareils
+  M.spUsed = Math.min(M.spGot, base ? delta('spUsed') : Math.max(L.spUsed || 0, C.spUsed || 0)); // … et ouverts (jamais plus d'ouverts que de gagnés)
   let keys = base ? delta('keys') : (C.keys || 0), frag = base ? delta('fragments') : (C.fragments || 0);   // sans base : le cloud fait foi (pas de clés gratuites sur appareil neuf)
   if (base && keys > MAX_KEYS && Math.max(L.keys || 0, C.keys || 0) <= MAX_KEYS) keys = MAX_KEYS;          // double régénération
   while (frag >= FRAGS_PER_KEY) { frag -= FRAGS_PER_KEY; keys++; }
@@ -251,7 +253,8 @@ function mergeStates(base, L, C) {
   M.patchSeen = newerVer(L.patchSeen, C.patchSeen);                        // dernier patchnote lu : le plus récent des deux
   M.lastRegen = keys >= MAX_KEYS ? Date.now() : (base ? Math.min(L.lastRegen || Date.now(), C.lastRegen || Date.now()) : (C.lastRegen || Date.now()));
   M.pseudo = C.pseudo || L.pseudo || '';
-  if (L.perso && (!C.perso || (L.perso.ts || 0) > (C.perso.ts || 0))) M.perso = L.perso;   // personnalisation : le dernier réglage (horodaté) l'emporte
+  if (L.perso && (!C.perso || (L.perso.ts || 0) > (C.perso.ts || 0))) M.perso = L.perso;
+  { const ev = [...new Set([].concat(C.events || [], L.events || []))]; if (ev.length) M.events = ev; }   // objets d'évènement (skins) : union, jamais retirés (même après une remise à zéro du clicker)   // personnalisation : le dernier réglage (horodaté) l'emporte
   const seen = new Set(), adds = []; [].concat(C.mjAdded || [], L.mjAdded || []).forEach(a => { const id = (a && a.name) + '@' + (a && a.ts); if (!seen.has(id)) { seen.add(id); adds.push(a); } });
   if (adds.length) M.mjAdded = adds;
   M.forceLegendary = !!L.forceLegendary; M.mjActive = !!L.mjActive;
@@ -291,7 +294,7 @@ async function syncState(reason) {
       if (merged.pseudo) { body.pseudo = merged.pseudo; fields.push('pseudo'); }
       Object.keys(bk).forEach(k => fields.push('backups.' + k)); if (Object.keys(bk).length) body.backups = bk;
       tx.set(ref, body, { mergeFields: fields });
-      res = { merged, mode, hadBase: !!base, foreign, clickerEarned: data.clicker && data.clicker.earned, backups: Object.keys(bk) };
+      res = { merged, mode, hadBase: !!base, foreign, clickerEarned: data.clicker && data.clicker.earned, backups: Object.keys(bk), ck: data.clicker && data.clicker.json };
     });
     if (res.foreign) { try {                                                                     // copie de sécurité locale de l'état de l'autre compte (3 max)
       localStorage.setItem(LOCALBK_KEY + '-' + Date.now(), JSON.stringify(serializeStateOf(L0)));
@@ -303,7 +306,8 @@ async function syncState(reason) {
     try { localStorage.setItem(LSKEY, JSON.stringify(serializeState())); } catch (e) {}
     if (res.mode !== 'push') { if (typeof renderInventory === 'function') renderInventory(); if (typeof updateTimer === 'function') updateTimer(); }
     if (res.mode === 'merge' && res.hadBase) showToast('☁ Progression fusionnée avec ton autre appareil', 4000);
-    syncLeaderboardDoc(); syncPushSchedule(); if (typeof applyPerso === 'function') applyPerso();
+    if (res.ck) { try { _ckCloud = JSON.parse(res.ck); } catch (e) {} }
+    syncLeaderboardDoc(); syncPushSchedule(); if (typeof applyPerso === 'function') { grantEvents(); applyPerso(); }
     if (_dirty) scheduleSync();
     return res;
   } catch (e) { console.warn('[synchro] échec (hors-ligne ?) — la sauvegarde locale est conservée', e && (e.code || e.message)); _dirty = true; return false; }
@@ -481,7 +485,7 @@ async function loadState() {                                // lecture LOCALE se
   _base = loadBase();
   const raw = localStorage.getItem(LSKEY);
   if (!raw) { saveState(); return; }
-  try { const loc = JSON.parse(raw); loc.inventory = unpackInventory(loc.inventory); state = Object.assign(state, loc); try { applyPerso(); } catch (e2) {} }
+  try { const loc = JSON.parse(raw); loc.inventory = unpackInventory(loc.inventory); state = Object.assign(state, loc); try { grantEvents(); applyPerso(); } catch (e2) {} }
   catch (e) { try { localStorage.setItem(LSKEY + '-corrompu', raw); } catch (x) {} console.error('Sauvegarde locale illisible : copie conservée', e); }   // on n'écrase pas une sauvegarde illisible
 }
 
@@ -575,6 +579,13 @@ function updateTimer(){
     d.innerHTML=`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>`;
     keysEl.appendChild(d);
   }
+
+  for(let i=0;i<specialPending();i++){                          // clés de l'Artefact (une par coffre d'artefact en attente)
+    const d=document.createElement('div'); d.className='key-icon key-a'; d.title='Clé du coffre de l\'Artefact';
+    d.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>';
+    keysEl.appendChild(d);
+  }
+  refreshSpecialChest();
 
   // Timer
   if(state.keys >= MAX_KEYS){
@@ -681,11 +692,12 @@ function createParticles(card, rarity){
 let isAnimating=false;
 function openChest(){
   if(_authPending){ showToast('⏳ Synchronisation avec ton compte…'); return; }
-  if(isAnimating||state.keys<=0) return;
+  const special = specialPending() > 0;                          // le coffre de l'Artefact passe TOUJOURS en premier, avec sa propre clé
+  if(isAnimating||(!special&&state.keys<=0)) return;
   playClickSound();
   isAnimating=true;
-  state.keys--;
-  if(state.keys===MAX_KEYS-1) state.lastRegen=Date.now();
+  if(special) state.spUsed=(state.spUsed||0)+1;
+  else { state.keys--; if(state.keys===MAX_KEYS-1) state.lastRegen=Date.now(); }
   saveState(); updateTimer();
 
   const btn=document.getElementById('open-btn');
@@ -706,8 +718,9 @@ function openChest(){
       document.getElementById('chest-wrap').style.display='none';
       btn.style.display='none';
 
-      const rarity = state.forceLegendary ? 'A' : rollRarity();
-      if(state.forceLegendary){
+      let bonusFr = 0, rarity = state.forceLegendary ? 'A' : rollRarity();
+      if(special){ const r = rollSpecial(); rarity = r.rarity; bonusFr = r.frags; }
+      else if(state.forceLegendary){
         state.forceLegendary=false;
         document.getElementById('force-legendary').checked=false;
         saveState();
@@ -719,10 +732,14 @@ function openChest(){
 
       state.inventory[lootStr]=(state.inventory[lootStr]||0)+1;
       state.chestsOpened=(state.chestsOpened||0)+1;
+      let forged = 0;
+      if(bonusFr){ state.fragments=(state.fragments||0)+bonusFr; while(state.fragments>=FRAGS_PER_KEY){ state.fragments-=FRAGS_PER_KEY; state.keys++; forged++; } }
       saveState();
 
       playRevealSound(finalRarity);
       buildCard(name,link,type,finalRarity);
+      if(special) document.getElementById('card-inner').insertAdjacentHTML('beforeend', '<div class="card-spc">' + (bonusFr ? 'Coffre de l\'Artefact · +' + bonusFr + ' fragment' + (bonusFr > 1 ? 's' : '') + ' de clé' + (forged ? ' → ' + forged + ' clé' + (forged > 1 ? 's' : '') + ' forgée' + (forged > 1 ? 's' : '') : '') : 'Coffre de l\'Artefact · l\'Artefact t\'a choisi') + '</div>');
+      updateTimer();
 
       const ca=document.getElementById('card-area');
       ca.style.display='block';
@@ -765,7 +782,7 @@ function resetToChest(){
   document.getElementById('card-flip').classList.remove('flipped');
   document.getElementById('chest-wrap').style.display='flex';
   const btn=document.getElementById('open-btn');
-  btn.style.display=''; btn.disabled=state.keys<=0;
+  btn.style.display=''; btn.disabled=!canOpen(); refreshSpecialChest();
   updateTimer();
 }
 
@@ -799,13 +816,54 @@ function closeSidebar(){
 }
 
 function recycleByIndex(idx, e){ recycleItem(window._invKeys[idx], e); }
+// ============================================================
+// COFFRE DE L'ARTEFACT (v2.a3.27) : recycler un artefact en double donne un coffre spécial + sa clé unique. Compteurs synchronisés (state.spGot / state.spUsed).
+// Il est TOUJOURS le prochain coffre ouvert (prioritaire sur les clés normales, la recharge, les codes) et son apparence prime sur la Personnalisation.
+// ★ RÉGLAGE : SPECIAL_A_RATE = chance d'un Artefact ; sinon 1 Légendaire + 1 à 5 fragments de clé.
+// ============================================================
+const SPECIAL_A_RATE = .30;
+const specialPending = () => Math.max(0, (state.spGot || 0) - (state.spUsed || 0));
+const canOpen = () => state.keys > 0 || specialPending() > 0;
+const rollSpecial = () => Math.random() < SPECIAL_A_RATE ? { rarity: 'A', frags: 0 } : { rarity: 'L', frags: 1 + Math.floor(Math.random() * 5) };
+function chestArtefactSvg() {
+  return '<defs><linearGradient id="sa1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4c0519"/><stop offset=".6" stop-color="#2e1065"/><stop offset="1" stop-color="#14051f"/></linearGradient>'
+    + '<linearGradient id="sa2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9f1239"/><stop offset="1" stop-color="#3b0764"/></linearGradient>'
+    + '<linearGradient id="sa3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff7d6"/><stop offset=".5" stop-color="#fbbf24"/><stop offset="1" stop-color="#92400e"/></linearGradient>'
+    + '<radialGradient id="sa4" cx=".38" cy=".32" r=".75"><stop offset="0" stop-color="#fff"/><stop offset=".3" stop-color="#fda4af"/><stop offset=".7" stop-color="#e11d48"/><stop offset="1" stop-color="#4c0519"/></radialGradient>'
+    + '<radialGradient id="sa5" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#f43f5e" stop-opacity=".55"/><stop offset="1" stop-color="#a855f7" stop-opacity="0"/></radialGradient></defs>'
+    + '<circle class="sa-aura" cx="70" cy="74" r="62" fill="url(#sa5)"/><ellipse cx="70" cy="126" rx="48" ry="6" fill="rgba(0,0,0,.5)"/>'
+    + '<rect x="20" y="72" width="100" height="50" rx="8" fill="url(#sa1)" stroke="url(#sa3)" stroke-width="1.8"/>'
+    + '<path d="M20 76V54Q20 28 70 28Q120 28 120 54V76Z" fill="url(#sa2)" stroke="url(#sa3)" stroke-width="1.8" stroke-linejoin="round"/>'
+    + '<path d="M26 54Q30 36 70 34" fill="none" stroke="rgba(255,228,230,.4)" stroke-width="2" stroke-linecap="round"/>'
+    + '<path d="M20 52l14-6M120 52l-14-6M20 100l14 6M120 100l-14 6" stroke="url(#sa3)" stroke-width="2.4" stroke-linecap="round"/>'
+    + '<rect x="20" y="67" width="100" height="9" fill="url(#sa3)"/><rect x="20" y="67" width="100" height="1.6" fill="rgba(255,255,255,.55)"/>'
+    + '<path d="M70 36l4 7 8 1-6 5 2 8-8-4-8 4 2-8-6-5 8-1z" fill="url(#sa3)" stroke="#92400e" stroke-width=".6" stroke-linejoin="round"/>'
+    + '<path class="sa-gem" d="M70 70l11 9-11 15-11-15z" fill="url(#sa4)" stroke="#fff7d6" stroke-width="1"/><path d="M59 79h22M70 70l-4 9 4 15 4-15z" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width=".7"/>'
+    + '<g fill="#fde68a"><circle cx="28" cy="88" r="2"/><circle cx="112" cy="88" r="2"/><circle cx="28" cy="114" r="2"/><circle cx="112" cy="114" r="2"/></g>'
+    + '<g class="sa-rune" font-family="serif" font-size="9" fill="#fda4af" text-anchor="middle"><text x="44" y="104">ᛟ</text><text x="96" y="104">ᛉ</text><text x="70" y="116">ᚨ ᚱ ᛏ</text></g>';
+}
+// Applique (ou retire) l'apparence du coffre de l'Artefact ; appelée chaque seconde par updateTimer (garde par signature : coût nul)
+let _spcSig = '';
+function refreshSpecialChest(force) {
+  if (isAnimating && !force) return;                            // pas de changement d'apparence pendant l'ouverture
+  const n = specialPending(), sig = n > 0 ? 'on' : 'off'; if (!force && sig === _spcSig) return; _spcSig = sig;
+  const cs = document.getElementById('chest-svg'), wrap = document.getElementById('chest-wrap'), R = document.documentElement, btn = document.getElementById('open-btn'); if (!cs) return;
+  if (n > 0) { if (cs._def == null) cs._def = cs.innerHTML; cs.innerHTML = chestArtefactSvg(); cs.dataset.sk = 'spc'; R.dataset.spc = '1'; if (wrap) wrap.classList.add('spc'); if (btn) { btn.disabled = isAnimating; const sp = btn.querySelector('span'); if (sp) sp.textContent = '⚔ OUVRIR LE COFFRE DE L\'ARTEFACT'; } }
+  else { delete R.dataset.spc; if (wrap) wrap.classList.remove('spc'); if (cs.dataset.sk === 'spc') { cs.innerHTML = cs._def; delete cs.dataset.sk; } if (btn) { const sp = btn.querySelector('span'); if (sp) sp.textContent = '⚔ OUVRIR LE COFFRE'; } if (typeof applyPerso === 'function') applyPerso(); }
+}
 // ★ FRAGMENTS RAPPORTÉS PAR UN RECYCLAGE selon la rareté (éditable ici). A (Artefact) = valeur provisoire, à décider plus tard.
 const RECYCLE_FRAGS = { C:1, PC:2, R:3, TR:4, L:5, A:5 };
 const recycleGain = lootKey => RECYCLE_FRAGS[lootKey.split('|')[3]] || 1;
 function recycleItem(lootKey, e){
   e.stopPropagation();
   if(_authPending){ showToast('⏳ Synchronisation avec ton compte…'); return; }
-  if((state.inventory[lootKey]||0) < 2) return;
+  if((state.inventory[lootKey]||0) < 2) return;                  // on ne recycle qu'un DOUBLON : le dernier exemplaire n'est jamais retiré (et la fusion cloud garde un plancher de 1)
+  if(lootKey.split('|')[3]==='A'){                              // ARTEFACT (v2.a3.27) : coffre de l'Artefact + sa clé, ouvert en priorité
+    state.inventory[lootKey]--; state.spGot=(state.spGot||0)+1;
+    saveState(); updateTimer(); renderInventory(); refreshSpecialChest(true);
+    showToast('🜂 Coffre de l\'Artefact obtenu, avec sa clé ! Il sera le prochain ouvert.', 6000);
+    return;
+  }
   const gain = recycleGain(lootKey);
   state.inventory[lootKey]--;
   state.fragments = (state.fragments||0) + gain;
@@ -829,7 +887,7 @@ function renderInventory(){
     ? '<div style="display:flex; align-items:center; justify-content:space-between; width:100%;">'
       + '<div style="display:flex; align-items:center; gap:8px;">'
       + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
-      + 'Aventurier :&nbsp;<strong>' + escapeLeaderboardHtml(state.pseudo) + '</strong>'
+      + 'Mage :&nbsp;<strong>' + escapeLeaderboardHtml(state.pseudo) + '</strong>'
       + '</div>'
       + '<button class="share-btn" style="padding:4px 10px; font-size:11px; margin:0;" onclick="toggleProfilePanel()">🎛️ Menu</button>'
       + '</div>'
@@ -866,7 +924,7 @@ function renderInventory(){
       const [n,lnk,,rar]=k.split('|');
       const extraHTML = cnt > 1
         ? '<span class="inv-count rc-' + rar + '">×' + cnt + '</span>'
-          + '<button class="recycle-btn" onclick="recycleByIndex(' + idx + ',event)" title="Recycler un doublon : +' + recycleGain(k) + ' fragment(s)">♻ +' + recycleGain(k) + '</button>'
+          + (rar === 'A' ? '<button class="recycle-btn rb-a" onclick="recycleByIndex(' + idx + ',event)" title="Recycler un doublon : coffre de l\'Artefact + sa clé">♻ Coffre</button>' : '<button class="recycle-btn" onclick="recycleByIndex(' + idx + ',event)" title="Recycler un doublon : +' + recycleGain(k) + ' fragment(s)">♻ +' + recycleGain(k) + '</button>')
         : '';
       return '<div class="inv-item" onclick="window.open(\'' + lnk.replace(/'/g,"\\'") + '\',\'_blank\')">'
         + '<div class="inv-dot" style="background:' + (RARITY_DOTS[rar]||'#666') + '"></div>'
@@ -1035,11 +1093,11 @@ window.onload = function() {
 
 let _booted = false, _authPending = false;
 function bootApp(){
-  if (_booted) { updateTimer(); document.getElementById('open-btn').disabled = state.keys <= 0; runPendingKeyFx(); return; }
+  if (_booted) { updateTimer(); document.getElementById('open-btn').disabled = !canOpen(); runPendingKeyFx(); return; }
   _booted = true;
   updateTimer();
   setInterval(updateTimer, 1000);
-  document.getElementById('open-btn').disabled = state.keys <= 0;
+  document.getElementById('open-btn').disabled = !canOpen();
   runPendingKeyFx();
   document.getElementById('card-area').style.display = 'none';
   document.getElementById('chest-wrap').style.display = 'flex';
@@ -1097,6 +1155,8 @@ mentions: {
     }
 };
 
+// Lien direct depuis le pied de page du clicker : ../?legal=mentions|confidentialite|accessibilite
+document.addEventListener('DOMContentLoaded', () => { const t = new URLSearchParams(location.search).get('legal'); if (t && typeof LEGAL_TEXTS !== 'undefined' && LEGAL_TEXTS[t]) { history.replaceState(null, '', location.pathname); setTimeout(() => openLegalModal(t), 600); } });
 function openLegalModal(type) {
     const modal = document.getElementById('legal-modal');
     const title = document.getElementById('legal-modal-title');
@@ -1489,7 +1549,13 @@ function refreshSchoolBadge() {
 }
 // ---- PERSONNALISATION (v2.a3.20) : sigil du profil, coffre et fond aux couleurs de son école. Choix limités aux écoles choisies au clicker (sp.school / sp.school2). Stocké sur l'appareil (PAS dans state : pas de risque pour syncState) ; synchro cloud = plus tard.
 const PERSO_KEY = CHANNEL.lsk('coffre-perso');            // ancien stockage local (v2.a3.21) : migré une fois vers state.perso (ts = 1 → le cloud l'emporte)
-const clickerSp = () => { try { return (JSON.parse(localStorage.getItem(CHANNEL.lsk('coffre-clicker')) || '{}').sp) || {}; } catch (e) { return {}; } };
+let _ckCloud = null;                                         // sauvegarde clicker lue dans le document cloud (syncState) : sert sur un appareil où le clicker n'a pas encore tourné
+const ckRank = o => o ? [(o.rz || 0), (o.spV || 0)] : [-1, -1];
+const clickerSp = () => {
+  let L = null; try { L = JSON.parse(localStorage.getItem(CHANNEL.lsk('coffre-clicker')) || 'null'); } catch (e) {}
+  const a = ckRank(L), b = ckRank(_ckCloud), X = (b[0] > a[0] || (b[0] === a[0] && b[1] > a[1])) ? _ckCloud : L;
+  return (X && X.sp) || {};
+};
 const PERSO0 = { sigil: 'default', chest: 'default', bg: 'default', skin: 'default' };
 const getPerso = () => {
   if (state.perso) return Object.assign({}, PERSO0, state.perso);
@@ -1497,9 +1563,40 @@ const getPerso = () => {
   return Object.assign({}, PERSO0);
 };
 const unlockedSchools = () => { const sp = clickerSp(); return [sp.school, sp.school2].filter((k, i, a) => k && SCHOOL_BADGE[k] && a.indexOf(k) === i); };
-const skinUnlocked = () => { const sp = clickerSp(), r = sp.rank | 0; return r >= 6 ? unlockedSchools() : []; };   // coffre d'école : réservé au rang 6
+// ★ DÉBLOCAGES (v2.a3.27) : Sceau = école choisie · Couleur & halo du coffre + Fond = examen du rang III réussi (rang ≥ 4) · Skin de coffre d'école = examen du rang VI (rang ≥ 7 : pas encore jouable)
+const SKIN_RANK = 7, COLOR_RANK = 4;
+const rankNow = () => clickerSp().rank | 0;
+const skinUnlocked = () => rankNow() >= SKIN_RANK ? unlockedSchools() : [];
+const colorUnlocked = () => rankNow() >= COLOR_RANK ? unlockedSchools() : [];
+// Objets d'ÉVÈNEMENT (non liés aux écoles, jamais retirés) : { id: [nom, teinte] }
+const EVENT_ITEMS = { beta: ['Bêta-testeur', 28] };
+const ownedEvents = () => (state.events || []).filter(k => EVENT_ITEMS[k]);
+function grantEvents() { if (CHANNEL.ptu && (state.events || []).indexOf('beta') < 0) { state.events = (state.events || []).concat('beta'); saveState(); } }   // PTU : tout bêta-testeur reçoit le coffre « Bêta-testeur »
 const schoolDot = k => SCHOOL_BADGE[k] ? '<svg class="lb-sc" viewBox="0 0 24 24" style="--h:' + SCHOOL_BADGE[k][1] + '" aria-label="' + SCHOOL_BADGE[k][0] + '"><title>' + SCHOOL_BADGE[k][0] + '</title><circle cx="12" cy="12" r="11" /><path d="' + SCHOOL_BADGE[k][2] + '"/></svg>' : '';
 // Coffre d'école (rang 6) : SVG sur mesure par école (corps teinté, sangles et clous d'or, médaillon au glyphe, gemme qui pulse)
+// Coffre « Bêta-testeur » : malle de prototype d'alchimiste — bronze sombre, plan quadrillé orange (le « blueprint » d'un coffre en essai), engrenages de laiton,
+// cœur de braise au sceau β qui pulse et étincelles qui montent. Palette : orange légendaire.
+function chestBetaSvg() {
+  return '<defs><linearGradient id="sb1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3b2312"/><stop offset="1" stop-color="#160b04"/></linearGradient>'
+    + '<linearGradient id="sb2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5a3519"/><stop offset="1" stop-color="#25140a"/></linearGradient>'
+    + '<linearGradient id="sb3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd7a1"/><stop offset=".5" stop-color="#f59e0b"/><stop offset="1" stop-color="#9a4a0b"/></linearGradient>'
+    + '<radialGradient id="sb4" cx=".5" cy=".45" r=".6"><stop offset="0" stop-color="#fff7e6"/><stop offset=".35" stop-color="#fb923c"/><stop offset="1" stop-color="#7c2d12"/></radialGradient>'
+    + '<pattern id="sb5" width="8" height="8" patternUnits="userSpaceOnUse"><path d="M8 0H0V8" fill="none" stroke="#fb923c" stroke-opacity=".22" stroke-width=".6"/></pattern>'
+    + '<clipPath id="sb6"><rect x="20" y="72" width="100" height="50" rx="8"/><path d="M20 76V54Q20 28 70 28Q120 28 120 54V76Z"/></clipPath></defs>'
+    + '<ellipse cx="70" cy="126" rx="48" ry="6" fill="rgba(0,0,0,.5)"/>'
+    + '<rect x="20" y="72" width="100" height="50" rx="8" fill="url(#sb1)" stroke="url(#sb3)" stroke-width="1.4"/>'
+    + '<path d="M20 76V54Q20 28 70 28Q120 28 120 54V76Z" fill="url(#sb2)" stroke="url(#sb3)" stroke-width="1.4" stroke-linejoin="round"/>'
+    + '<g clip-path="url(#sb6)"><rect x="20" y="28" width="100" height="94" fill="url(#sb5)"/><path d="M28 112h30M28 104h18M82 112h30M94 104h18" stroke="#fdba74" stroke-opacity=".45" stroke-width=".8" stroke-dasharray="2 2"/></g>'
+    + '<path d="M26 54Q30 36 70 34" fill="none" stroke="rgba(255,237,213,.35)" stroke-width="2" stroke-linecap="round"/>'
+    + '<rect x="20" y="67" width="100" height="9" fill="url(#sb3)" opacity=".9"/><rect x="20" y="67" width="100" height="1.6" fill="rgba(255,247,230,.5)"/>'
+    + '<g class="sb-gear" style="transform-origin:34px 50px"><circle cx="34" cy="50" r="7" fill="#2a170a" stroke="url(#sb3)" stroke-width="1.4"/><path d="M34 41v3M34 56v3M25 50h3M40 50h3M27.6 43.6l2.1 2.1M38.3 54.3l2.1 2.1M27.6 56.4l2.1-2.1M38.3 45.7l2.1-2.1" stroke="url(#sb3)" stroke-width="2" stroke-linecap="round"/><circle cx="34" cy="50" r="2.2" fill="#fbbf24"/></g>'
+    + '<g class="sb-gear r" style="transform-origin:106px 50px"><circle cx="106" cy="50" r="7" fill="#2a170a" stroke="url(#sb3)" stroke-width="1.4"/><path d="M106 41v3M106 56v3M97 50h3M112 50h3M99.6 43.6l2.1 2.1M110.3 54.3l2.1 2.1M99.6 56.4l2.1-2.1M110.3 45.7l2.1-2.1" stroke="url(#sb3)" stroke-width="2" stroke-linecap="round"/><circle cx="106" cy="50" r="2.2" fill="#fbbf24"/></g>'
+    + '<circle cx="70" cy="80" r="13" fill="#1c0e05" stroke="url(#sb3)" stroke-width="1.8"/><circle class="sb-core" cx="70" cy="80" r="9.5" fill="url(#sb4)"/>'
+    + '<path d="M67.2 87V73.6c0-2.4 1.6-3.8 3.6-3.8 2.1 0 3.5 1.3 3.5 3.2 0 1.5-.9 2.5-2.2 2.9 1.8.3 3 1.6 3 3.5 0 2.3-1.7 3.8-4 3.8-1.6 0-2.9-.6-3.9-1.6" fill="none" stroke="#3b1406" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>'
+    + '<g fill="#fff1b0" stroke="#7c2d12" stroke-width=".5"><circle cx="26" cy="80" r="1.8"/><circle cx="114" cy="80" r="1.8"/><circle cx="26" cy="116" r="1.8"/><circle cx="114" cy="116" r="1.8"/></g>'
+    + '<g class="sb-spk"><circle cx="58" cy="64" r="1.2" fill="#fde68a"/><circle cx="82" cy="62" r="1" fill="#fb923c"/><circle cx="70" cy="60" r=".9" fill="#fff7e6"/></g>'
+    + '<text x="70" y="118" text-anchor="middle" font-family="Cinzel,serif" font-size="6.5" letter-spacing="1.5" fill="#fdba74" fill-opacity=".8">PROTOTYPE</text>';
+}
 function chestSkinSvg(h, glyph) {
   const B = (l, a) => 'hsl(' + h + ' ' + a + '% ' + l + '%)';
   return '<defs><linearGradient id="sk1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="' + B(30, 55) + '"/><stop offset="1" stop-color="' + B(11, 60) + '"/></linearGradient>'
@@ -1529,21 +1626,27 @@ function bgPalette(h) {            // fond très sombre + texte clair teinté ; 
 }
 function applyPerso() {
   try {
-    const P = getPerso(), R = document.documentElement, ok = k => k !== 'default' && !!SCHOOL_BADGE[k];   // les choix déjà faits sont appliqués tels quels (débloqués au moment du choix, même sur un nouvel appareil)
-    // coffre
+    const P = getPerso(), R = document.documentElement, un = unlockedSchools(), col = colorUnlocked(), sk = skinUnlocked(), ev = ownedEvents();
+    // validation STRICTE (un choix qui n'est plus débloqué, ex. après une remise à zéro du clicker, revient au défaut sans être effacé)
+    const okS = k => un.indexOf(k) >= 0, okC = k => col.indexOf(k) >= 0 || ev.indexOf(k) >= 0, okK = k => sk.indexOf(k) >= 0 || ev.indexOf(k) >= 0;
+    const hueOf = k => SCHOOL_BADGE[k] ? SCHOOL_BADGE[k][1] : EVENT_ITEMS[k][1];
+    // coffre : skin (remplace le dessin) > couleur & halo (teinte du dessin d'origine)
     const cs = document.getElementById('chest-svg'); if (cs && cs._def == null) cs._def = cs.innerHTML;
-    if (ok(P.skin)) { const h = SCHOOL_BADGE[P.skin][1]; R.dataset.chest = 'skin'; R.dataset.skin = P.skin; R.style.setProperty('--chh', h); if (cs && cs.dataset.sk !== P.skin) { cs.innerHTML = chestSkinSvg(h, SCHOOL_BADGE[P.skin][2]); cs.dataset.sk = P.skin; } }
+    if (specialPending() > 0) { /* coffre de l'Artefact en attente : son apparence prime (refreshSpecialChest) */ }
+    else if (okK(P.skin)) { const h = hueOf(P.skin); R.dataset.chest = 'skin'; R.dataset.skin = P.skin; R.style.setProperty('--chh', h); if (cs && cs.dataset.sk !== P.skin) { cs.innerHTML = P.skin === 'beta' ? chestBetaSvg() : chestSkinSvg(h, SCHOOL_BADGE[P.skin][2]); cs.dataset.sk = P.skin; } }
     else {
       if (cs && cs.dataset.sk) { cs.innerHTML = cs._def; delete cs.dataset.sk; } delete R.dataset.skin;
-      if (ok(P.chest)) { const h = SCHOOL_BADGE[P.chest][1]; R.dataset.chest = P.chest; R.style.setProperty('--chh', h); R.style.setProperty('--chr', (h - 270) + 'deg'); } else { delete R.dataset.chest; }
+      if (okC(P.chest)) { const h = hueOf(P.chest); R.dataset.chest = P.chest; R.style.setProperty('--chh', h); R.style.setProperty('--chr', (h - 270) + 'deg'); } else { delete R.dataset.chest; }
     }
-    // fond
-    if (ok(P.bg)) { const h = SCHOOL_BADGE[P.bg][1], q = bgPalette(h); R.dataset.bg = P.bg; R.style.setProperty('--bgh', h); [['--bg', q.bg], ['--surface', q.surface], ['--glass', q.glass], ['--border', q.border], ['--text', q.text], ['--text-dim', q.dim]].forEach(x => R.style.setProperty(x[0], x[1])); R.dataset.bgRatio = q.ratio.toFixed(2); }
-    else { delete R.dataset.bg; ['--bg', '--surface', '--glass', '--border', '--text', '--text-dim'].forEach(x => R.style.removeProperty(x)); }
-    // sigil du profil : dégradés recolorés + glyphe de l'école à la place du buste
+    // fond (Bêta-testeur = l'orange légendaire de la PTU, géré en CSS)
+    const VARS = ['--bg', '--surface', '--glass', '--border', '--text', '--text-dim'];
+    if (okC(P.bg) && P.bg === 'beta') { R.dataset.bg = 'beta'; VARS.forEach(x => R.style.removeProperty(x)); }
+    else if (okC(P.bg)) { const h = hueOf(P.bg), q = bgPalette(h); R.dataset.bg = P.bg; R.style.setProperty('--bgh', h); [['--bg', q.bg], ['--surface', q.surface], ['--glass', q.glass], ['--border', q.border], ['--text', q.text], ['--text-dim', q.dim]].forEach(x => R.style.setProperty(x[0], x[1])); R.dataset.bgRatio = q.ratio.toFixed(2); }
+    else { delete R.dataset.bg; VARS.forEach(x => R.style.removeProperty(x)); }
+    // sceau du profil : dégradés recolorés + glyphe de l'école à la place du buste
     const g = document.getElementById('pfg1'), g3 = document.getElementById('pfg3'), ring = document.getElementById('pf-ring'), svg = document.querySelector('.pf-sigil');
     if (g && g3 && svg) {
-      const on = ok(P.sigil), h = on ? SCHOOL_BADGE[P.sigil][1] : null, st = g.querySelectorAll('stop'), s3 = g3.querySelectorAll('stop');
+      const on = okS(P.sigil), h = on ? SCHOOL_BADGE[P.sigil][1] : null, st = g.querySelectorAll('stop'), s3 = g3.querySelectorAll('stop');
       st[0].setAttribute('stop-color', on ? 'hsl(' + h + ' 62% 30%)' : '#4c1d95'); st[1].setAttribute('stop-color', on ? 'hsl(' + h + ' 55% 9%)' : '#14112e');
       s3[0].setAttribute('stop-color', on ? 'hsl(' + h + ' 90% 80%)' : '#c4b5fd'); s3[1].setAttribute('stop-color', on ? 'hsl(' + h + ' 80% 60%)' : '#8b5cf6');
       if (ring) ring.setAttribute('stroke', on ? 'hsla(' + h + ',90%,75%,.55)' : 'rgba(167,139,250,.45)');
@@ -1557,15 +1660,22 @@ function applyPerso() {
 function setPerso(k, v) { const P = getPerso(); P[k] = v; P.ts = Date.now(); state.perso = P; saveState(); applyPerso(); renderPerso(); }   // state.perso est synchronisé (syncState : le plus récent l'emporte)
 function renderPerso() {
   const P = getPerso(), un = unlockedSchools(), box = document.getElementById('perso-body'); if (!box) return;
-  const sk = skinUnlocked();
-  const sec = (key, title, sub) => {
-    const chips = ['default'].concat(Object.keys(SCHOOL_BADGE)).map(k => {
-      const lock = k !== 'default' && (key === 'skin' ? sk : un).indexOf(k) < 0, h = k === 'default' ? 265 : SCHOOL_BADGE[k][1], nm = k === 'default' ? 'Défaut' : SCHOOL_BADGE[k][0];
-      return '<button type="button" class="pz-chip' + (P[key] === k && !lock ? ' on' : '') + (lock ? ' lk' : '') + '" style="--h:' + h + '"' + (lock ? ' disabled title="Débloqué en choisissant cette école à l\'Académie"' : ' onclick="setPerso(\'' + key + '\',\'' + k + '\')"') + ' aria-pressed="' + (P[key] === k && !lock) + '"><i>' + (k === 'default' ? '' : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="' + SCHOOL_BADGE[k][2] + '"/></svg>') + (lock ? '<u>⚿</u>' : '') + '</i><span>' + nm + '</span></button>';
-    }).join('');
-    return '<section class="pz-sec"><h4>' + title + '</h4><p>' + sub + '</p><div class="pz-chips">' + chips + '</div></section>';
+  const col = colorUnlocked(), sk = skinUnlocked(), ev = ownedEvents(), BETA = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 21V7.5C9.5 5 11.2 3.5 13.3 3.5c2.2 0 3.7 1.4 3.7 3.4 0 1.6-1 2.7-2.4 3.1 2 .3 3.3 1.8 3.3 3.8 0 2.5-1.8 4.1-4.3 4.1-1.7 0-3.1-.6-4.1-1.7"/></svg>';
+  const chip = (key, k, lock, why) => {
+    const isEv = !!EVENT_ITEMS[k], h = k === 'default' ? 265 : isEv ? EVENT_ITEMS[k][1] : SCHOOL_BADGE[k][1], nm = k === 'default' ? 'Défaut' : isEv ? EVENT_ITEMS[k][0] : SCHOOL_BADGE[k][0], on = P[key] === k && !lock;
+    const ic = k === 'default' ? '' : isEv ? BETA : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="' + SCHOOL_BADGE[k][2] + '"/></svg>';
+    return '<button type="button" class="pz-chip' + (on ? ' on' : '') + (lock ? ' lk' : '') + (isEv ? ' ev' : '') + '" style="--h:' + h + '"' + (lock ? ' disabled title="' + why + '"' : ' onclick="setPerso(\'' + key + '\',\'' + k + '\')"') + ' aria-pressed="' + on + '"><i>' + ic + (lock ? '<u>⚿</u>' : '') + '</i><span>' + nm + '</span></button>';
   };
-  box.innerHTML = (un.length ? '' : '<p class="pz-none">Aucune école choisie pour l\'instant : réussis le premier examen à l\'Académie du clicker pour débloquer les couleurs de ton école.</p>') + sec('sigil', 'Sigil du profil', 'Le blason de ton profil prend le glyphe et les couleurs de ton école.') + sec('chest', 'Coffre', 'Le coffre et son halo aux couleurs de ton école (d\'autres coffres viendront, offerts pendant les évènements).') + sec('skin', 'Coffre d\'école — rang VI', sk.length ? 'Un coffre sculpté à l\'effigie de ton école : sangles d\'or, médaillon et gemme. Il remplace le coffre ci-dessus.' : 'Réservé aux mages ayant atteint le rang VI à l\'Académie du clicker.') + sec('bg', 'Fond', 'Un fond sombre teinté, avec un texte conservant un contraste lisible (WCAG AA, ≥ 4,5:1).');
+  const row = (key, list, okList, why) => '<div class="pz-chips">' + list.map(k => chip(key, k, k !== 'default' && okList.indexOf(k) < 0, why)).join('') + '</div>';
+  const SC = Object.keys(SCHOOL_BADGE), EV = Object.keys(EVENT_ITEMS);
+  const sec = (key, title, sub, okSchool, whySchool, withEv) => '<section class="pz-sec"><h4>' + title + '</h4><p>' + sub + '</p>'
+    + (withEv ? '<h5>École</h5>' : '') + row(key, ['default'].concat(SC), okSchool, whySchool)
+    + (withEv ? '<h5>Spécial &amp; évènement</h5>' + row(key, EV, ev, 'Offert pendant un évènement') : '') + '</section>';
+  box.innerHTML = (un.length ? '' : '<p class="pz-none">Aucune école choisie pour l\'instant : réussis le premier examen à l\'Académie des Arcanes du clicker pour débloquer ton sceau.</p>')
+    + sec('sigil', 'Sceau du profil', 'Le sceau de ton profil prend le glyphe et les couleurs de ton école.', un, 'Se débloque en choisissant cette école à l\'Académie', false)
+    + sec('chest', 'Couleur &amp; halo du coffre', 'Le coffre et son halo aux couleurs de ton école ou évènementiels.', col, 'École : se débloque avec l\'examen du rang III', true)
+    + sec('bg', 'Fond', 'La nuit s\'éclaire aux couleurs de ton école ou de l\'évènement.', col, 'École : se débloque avec l\'examen du rang III', true)
+    + sec('skin', 'Skin coffre', 'Un coffre sculpté qui remplace le coffre de base.', sk, 'École : se débloque avec l\'examen du rang VI (prochaine mise à jour des sorts)', true);
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', applyPerso); else applyPerso();
 function openPerso() { renderPerso(); document.getElementById('perso-modal').style.display = 'flex'; }

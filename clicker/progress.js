@@ -29,7 +29,8 @@ const ProgLib = (() => {
     if (!X) return 0;
     const b = Object.values(X.b || {}).reduce((a, v) => a + (v || 0), 0), same = !Y || V(X) === V(Y);
     const sp = same && X.sp ? Object.keys(X.sp.learned || {}).length * 1e5 + Object.keys(X.sp.exDone || {}).length * 1e6 : 0;
-    return b * 1000 + sp + ((X.g && X.g.n) || 0) * 10 + ((X.fr && X.fr.earned) || 0) * 1000;
+    const rz = Y && (X.rz || 0) > (Y.rz || 0) ? 1e18 : 0;                    // remise à zéro VOLONTAIRE (S.rz) : l'état le plus récemment remis à zéro l'emporte toujours (sinon le cloud, plus avancé, l'annulerait)
+    return rz + b * 1000 + sp + ((X.g && X.g.n) || 0) * 10 + ((X.fr && X.fr.earned) || 0) * 1000;
   }
   // Choix de la base lors du chargement cloud (même règle qu'avant, avec le score tenant compte de spV) : 'cloud' | 'reset' (compte étranger sans sauvegarde) | 'local'.
   function decide(L, R, foreign) {

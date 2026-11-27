@@ -179,6 +179,26 @@ const Spells = (() => {
     Stats.add("taxeAsk", 1); $("gate").hidden = false;
   };
 
+  // ---- v2.a3.27 : RÉSUMÉ ultra-concis d'un sort (tuiles des decks, sélecteur) — valeurs RÉELLES (Fx, facteur d'école du joueur) ----
+  const r2 = v => String(+(+v).toFixed(2)).replace(".", ","), pc = v => Math.round(v * 100) + " %";
+  const SUM = {
+    evo1: a => a.imp + " impulsions", evo2: a => r2(a.secs) + " s d'Éther", evo3: a => "Impulsions auto · " + r2(a.dur) + " s", evo4: a => "Éther ×2 · tous les " + a.every + " clics",
+    enc1: m => "Coûts −" + pc(1 - m[0][2]), enc2: m => "Scribes ×" + r2(m[0][2]), enc3: a => "Bâtiments ×2 · " + r2(a.dur) + " s", enc4: m => "Sagesse ×" + r2(m[0][2]),
+    ill1: m => "Pages rares ×" + r2(m[0][2]), ill2: a => "Clic ×" + r2(a.mult) + (a.charges > 1 ? " · " + a.charges + " charges" : ""), ill3: m => "Pages rares +" + r2(m[0][2]) + " s", ill4: a => "Sagesse ×" + r2(a.mult) + " · " + r2(a.dur) + " s",
+    nec1: m => "Sagesse ×" + r2(m[0][2]), nec2: m => "Scribe spectral " + pc(m[0][2]), nec3: a => pc(a.frac) + " Sagesse → Éther", nec4: m => "Nécrotique ×" + r2(4 + m[0][2]),
+    abj1: m => "Limite " + r2(m[0][2]) + " clics/s", abj2: m => "Hors ligne +" + r2(m[0][2]) + " h", abj3: a => "Fin de surchauffe" + (a.immune ? " · " + r2(a.immune) + " s" : ""), abj4: m => "Recharges −" + pc(1 - m[0][2]),
+    div1: () => "Prochaine page révélée", div2: m => "Hors ligne ×" + r2(m[0][2]), div3: a => a.pages + " pages rares", div4: m => "Cours −" + pc(1 - m[0][2]),
+    tra1: m => pc(m[1][2]) + " Sagesse → Éther", tra2: a => "Pylônes ×" + r2(a.mult) + " · " + r2(a.dur) + " s", tra3: a => "Éther ×" + r2(a.mult) + " · " + r2(a.dur) + " s", tra4: m => "Bâtiments ×" + r2(m[0][2]),
+    con1: m => "Coûts −" + pc(1 - m[0][2]), con2: m => m[0][2] + " impulsion/s", con3: () => "Recharge remise à zéro", con4: a => "Tout ×" + r2(a.mult) + " · " + r2(a.dur) + " s",
+    evo5: a => "+" + a.imp + " impulsion/clic · " + r2(a.dur) + " s", enc5: a => "Bâtiments −" + pc(a.cut) + " · " + r2(a.dur) + " s", ill5: a => "Clics ×" + r2(a.mult), nec5: m => "Scribe +" + pc(m[0][2]),
+    abj5: m => "Pause −" + pc(1 - m[0][2]), div5: m => "Hors ligne +" + r2(m[0][2]) + " h", tra5: m => "Hors ligne " + pc(m[0][2]) + " Sg → Éther", con5: m => "Taxe −" + pc(1 - m[0][2])
+  };
+  const sum = s => { try { const f = sch(s.k), x = s.t === "A" || s.id === "evo4" ? Fx.ACT(s.id, f, { buffDur: 0 }) : Fx.PM(s.id, f, { lvl: 4, paliers: CPS_PALIERS, cpsG: CPS_GRIMOIRE }); return SUM[s.id] ? SUM[s.id](x) : ""; } catch (e) { return ""; } };
+  // Carte détaillée d'un sort (palette des decks) : même contenu que la fiche de l'Académie, en compact
+  const card = (s, act) => {
+    const sc = SCH.find(x => x[0] === s.k), f = sch(s.k), real = window.Hud ? (Hud.title(s).split("\n").find(l => l.indexOf("Effet réel") === 0) || "") : "";
+    return "<div class='spc-card' style='--h:" + sc[2] + "'><i class='psi'>" + gl(s.k, 24) + "</i><div class='spc-b'><b>" + s.n + "</b><div class='spc-tg'><span>" + sc[1] + (f >= 1 ? " ★" : f > 0 ? " ½" : "") + "</span><span>" + (s.t === "A" ? "Actif · recharge " + Math.round(Fx.cdOf(s.id, s.cd, f)) + " s" : "Passif") + "</span><span>" + (s.pn === "V" ? "Voile" : s.pn === "G" ? "Grimoire" : "Voile + Grimoire") + "</span><span>Rang " + s.r + "</span></div><p>" + (window.Lex ? Lex.mark(s.d) : s.d) + "</p>" + (real ? "<p class='spc-real'>" + real.replace(/^Effet réel : /, "<u>Effet réel</u> ") + "</p>" : "") + "</div>" + (act || "") + "</div>";
+  };
   // ---- Sélecteur de sorts (équipement live OU pré-construction d'un deck : ed) ----
   const eq = () => ed || sp().eq, lk = (p, i) => !ed && sp().lock[p + i];
   const inT = id => { const E = eq(); return E.V.includes(id) || E.G.includes(id); };
@@ -223,16 +243,19 @@ const Spells = (() => {
       const id = E[pp][i], b = document.createElement("button");
       b.className = "sl" + (i === si ? " sel" : "") + (lk(pp, i) ? " lk" : "");
       if (id) { b.style.color = hue(byId[id].k); b.innerHTML = gl(byId[id].k, 22); } else b.textContent = "✦";
-      b.onclick = () => { si = i; pickR(); }; sl.append(b);
+      b.title = ed ? "" : "Appui long : verrouiller / déverrouiller l'emplacement";
+      let lt = 0, lpk = 0;                                                     // v2.a3.27 : appui long (0,5 s) = verrouiller, comme sur la barre de sorts (équipement en cours seulement)
+      if (!ed) { b.onpointerdown = () => { lpk = 0; lt = setTimeout(() => { lpk = 1; sp().lock[pp + i] = !sp().lock[pp + i]; save(); bars(); pickR(); toast(sp().lock[pp + i] ? "Emplacement verrouillé" : "Emplacement déverrouillé"); }, 500); }; b.onpointerup = b.onpointerleave = b.onpointercancel = () => clearTimeout(lt); b.oncontextmenu = e => e.preventDefault(); }
+      b.onclick = () => { if (lpk) { lpk = 0; return; } si = i; pickR(); }; sl.append(b);
     }
     const mk = (h, f) => { const d = document.createElement("div"); d.className = "ps"; d.innerHTML = h; d.onclick = f; list.append(d); return d; };
     mk("<i class='psi psi-x'>" + ICON.minus + "</i><div><b>Retirer le sort</b><small>Vide l'emplacement sélectionné</small></div>", () => equip(null));
     const base = SP.filter(s => L[s.id] && (s.pn === pp || s.pn === "X")), shown = base.filter(s => spOk(s, pkF)); fcount($("pfilt"), shown.length, base.length);
     shown.forEach(s => {
-      const d = mk("<i class='psi' style='--h:" + SCH.find(x => x[0] === s.k)[2] + "'>" + gl(s.k, 20) + "</i><div><b>" + s.n + "</b> <span class='ps-tg " + (s.t === "A" ? "act" : "pas") + "'>" + (s.t === "A" ? "Actif · Recharge " + Math.round(Fx.cdOf(s.id, s.cd, sch(s.k))) + " s" : "Passif") + "</span><small>" + (window.Lex ? Lex.mark(s.d) : s.d) + "</small></div>", () => equip(s.id));
+      const d = mk("<i class='psi' style='--h:" + SCH.find(x => x[0] === s.k)[2] + "'>" + gl(s.k, 20) + "</i><div><b>" + s.n + "</b> <span class='ps-tg " + (s.t === "A" ? "act" : "pas") + "'>" + (s.t === "A" ? "Actif · Recharge " + Math.round(Fx.cdOf(s.id, s.cd, sch(s.k))) + " s" : "Passif") + "</span>" + (sum(s) ? "<em class='ps-sum'>" + sum(s) + "</em>" : "") + "<small>" + (window.Lex ? Lex.mark(s.d) : s.d) + "</small></div>", () => equip(s.id));
       if (inT(s.id)) d.classList.add("eq");
     });
-    if (list.children.length === 1) list.insertAdjacentHTML("beforeend", "<div class='hint'>" + (base.length ? "Aucun sort ne correspond à ta recherche." : "Aucun sort appris pour ce panneau — inscris-toi à l'Amphithéâtre.") + "</div>");
+    if (list.children.length === 1) list.insertAdjacentHTML("beforeend", "<div class='hint'>" + (base.length ? "Aucun sort ne correspond à ta recherche." : "Aucun sort appris pour ce panneau — inscris-toi à l'Académie des Arcanes.") + "</div>");
   };
 
   // ---- Decks nommés (Voile / Grimoire / Hybride) : équiper, mettre à jour, pré-construire, renommer, supprimer ----
@@ -240,12 +263,17 @@ const Spells = (() => {
   const snap = (d) => sides(d).forEach(p => { d[p] = Array.from({ length: nSlots() }, (_, i) => sp().eq[p][i] || null); });
   const applyDeck = d => {
     const n = nSlots(), L = sp().learned, E = sp().eq, N = { V: E.V.slice(), G: E.G.slice() };
-    sides(d).forEach(p => { for (let i = 0; i < n; i++) { if (sp().lock[p + i]) continue; const id = d[p][i]; N[p][i] = id && L[id] ? id : null; } });
-    N.G.forEach((id, i) => { if (id && N.V.includes(id) && !sp().lock["G" + i]) N.G[i] = null; });      // pas de doublon (Voile prioritaire)
+    // v2.a3.27 : un deck REMPLACE aussi les emplacements verrouillés (le verrou protège des changements manuels, pas d'un deck choisi). ANCIEN CODE (rollback) :
+    //   sides(d).forEach(p => { for (let i = 0; i < n; i++) { if (sp().lock[p + i]) continue; const id = d[p][i]; N[p][i] = id && L[id] ? id : null; } });
+    //   N.G.forEach((id, i) => { if (id && N.V.includes(id) && !sp().lock["G" + i]) N.G[i] = null; });
+    sides(d).forEach(p => { for (let i = 0; i < n; i++) { const id = d[p][i]; N[p][i] = id && L[id] ? id : null; } });
+    N.G.forEach((id, i) => { if (id && N.V.includes(id)) N.G[i] = null; });      // pas de doublon (Voile prioritaire)
     taxe(() => { sp().eq = N; dirty = 1; bars(); Stats.add("chgDeck", 1); sp().tut.equip = 1; ["V", "G"].forEach(q => N[q].forEach((x, i) => { if (x) sp().tut.fill[q + i] = 1; })); save(); toast("Deck « " + d.name + " » équipé"); }, eqIds(), [...N.V, ...N.G].filter(Boolean), "deck");
   };
   // ---- Decks v2.a3.15 : une LISTE de cartes (aperçu visuel, « Équiper » en un geste) puis un ÉDITEUR : on touche un emplacement, puis un sort de la palette. Tout s'enregistre au fil de l'eau. ----
   let dkI = -1, dkP = "V", dkS = 0;                                  // deck ouvert (-1 = liste), panneau et emplacement sélectionnés
+  // v2.a3.27 : DK_PREVIEW = un 1er appui sur un sort de la palette AFFICHE sa carte détaillée (bouton « Ajouter »), un 2e appui l'ajoute. false = ancien comportement (ajout direct). dkV = sort affiché.
+  const DK_PREVIEW = true; let dkV = null;
   const hn = k => SCH.find(x => x[0] === k)[2];
   const dkBadge = (id, sel) => id ? "<i class='psi" + (sel ? " sel" : "") + "' style='--h:" + hn(byId[id].k) + "' title='" + byId[id].n + "'>" + gl(byId[id].k, 20) + "</i>" : "<i class='psi psi-e" + (sel ? " sel" : "") + "'>" + IC("<path d='M12 6v12M6 12h12'/>", 14, 2) + "</i>";
   const dkSame = d => sides(d).every(p => Array.from({ length: nSlots() }, (_, i) => (d[p][i] || null) === (sp().eq[p][i] || null)).every(Boolean));
@@ -266,28 +294,40 @@ const Spells = (() => {
     el.querySelectorAll("[data-eq]").forEach(b => b.onclick = e => { e.stopPropagation(); applyDeck(D()[+b.dataset.eq]); setTimeout(dkR, 60); });
     const nw = $("dkNew"); if (nw) nw.onclick = () => { const d = { name: "Deck " + (D().length + 1), t: "H", V: [], G: [] }; snap(d); D().push(d); sp().tut.deck = 1; Stats.add("deckN", 1); Stats.ms("deck"); dkI = D().length - 1; dkP = "V"; dkS = 0; save(); dkR(); const nm = $("dkName"); if (nm) { nm.focus(); nm.select(); } };
   };
+  const dkCardHtml = cur => {
+    const id = dkV || cur; if (!id) return "<div class='spc-card spc-e'>Touche un sort ci-dessous pour voir sa carte, puis « Ajouter » (ou touche-le une 2e fois).</div>";
+    const s = byId[id], here = id === cur && !dkV;
+    return card(s, here ? "<span class='spc-here'>Dans cet emplacement</span>" : "<div class='spc-act'><button class='dkb pri' id='dkAdd' data-id='" + id + "'>" + IC("<path d='M12 5v14M5 12h14'/>", 14, 2.4) + "<span>Ajouter</span></button><button class='dkb' id='dkCardX'>Retour</button></div>");
+  };
   const dkEdit = () => {
     const d = D()[dkI], n = nSlots(), el = $("dkbody"), sd = sides(d); if (sd.indexOf(dkP) < 0) dkP = sd[0]; if (dkS >= n) dkS = 0;
     const rows = sd.map(p => "<div class='dke-r'><u>" + (p === "V" ? "Voile d'Éther" : "Grimoire") + "</u><div class='dke-s'>" + Array.from({ length: n }, (_, k) => "<button class='dke-sl' data-p='" + p + "' data-s='" + k + "' aria-label='Emplacement " + (k + 1) + "'>" + dkBadge(d[p][k] || null, p === dkP && k === dkS) + "</button>").join("") + "</div></div>").join("");
     const used = new Set([...d.V, ...d.G].filter(Boolean)), cur = d[dkP][dkS] || null;
     const palAll = SP.filter(s => sp().learned[s.id] && (s.pn === dkP || s.pn === "X"));
-    const palHtml = () => { const sh = palAll.filter(s => spOk(s, dkF)); return sh.map(s => "<button class='dkp-t" + (used.has(s.id) ? " used" : "") + (s.id === cur ? " cur" : "") + "' data-id='" + s.id + "' title='" + s.n.replace(/'/g, "’") + "'>" + dkBadge(s.id) + "<b>" + s.n + "</b><span class='ps-tg " + (s.t === "A" ? "act" : "pas") + "'>" + (s.t === "A" ? "Actif" : "Passif") + "</span></button>").join("") || (palAll.length ? "<p class='dk-empty'>Aucun sort ne correspond. <button class='dke-clear' id='dkFRst'>Réinitialiser les filtres</button></p>" : "<p class='dk-empty'>Aucun sort appris pour ce panneau : inscris-toi aux cours de l'Amphithéâtre.</p>"); };
+    // ANCIEN palHtml (rollback) : tuile = badge + nom + Actif/Passif, sans résumé
+    const palHtml = () => { const sh = palAll.filter(s => spOk(s, dkF)); return sh.map(s => "<button class='dkp-t" + (used.has(s.id) ? " used" : "") + (s.id === cur ? " cur" : "") + (s.id === dkV ? " view" : "") + "' data-id='" + s.id + "' title='" + s.n.replace(/'/g, "’") + "'>" + dkBadge(s.id) + "<b>" + s.n + "</b><span class='ps-tg " + (s.t === "A" ? "act" : "pas") + "'>" + (s.t === "A" ? "Actif" : "Passif") + "</span>" + (sum(s) ? "<em class='dkp-sum'>" + sum(s) + "</em>" : "") + "</button>").join("") || (palAll.length ? "<p class='dk-empty'>Aucun sort ne correspond. <button class='dke-clear' id='dkFRst'>Réinitialiser les filtres</button></p>" : "<p class='dk-empty'>Aucun sort appris pour ce panneau : inscris-toi aux cours de l'Académie des Arcanes.</p>"); };
     el.innerHTML = dkHead("", true) +
       "<div class='dke-top'><input id='dkName' maxlength='20' value='" + d.name.replace(/'/g, "&#39;") + "' aria-label='Nom du deck'><div class='dke-seg' role='group' aria-label='Type de deck'>" + ["H", "V", "G"].map(t => "<button data-t='" + t + "' class='" + (d.t === t ? "on" : "") + "'>" + TN[t] + "</button>").join("") + "</div></div>" +
       "<div class='dke-slots'>" + rows + "</div>" +
-      "<div class='dke-pal'><div class='dke-pt'>Emplacement <b>" + (dkS + 1) + "</b> · " + (dkP === "V" ? "Voile d'Éther" : "Grimoire") + (cur ? " <button class='dke-clear' id='dkClear'>Vider</button>" : "") + "</div><div id='dkpf'>" + fbar(dkF) + "</div><div class='dkp-g' id='dkpg'>" + palHtml() + "</div></div>" +
+      "<div class='dke-pal'><div class='dke-pt'>Emplacement <b>" + (dkS + 1) + "</b> · " + (dkP === "V" ? "Voile d'Éther" : "Grimoire") + (cur ? " <button class='dke-clear' id='dkClear'>Vider</button>" : "") + "</div>" + (DK_PREVIEW ? "<div id='dkCard'>" + dkCardHtml(cur) + "</div>" : "") + "<div id='dkpf'>" + fbar(dkF) + "</div><div class='dkp-g' id='dkpg'>" + palHtml() + "</div></div>" +
       "<div class='dke-act'><button class='dkb pri' id='dkEq'>" + ICON.play + "<span>" + (dkSame(d) ? "Équipé" : "Équiper ce deck") + "</span></button><button class='dkb' id='dkCopy'>" + ICON.save + "<span>Copier mon équipement actuel</span></button><button class='dkb dng' id='dkDel'>" + ICON.trash + "<span>Supprimer</span></button></div>";
-    $("dkBack").onclick = () => { dkI = -1; dkR(); };
+    $("dkBack").onclick = () => { dkI = -1; dkV = null; dkR(); };
     const nm = $("dkName"); nm.oninput = () => { d.name = nm.value.slice(0, 20); }; nm.onchange = nm.onblur = () => { d.name = (nm.value.trim() || d.name).slice(0, 20); save(); };
     el.querySelectorAll(".dke-seg button").forEach(b => b.onclick = () => { d.t = b.dataset.t; ["V", "G"].forEach(p => { if (!d[p]) d[p] = []; }); if (sides(d).indexOf(dkP) < 0) { dkP = sides(d)[0]; dkS = 0; } save(); dkR(); });
-    el.querySelectorAll(".dke-sl").forEach(b => b.onclick = () => { dkP = b.dataset.p; dkS = +b.dataset.s; dkR(); });
-    const bindPal = () => { fcount($("dkpf"), palAll.filter(s => spOk(s, dkF)).length, palAll.length); const fr = $("dkFRst"); if (fr) fr.onclick = () => { dkF.q = ""; dkF.t = "all"; dkF.k = []; dkR(); }; el.querySelectorAll(".dkp-t").forEach(b => b.onclick = () => place(b.dataset.id)); };
+    el.querySelectorAll(".dke-sl").forEach(b => b.onclick = () => { dkP = b.dataset.p; dkS = +b.dataset.s; dkV = null; dkR(); });
+    // ANCIEN bindPal (rollback) : ...forEach(b => b.onclick = () => place(b.dataset.id))
+    const bindCard = () => { const a = $("dkAdd"); if (a) a.onclick = () => { const id = a.dataset.id; dkV = null; place(id); }; const x = $("dkCardX"); if (x) x.onclick = () => { dkV = null; $("dkCard").innerHTML = dkCardHtml(cur); bindCard(); el.querySelectorAll(".dkp-t.view").forEach(t => t.classList.remove("view")); }; };
+    const bindPal = () => { fcount($("dkpf"), palAll.filter(s => spOk(s, dkF)).length, palAll.length); const fr = $("dkFRst"); if (fr) fr.onclick = () => { dkF.q = ""; dkF.t = "all"; dkF.k = []; dkR(); };
+      el.querySelectorAll(".dkp-t").forEach(b => b.onclick = () => {
+        if (!DK_PREVIEW || dkV === b.dataset.id) { dkV = null; return place(b.dataset.id); }             // 2e appui sur le même sort = ajout
+        dkV = b.dataset.id; el.querySelectorAll(".dkp-t").forEach(t => t.classList.toggle("view", t === b)); $("dkCard").innerHTML = dkCardHtml(cur); bindCard();
+      }); };
     const place = id => {                                                              // place le sort (jamais deux fois dans le deck), puis passe à l'emplacement vide suivant
  ["V", "G"].forEach(p => { d[p] = (d[p] || []).map(x => x === id ? null : x); }); d[dkP][dkS] = id;
       const order = []; sides(d).forEach(p => { for (let k = 0; k < n; k++) order.push([p, k]); }); const at = order.findIndex(x => x[0] === dkP && x[1] === dkS), nx = order.slice(at + 1).concat(order.slice(0, at)).find(x => !d[x[0]][x[1]]);
       if (nx) { dkP = nx[0]; dkS = nx[1]; } save(); dkR();
     };
-    fbind($("dkpf"), dkF, () => { $("dkpg").innerHTML = palHtml(); bindPal(); }); bindPal();
+    fbind($("dkpf"), dkF, () => { $("dkpg").innerHTML = palHtml(); bindPal(); }); bindPal(); if (DK_PREVIEW) bindCard();
     const cl = $("dkClear"); if (cl) cl.onclick = () => { d[dkP][dkS] = null; save(); dkR(); };
     $("dkEq").onclick = () => { applyDeck(d); setTimeout(dkR, 60); }; $("dkCopy").onclick = () => { snap(d); save(); dkR(); toast("Équipement copié dans « " + d.name + " »"); };
     const del = $("dkDel"); del.onclick = () => {                                     // double appui (3 s)

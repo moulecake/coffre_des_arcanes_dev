@@ -616,3 +616,39 @@ body.ac-shake{animation:acShk .09s linear infinite}@keyframes acShk{0%{transform
 .pgd{position:absolute;left:50%;top:44%;width:62px;height:82px;margin:-41px 0 0 -31px;border-radius:3px 7px 7px 3px;background:linear-gradient(120deg,rgba(245,217,138,.55),rgba(190,150,70,.25));border:1px solid rgba(245,217,138,.6);box-shadow:0 0 14px rgba(245,217,138,.35);pointer-events:none;animation:pgd .65s ease-out forwards}
 @keyframes pgd{from{transform:translate(0,0) rotate(0);opacity:.8}to{transform:translate(34px,-30px) rotate(var(--r,6deg)) scale(1.1);opacity:0}}
 @media (prefers-reduced-motion:reduce){.pgd{display:none}}
+
+/* v2.a3.27 : titre « Académie des Arcanes », remise à zéro, gains cosmétiques d'examen, puces d'examens robustes sur mobile (agrandissement du texte du système), pied de page légal */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+.acad-t{display:flex;align-items:center;gap:10px;margin:0;white-space:nowrap}
+.acad-crest{width:58px;height:50px;flex:none;overflow:visible;filter:drop-shadow(0 0 10px rgba(212,175,55,.35))}
+.acad-halo{transform-origin:32px 17px;animation:acadHalo 4s ease-in-out infinite}@keyframes acadHalo{50%{opacity:.55;transform:scale(1.15)}}
+.acad-eye{animation:acadEye 4s ease-in-out infinite}@keyframes acadEye{50%{fill:#fff}}
+.acad-w{display:flex;flex-direction:column;align-items:flex-start;line-height:1;font:900 27px Cinzel,serif;letter-spacing:.06em;background:linear-gradient(180deg,#fff7d6,#f5d98a 45%,#b8892c);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 0 12px rgba(212,175,55,.3))}
+.acad-w small{display:none}.acad-w em{font:700 12px Cinzel,serif;font-style:normal;letter-spacing:.42em;margin-top:4px;background:linear-gradient(90deg,#c4b5fd,#e0e7ff,#c4b5fd);-webkit-background-clip:text;background-clip:text;color:transparent}
+@media (max-width:380px){.acad-w{font-size:19px}.acad-crest{width:38px;height:33px}}
+@media (prefers-reduced-motion:reduce){.acad-halo,.acad-eye{animation:none}}
+.ac-row.k{align-items:center}.ac-rew{display:flex;align-items:center;gap:6px;font-style:normal;font-size:11px;color:#f5d98a;min-width:0}.ac-rew svg{width:18px;height:18px;flex:none}.ac-rew b{font-weight:600;white-space:normal}
+.ac-row.k.got .ac-rew{color:#6ee7b7}
+.ac-chips{grid-template-columns:repeat(auto-fit,minmax(min(190px,100%),1fr))}.ac-ch{min-width:0}.ac-cht b{white-space:normal;line-height:1.15}.ac-cht small{white-space:normal;line-height:1.25}
+@media(max-width:700px){.ac-chips{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:340px){.ac-chips{grid-template-columns:minmax(0,1fr)}}
+.ac-rstlink{display:block;margin:14px auto 0;background:none;border:0;color:#64748b;font:500 11px Inter,sans-serif;cursor:pointer;text-decoration:underline dotted}.ac-rstlink:hover,.ac-rstlink:focus-visible{color:#fda4af;outline:0}
+.ck-legal{display:flex;flex-direction:column;align-items:center;gap:6px;margin:26px auto 18px;padding:0 16px;font:11px Inter,sans-serif;color:#64748b;text-align:center}
+.ck-legal nav{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 14px}.ck-legal a{color:#94a3b8;text-decoration:none}.ck-legal a:hover,.ck-legal a:focus-visible{color:#f5d98a;text-decoration:underline}
+
+/* v2.a3.27 : résumés ultra-concis, carte détaillée d'un sort (decks), aperçu avant ajout */
+.dkp-sum{display:block;font:600 9.5px Inter,sans-serif;font-style:normal;color:#f5d98a;text-align:center;line-height:1.2;opacity:.9}
+.ps-sum{display:inline-block;margin-left:6px;font:600 10.5px Inter,sans-serif;font-style:normal;color:#f5d98a}
+.dkp-t.view{border-color:hsl(var(--vh,45) 80% 60%);box-shadow:0 0 0 1px rgba(212,175,55,.6),0 0 16px rgba(212,175,55,.3);transform:translateY(-2px)}
+.spc-card{position:relative;display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:14px;border:1px solid hsl(var(--h,45) 70% 55%/.45);background:linear-gradient(160deg,hsl(var(--h,45) 60% 30%/.22),rgba(10,8,24,.6));box-shadow:0 0 18px hsl(var(--h,45) 80% 50%/.15),inset 0 1px 0 rgba(255,255,255,.06);animation:spcIn .25s ease-out}
+@keyframes spcIn{from{opacity:0;transform:translateY(4px)}}
+.spc-card.spc-e{display:block;font-size:11.5px;color:var(--dim);border-style:dashed;background:rgba(255,255,255,.02);text-align:center}
+.spc-card>.psi{flex:none;width:40px;height:40px}.spc-b{flex:1;min-width:0}.spc-b b{font:900 13px Cinzel,serif;color:#f5d98a}
+.spc-tg{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0}.spc-tg span{font:600 9.5px Inter,sans-serif;padding:2px 7px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:#cbd5e1}
+.spc-b p{margin:3px 0 0;font-size:11.5px;line-height:1.4;color:#d6d3e8}.spc-real{color:#f5d98a!important}.spc-real u{text-decoration:none;font-weight:700}
+.spc-act{display:flex;flex-direction:column;gap:6px;flex:none}.spc-here{flex:none;align-self:center;font:600 10px Inter,sans-serif;color:#6ee7b7}
+@media(max-width:560px){.spc-card{flex-wrap:wrap}.spc-act{flex-direction:row;width:100%}.spc-act .dkb{flex:1}}
+@media(prefers-reduced-motion:reduce){.spc-card{animation:none}}
+
+/* v2.a3.27 : ascenseurs fins aux couleurs de l'application (plus d'ascenseur Windows de base) */
+*{scrollbar-width:thin;scrollbar-color:rgba(168,85,247,.3) transparent}*::-webkit-scrollbar{width:4px;height:4px}*::-webkit-scrollbar-track{background:transparent}*::-webkit-scrollbar-thumb{background:rgba(168,85,247,.3);border-radius:99px}*::-webkit-scrollbar-thumb:hover{background:rgba(168,85,247,.55)}

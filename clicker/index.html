@@ -193,7 +193,7 @@
 </main>
 <section class="pane amphi">
   <div class="amh">
-    <h2>L'Amphithéâtre</h2>
+    <h2 class="acad-t"><svg class="acad-crest" viewBox="0 0 64 56" aria-hidden="true"><defs><linearGradient id="acg1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff1b0"/><stop offset=".55" stop-color="#d4af37"/><stop offset="1" stop-color="#7a5a14"/></linearGradient><linearGradient id="acg2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3b2a7a"/><stop offset="1" stop-color="#120d2c"/></linearGradient><radialGradient id="acg3" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#e0e7ff"/><stop offset=".45" stop-color="#a78bfa"/><stop offset="1" stop-color="#7c3aed" stop-opacity="0"/></radialGradient></defs><circle class="acad-halo" cx="32" cy="17" r="13" fill="url(#acg3)"/><path d="M6 22L32 7l26 15z" fill="url(#acg2)" stroke="url(#acg1)" stroke-width="1.6" stroke-linejoin="round"/><circle class="acad-eye" cx="32" cy="17" r="3.2" fill="#fff1b0"/><path d="M8 24h48v3H8z" fill="url(#acg1)"/><g fill="url(#acg2)" stroke="url(#acg1)" stroke-width="1.2"><rect x="11" y="28" width="6" height="18" rx="1"/><rect x="23" y="28" width="6" height="18" rx="1"/><rect x="35" y="28" width="6" height="18" rx="1"/><rect x="47" y="28" width="6" height="18" rx="1"/></g><path d="M5 47h54v3.5H5zM2 51h60v3H2z" fill="url(#acg1)"/><path d="M12 25.6h40" stroke="#fff" stroke-opacity=".5" stroke-width=".7"/></svg><span class="acad-w"><small>L'</small>Académie<em>des Arcanes</em></span></h2>
     <button class="dkbtn" id="dkopen" title="Créer et gérer vos decks de sorts" aria-label="Decks de sorts">
       <svg class="dk-ic" viewBox="0 0 56 44" aria-hidden="true">
         <defs>
@@ -211,6 +211,7 @@
   <div id="acTop"></div>
   <div class="ac-gridw"><table class="ac-gr" id="acGr"></table></div>
   <div class="ac-dt" id="acDt"></div>
+  <button class="ac-rstlink" id="acRstGo">Recommencer à zéro</button>
 </section>
 <div id="intro" hidden><div class="pbox intro" role="dialog" aria-modal="true" aria-labelledby="introT">
   <svg class="intro-emb" viewBox="0 0 120 56" aria-hidden="true"><defs><linearGradient id="ieg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8b5cf6"/><stop offset="1" stop-color="#38bdf8"/></linearGradient><linearGradient id="ieb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff1b0"/><stop offset="1" stop-color="#b8892a"/></linearGradient></defs>
@@ -260,6 +261,7 @@
 <div id="acEx" hidden><div class="pbox ac-exbox" role="dialog" aria-modal="true" aria-label="Examen"><div class="phead"><b>Académie des Arcanes</b><button id="acExC" aria-label="Fermer">✕</button></div><div id="acExB"></div></div></div>
 <div id="acInfo" hidden><div class="pbox ac-infobox" role="dialog" aria-modal="true"><b id="acInfoT"></b><p id="acInfoP"></p><button class="ac-go" id="acInfoOk">COMPRIS</button></div></div>
 <div id="acSpe" hidden><div class="pbox ac-spebox" role="dialog" aria-modal="true" aria-label="Choisis ta spécialité"><div class="phead"><b>Choisis ta spécialité</b><button id="acSpeC" aria-label="Fermer">✕</button></div><p class="ac-lead">À ton premier examen, tu t'engages auprès d'une école. Ce choix est <b>définitif</b> : elle réduit le prix et le temps de ses cours et renforce chacun de ses sorts.</p><div id="acSpeB2"></div></div></div>
+<div id="acRst" hidden><div class="pbox ac-infobox" role="dialog" aria-modal="true" aria-labelledby="acRstT"><div class="phead"><b id="acRstT">Recommencer à zéro</b><button id="acRstC" aria-label="Fermer">✕</button></div><p>Tout le Clicker repart de zéro : <b>Éther, Sagesse, bâtiments, sorts, rang, examens, decks et école</b>. Les couleurs et skins d'école du Coffre sont reperdus (à redébloquer). <b>Rien n'est remboursé.</b></p><p>Conservés : ton inventaire du Coffre, tes fragments de clé, tes statistiques et les skins d'évènement.</p><button class="ac-hold ac-hold-red" id="acRstH"><span>MAINTENIR 3 S POUR TOUT RECOMMENCER</span></button></div></div>
 <div id="acCht" hidden><div class="pbox ac-chtbox" id="acChtB" role="dialog" aria-modal="true"></div></div>
 <div id="acAway" hidden><div class="pbox ac-awaybox" id="acAwayB" role="dialog" aria-modal="true" aria-label="Pendant ton absence"></div></div>
 <div id="acRev" hidden></div>
@@ -267,5 +269,6 @@
 <div id="acCele" hidden><div id="acCeleB" class="ac-celeb" role="dialog" aria-modal="true"></div></div>
 <div id="numtip" role="status" aria-live="polite"></div>
 <div id="toast"></div>
+<footer class="ck-legal"><span>© 2026 Moulecake Corporation Company · Le Coffre des Arcanes</span><nav><a href="../?legal=mentions">Mentions légales</a><a href="../?legal=confidentialite">Confidentialité &amp; cookies</a><a href="../?legal=accessibilite">Accessibilité</a></nav></footer>
 </body>
 </html>
