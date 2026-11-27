@@ -7,7 +7,7 @@
 // ============================================================
 const PATCHNOTES = [
   {
-    v: '2.a3.30', name: 'L’Académie des Arcanes', date: '2026-11-24',
+    v: '2.a3.31', name: 'L’Académie des Arcanes', date: '2026-11-24',
     gift: 'Cadeau de mise à jour : 3 clés offertes !',
     sections: [
       { t: '🎁 Nouveautés', items: [

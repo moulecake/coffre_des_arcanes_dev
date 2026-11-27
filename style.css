@@ -880,3 +880,7 @@ html[data-spc] .chest-glow{background:radial-gradient(circle,rgba(225,29,72,.35)
 .keys-panel.many{flex-direction:column;align-items:stretch;gap:12px}
 .keys-panel.many .keys-icons{flex-wrap:wrap;justify-content:center;gap:8px}
 .keys-panel.many .keys-info{text-align:center}.keys-panel.many .frag-info{justify-content:center}
+
+/* v2.a3.31 : easter egg du Mimic — superposé au coffre, même taille ; yeux qui luisent ; rien n'est visible tant qu'il n'est pas déclenché */
+#mimic{position:absolute;left:20px;top:20px;width:140px;height:140px;overflow:visible;pointer-events:none;filter:drop-shadow(0 0 18px rgba(225,29,72,.35)) drop-shadow(0 0 10px rgba(168,85,247,.35))}
+#mimic .mm-eye{filter:drop-shadow(0 0 3px #fbbf24)}#mimic #mm-crumbs{opacity:0}

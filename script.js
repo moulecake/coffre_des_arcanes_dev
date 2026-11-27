@@ -9,7 +9,7 @@
 // ============================================================
 // Adresse propre : on masque « index.html » dans la barre d'adresse (affichage seulement).
 if (/index\.html$/.test(location.pathname)) history.replaceState(null, "", location.pathname.replace(/index\.html$/, "") + location.search + location.hash);
-const CURRENT_VERSION = "2.a3.30";
+const CURRENT_VERSION = "2.a3.31";
 document.querySelectorAll('[id="app-version"]').forEach(e => { e.textContent = CURRENT_VERSION; });   // 2 pieds de page (accueil + app)
 
 // DROP RATES — C:40 | PC:25 | R:20 | TR:8 | L:5 | A:2
@@ -686,6 +686,101 @@ function createParticles(card, rarity){
     card.appendChild(p);
   }
 }
+
+// ============================================================
+// EASTER EGG — LE MIMIC (v2.a3.31) : cliquer le coffre N fois d'affilée (chaque clic à moins de GAP ms du précédent, sinon on repart de zéro).
+// AUCUN retour visuel ni sonore pendant la saisie (pas d'indice). Un coffre mimic surgit DERRIÈRE le coffre, l'avale, le mâchouille, le recrache et repart.
+// Fonctionne sur tous les skins : on anime #chest-svg tel quel (son contenu n'est jamais touché). Dessin du mimic : DA « Trait Runique ».
+// ★ RÉGLAGE : MIMIC.n clics, MIMIC.gap ms max entre deux clics. Test : 10 / 450. Pour les joueurs (à décider) : voir MEMOIRE.md.
+// ============================================================
+const MIMIC = { n: 10, gap: 450 };
+let _mmN = 0, _mmT = 0, _mmRun = false;
+function mimicSvg() {
+  const T = (x, y, d) => { let p = ''; for (let i = 0; i < 9; i++) { const a = x + i * 10.6; p += 'M' + a.toFixed(1) + ' ' + y + 'l5.3 ' + d + 'l5.3 ' + (-d); } return p; };   // rangée de crocs (zigzag au trait)
+  return '<svg id="mimic" viewBox="0 0 140 140" aria-hidden="true"><defs>'
+    + '<linearGradient id="mm1" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#2a0f3d"/><stop offset="1" stop-color="#12061d"/></linearGradient>'
+    + '<linearGradient id="mm2" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#3f1660"/><stop offset="1" stop-color="#2a0f3d"/></linearGradient>'
+    + '<linearGradient id="mm3" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#fbbf24"/><stop offset="1" stop-color="#f97316"/></linearGradient></defs>'
+    + '<path d="M24 76h92l-3 -20h-86z" fill="#07020c"/>'                                                                                         // gosier
+    + '<g id="mm-base"><path d="M40 74q30 -14 60 0q-10 10 -30 9q-20 1 -30 -9z" fill="rgba(225,29,72,.45)" stroke="rgba(253,164,175,.55)" stroke-width="1"/>'   // langue
+    + '<path d="' + T(22.5, 74, -7) + '" fill="rgba(255,241,214,.16)" stroke="rgba(255,241,214,.7)" stroke-width="1" stroke-linejoin="round"/>'
+    + '<rect x="20" y="72" width="100" height="50" rx="8" fill="url(#mm1)" stroke="rgba(168,85,247,.45)" stroke-width="1.5"/>'
+    + '<path d="M20 98q50 10 100 0" fill="none" stroke="rgba(168,85,247,.3)" stroke-width="1"/>'
+    + '<circle cx="34" cy="108" r="4" fill="rgba(168,85,247,.3)" stroke="rgba(168,85,247,.5)" stroke-width="1"/><circle cx="106" cy="108" r="4" fill="rgba(168,85,247,.3)" stroke="rgba(168,85,247,.5)" stroke-width="1"/>'
+    + '<text x="70" y="116" text-anchor="middle" fill="rgba(225,29,72,.45)" font-size="11" font-family="serif">ᛗᛁᛗ</text></g>'
+    + '<g id="mm-lid" style="transform-origin:20px 74px"><rect x="20" y="32" width="100" height="44" rx="8" fill="url(#mm2)" stroke="rgba(168,85,247,.45)" stroke-width="1.5"/>'
+    + '<path d="M20 60 Q70 20 120 60" fill="rgba(168,85,247,.08)" stroke="rgba(168,85,247,.3)" stroke-width="1"/>'
+    + '<path d="' + T(22.5, 76, 7) + '" fill="rgba(255,241,214,.16)" stroke="rgba(255,241,214,.7)" stroke-width="1" stroke-linejoin="round"/>'
+    + '<path d="M38 50l14 5M102 50l-14 5" stroke="rgba(168,85,247,.6)" stroke-width="1.6" stroke-linecap="round"/>'                                // sourcils
+    + '<g class="mm-eye"><ellipse cx="48" cy="60" rx="6" ry="3.2" fill="rgba(251,191,36,.18)" stroke="url(#mm3)" stroke-width="1.3"/><ellipse cx="92" cy="60" rx="6" ry="3.2" fill="rgba(251,191,36,.18)" stroke="url(#mm3)" stroke-width="1.3"/>'
+    + '<path d="M48 57.6v4.8M92 57.6v4.8" stroke="#fbbf24" stroke-width="1.6" stroke-linecap="round"/></g>'
+    + '<circle cx="34" cy="44" r="3" fill="rgba(34,211,238,.3)" stroke="rgba(34,211,238,.5)" stroke-width="1"/><circle cx="106" cy="44" r="3" fill="rgba(34,211,238,.3)" stroke="rgba(34,211,238,.5)" stroke-width="1"/></g>'
+    + '<g id="mm-crumbs" fill="none" stroke="rgba(196,181,253,.8)" stroke-width="1.2" stroke-linecap="round"><path d="M60 70l-3 -3"/><path d="M80 70l3 -3"/><path d="M70 68v-4"/><path d="M52 74l-4 0"/><path d="M88 74l4 0"/></g>'
+    + '</svg>';
+}
+function mimicSound(kind) {                                       // bruitages (déclenchés par le clic du joueur) : « croc » (bruit filtré) ou « ptouh » (souffle grave)
+  if (!soundOn()) return;
+  try {
+    const ctx = getAudioCtx(), t = ctx.currentTime, len = kind === 'spit' ? .28 : .12, b = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * len), ctx.sampleRate), d = b.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, kind === 'spit' ? 1.5 : 3);
+    const src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain(); src.buffer = b;
+    f.type = kind === 'spit' ? 'lowpass' : 'bandpass'; f.frequency.value = kind === 'spit' ? 700 : 1400 + Math.random() * 600; f.Q.value = 1.2;
+    g.gain.value = kind === 'spit' ? .5 : .35; src.connect(f); f.connect(g); g.connect(ctx.destination); src.start(t);
+  } catch (e) {}
+}
+function mimicClick() {
+  if (_mmRun || isAnimating) return;
+  const n = Date.now(); _mmN = n - _mmT <= MIMIC.gap ? _mmN + 1 : 1; _mmT = n;
+  if (_mmN >= MIMIC.n) { _mmN = 0; runMimic(); }
+}
+async function runMimic() {
+  const wrap = document.getElementById('chest-wrap'), chest = document.getElementById('chest-svg'); if (!wrap || !chest || wrap.style.display === 'none') return;
+  _mmRun = true; isAnimating = true; const btn = document.getElementById('open-btn'), wasDis = btn.disabled; btn.disabled = true;
+  wrap.insertAdjacentHTML('beforeend', mimicSvg());
+  const M = document.getElementById('mimic'), lid = document.getElementById('mm-lid'), crumbs = document.getElementById('mm-crumbs');
+  const A = (el, kf, o) => el.animate(kf, Object.assign({ fill: 'forwards' }, o)).finished;
+  const open = (y, r, ms) => A(lid, [{ transform: 'translateY(' + y + 'px) rotate(' + r + 'deg)' }], { duration: ms, easing: 'ease-out' });
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  try {
+    if (reduced) {                                                                                     // mouvements réduits : simple apparition à côté du coffre
+      await A(M, [{ opacity: 0, transform: 'translate(-60px,-10px) scale(.6)' }, { opacity: 1, transform: 'translate(-60px,-10px) scale(.6)' }], { duration: 400 });
+      await new Promise(r => setTimeout(r, 1400));
+      await A(M, [{ opacity: 0, transform: 'translate(-60px,-10px) scale(.6)' }], { duration: 400 });
+    } else {
+      chest.style.position = 'relative'; chest.style.zIndex = '2'; M.style.zIndex = '1';
+      // 1) il surgit DERRIÈRE le coffre et jette un œil par-dessus
+      await A(M, [{ opacity: 0, transform: 'translate(0,-10px) scale(.6)' }, { opacity: 1, transform: 'translate(0,-46px) scale(.72)' }], { duration: 650, easing: 'cubic-bezier(.2,.8,.3,1)' });
+      await new Promise(r => setTimeout(r, 350));
+      // 2) il bondit par-dessus, gueule grande ouverte
+      M.style.zIndex = '3';
+      await Promise.all([A(M, [{ transform: 'translate(0,-62px) scale(1.12)' }], { duration: 380, easing: 'ease-out' }), open(-24, -14, 380)]);
+      // 3) il croque : descend sur le coffre, qui disparaît dans sa gueule
+      mimicSound('chomp'); if (navigator.vibrate && getPrefs().vibe !== false) navigator.vibrate(60);
+      await Promise.all([A(M, [{ transform: 'translate(0,-4px) scale(1.14)' }], { duration: 260, easing: 'cubic-bezier(.6,0,.9,.4)' }),
+        A(chest, [{ transform: 'translateY(-14px) scale(.5)', opacity: 0 }], { duration: 260, easing: 'ease-in' }), open(0, 0, 240)]);
+      // 4) il mâchouille (4 coups de mâchoire, éclats qui volent)
+      for (let i = 0; i < 4; i++) {
+        mimicSound('chomp');
+        crumbs.animate([{ opacity: 1, transform: 'translate(0,0) scale(.6)' }, { opacity: 0, transform: 'translate(' + (i % 2 ? 6 : -6) + 'px,-16px) scale(1.4)' }], { duration: 380, easing: 'ease-out' });
+        await Promise.all([A(M, [{ transform: 'translate(0,-4px) scale(1.14,1.02)' }, { transform: 'translate(0,2px) scale(1.2,.94)' }, { transform: 'translate(0,-4px) scale(1.14)' }], { duration: 380, easing: 'ease-in-out' }),
+          A(lid, [{ transform: 'translateY(0) rotate(0)' }, { transform: 'translateY(-7px) rotate(-5deg)' }, { transform: 'translateY(0) rotate(0)' }], { duration: 380, easing: 'ease-in-out' })]);
+      }
+      await new Promise(r => setTimeout(r, 250));
+      // 5) il recrache le coffre, qui rebondit à sa place
+      mimicSound('spit'); if (navigator.vibrate && getPrefs().vibe !== false) navigator.vibrate([30, 40, 80]);
+      await open(-26, -16, 180); M.style.zIndex = '1';                                              // le coffre ressort DEVANT la gueule
+      await Promise.all([A(M, [{ transform: 'translate(0,-48px) scale(1.08)' }], { duration: 300, easing: 'ease-out' }),
+        A(chest, [{ transform: 'translateY(-10px) scale(.5)', opacity: 1 }, { transform: 'translateY(16px) scale(1.06) rotate(9deg)', opacity: 1, offset: .55 }, { transform: 'translateY(-4px) scale(.98) rotate(-4deg)', opacity: 1, offset: .8 }, { transform: 'none', opacity: 1 }], { duration: 760, easing: 'ease-out' })]);
+      // 6) il repart en arrière, derrière le coffre
+      await open(0, 0, 220);
+      await A(M, [{ transform: 'translate(0,-48px) scale(1.08)', opacity: 1 }, { transform: 'translate(0,-40px) scale(.7)', opacity: 1, offset: .5 }, { transform: 'translate(0,-12px) scale(.55)', opacity: 0 }], { duration: 750, easing: 'ease-in' });
+    }
+  } catch (e) {}
+  M.remove(); chest.getAnimations().forEach(a => a.cancel()); chest.style.position = chest.style.zIndex = '';
+  _mmRun = false; isAnimating = false; btn.disabled = wasDis && !canOpen();
+  try { localStorage.setItem(CHANNEL.lsk('arcane-mimic'), String((+localStorage.getItem(CHANNEL.lsk('arcane-mimic')) || 0) + 1)); } catch (e) {}   // compteur local (futur succès éventuel)
+}
+document.addEventListener('DOMContentLoaded', () => { const c = document.getElementById('chest-svg'); if (c) c.addEventListener('click', mimicClick); });
 
 // ============================================================
 // OPEN CHEST
