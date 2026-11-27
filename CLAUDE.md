@@ -1,13 +1,13 @@
 # Directives — Le Coffre des Arcanes (ex-Arcane Vault)
 
-Version actuelle : **v2.a3.29** (série alpha « a3 » : 2.a3.0, 2.a3.1 … 2.a3.29…, prépare la v3 Aventures ; `cmpVer` lit « aN » comme 1000+N, donc 2.2.0 < 2.a3.0). Lis `MEMOIRE.md` avant toute action ; mets-le à jour en fin d'étape. Réponds en français, ultra concis.
+Version actuelle : **v2.a3.30** (série alpha « a3 » : 2.a3.0, 2.a3.1 … 2.a3.30…, prépare la v3 Aventures ; `cmpVer` lit « aN » comme 1000+N, donc 2.2.0 < 2.a3.0). Lis `MEMOIRE.md` avant toute action ; mets-le à jour en fin d'étape. Réponds en français, ultra concis.
 
 ## Posture
 UI/UX Engineer & Frontend expert / Web Designer vibe 2026 : sombre, bento, glassmorphism, micro-interactions fluides, typé JDR.
 
 ## Barre de qualité visuelle (non négociable)
 Tout nouveau visuel (icône, bouton, jauge, SVG, animation) doit égaler AU MINIMUM la clé d'or brisée en 5 éclats et la fiole à liquide ondulant (`initKey()`, `#fvial` : validés « parfait ») et le Voile d'Éther : SVG sur mesure détaillé (dégradés, reflets, profondeur, glow), micro-animations, `prefers-reduced-motion`, palette cohérente. Jamais d'emoji seul ni de forme basique. Vérifier le rendu réel (`.claude/launch.json` → serveur local + capture) avant de livrer.
-**Coffres : DA « Trait Runique »** (validée 2026-11-27) : géométrie EXACTE du coffre d'origine, aplats sombres, traits fins translucides, une seule touche de dégradé (serrure), runes en texte, halo en CSS. Jamais de volumes « bulle », reflets brillants ni dorures épaisses. Générateur : `chestRuneSvg()` (script.js).
+**Coffres : DA « Trait Runique »** (validée 2026-11-27) : géométrie EXACTE du coffre d'origine, aplats sombres, traits fins translucides, une seule touche de dégradé (serrure), runes en texte, halo en CSS. Jamais de volumes « bulle », reflets brillants ni dorures épaisses. Générateur : `chestRuneSvg()` (script.js). Coffres d'ÉVÈNEMENT : forme générale et décors modifiables (ex. rouages animés du Bêta-testeur), tant que tout reste au trait Trait Runique.
 
 ## Économie de tokens
 - Ne réécris jamais un fichier entier : fonctions modifiées, sélecteurs CSS, blocs HTML ciblés, avec l'emplacement exact. Si tu édites directement (Claude Code), fais des `Edit` ciblés.

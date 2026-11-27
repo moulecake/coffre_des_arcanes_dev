@@ -179,7 +179,7 @@ window.Academy = (() => {
       "<div class='ac-scom'>" + (m2 ? "<b>Seconde école :</b> bonus à 50 % (moitié des valeurs ci-dessus), −12,5 % de prix et de temps sur ses cours." : "<b>Pour toute école :</b> −25 % de prix et de temps sur ses cours.") + "</div>" +
       (done ? "<div class='ac-sealedtxt'>Spécialisation scellée. Tes cours de " + sc[1] + " coûtent 25 % de moins et durent 25 % de moins, et ses sorts sont renforcés.</div>" :
         "<div class='ac-warn'>" + ic.lock + "<span><b>Choix définitif.</b> Ton école ne pourra plus être changée.</span></div><button class='ac-hold' id='acSeal' style='--h:" + sc[2] + "'><span>MAINTENIR POUR SCELLER</span></button>");
-    box.style.setProperty("--h", sc ? sc[2] : 260);
+    box.style.setProperty("--h", sc ? sc[2] : 260); box.classList.toggle("sealed", !!done && !m2);
     box.innerHTML = "<div class='ac-cards'>" + cards + "</div><div class='ac-sdet'>" + det + "</div>" +
       (m2 ? "" : "<div class='ac-rstz'><span>Envie de changer d'école ? Seul un nouveau départ le permet.</span><button class='ac-rstb' id='acRstGo'><svg viewBox='0 0 24 24' aria-hidden='true'><path d='M4 12a8 8 0 1 0 2.4-5.7M4 4v4.5h4.5'/></svg><span>Recommencer à zéro</span></button></div>");   // v2.a3.29 : déplacé ici (avant : lien en bas de l'Académie)
     const rg = $("acRstGo"); if (rg) rg.onclick = openRst;

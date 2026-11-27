@@ -9,7 +9,7 @@
 // ============================================================
 // Adresse propre : on masque « index.html » dans la barre d'adresse (affichage seulement).
 if (/index\.html$/.test(location.pathname)) history.replaceState(null, "", location.pathname.replace(/index\.html$/, "") + location.search + location.hash);
-const CURRENT_VERSION = "2.a3.29";
+const CURRENT_VERSION = "2.a3.30";
 document.querySelectorAll('[id="app-version"]').forEach(e => { e.textContent = CURRENT_VERSION; });   // 2 pieds de page (accueil + app)
 
 // DROP RATES — C:40 | PC:25 | R:20 | TR:8 | L:5 | A:2
@@ -586,6 +586,7 @@ function updateTimer(){
     keysEl.appendChild(d);
   }
   refreshSpecialChest();
+  fitKeys();
 
   // Timer
   if(state.keys >= MAX_KEYS){
@@ -816,6 +817,18 @@ function closeSidebar(){
 }
 
 function recycleByIndex(idx, e){ recycleItem(window._invKeys[idx], e); }
+// Rangée de clés (v2.a3.30) : tant que les clés tiennent à côté du texte, rien ne change ; sinon le texte « CLÉS DISPONIBLES » passe SOUS les clés,
+// qui se répartissent sur 3 lignes au plus (centrées) ; au-delà, elles rétrécissent (24 px minimum) au lieu de déborder.
+let _fkSig = '';
+function fitKeys() {
+  const P = document.querySelector('.keys-panel'), K = document.getElementById('keys-icons'); if (!P || !K) return;
+  const n = K.children.length, W = P.clientWidth - 40, sig = n + '|' + W; if (sig === _fkSig) return; _fkSig = sig;
+  const many = n * 40 > W - 170;                                  // 40 = case 32 px + espace 8 px ; 170 = place minimale du texte
+  P.classList.toggle('many', many);
+  let z = 32; if (many) { const per = Math.ceil(n / 3); z = Math.max(24, Math.min(32, Math.floor(W / per) - 8)); }
+  K.style.setProperty('--kz', z + 'px');
+}
+addEventListener('resize', () => { _fkSig = ''; fitKeys(); });
 // ============================================================
 // COFFRE DE L'ARTEFACT (v2.a3.27) : recycler un artefact en double donne un coffre spécial + sa clé unique. Compteurs synchronisés (state.spGot / state.spUsed).
 // Il est TOUJOURS le prochain coffre ouvert (prioritaire sur les clés normales, la recharge, les codes) et son apparence prime sur la Personnalisation.
@@ -1587,8 +1600,13 @@ function chestRuneSvg(o) {   // o = { id, b1, b2, l1, l2, a1, a2, c (rgb du trai
 }
 // Coffre « Bêta-testeur » (Trait Runique, orange légendaire) : motif = plan d'essai (lignes de cote en pointillés, repères d'angle) — un coffre « en prototype »
 function chestBetaSvg() {
+  // Rouages au TRAIT (contour fin translucide, aucun volume) aux deux coins du couvercle, qui tournent en sens inverse ; plan d'essai en pointillés ; coins renforcés (coffre d'évènement)
+  const gear = (x, y, cls) => { let t = ''; for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4, c = Math.cos(a), sn = Math.sin(a); t += 'M' + (x + c * 6.2).toFixed(2) + ' ' + (y + sn * 6.2).toFixed(2) + 'L' + (x + c * 8.4).toFixed(2) + ' ' + (y + sn * 8.4).toFixed(2); }
+    return '<g class="cb-gear ' + cls + '" style="transform-origin:' + x + 'px ' + y + 'px"><circle cx="' + x + '" cy="' + y + '" r="6.2" fill="rgba(249,115,22,.1)" stroke="rgba(251,191,36,.55)" stroke-width="1"/><path d="' + t + '" stroke="rgba(251,191,36,.55)" stroke-width="1.6" stroke-linecap="round"/><circle cx="' + x + '" cy="' + y + '" r="2.2" fill="none" stroke="rgba(249,115,22,.6)" stroke-width="1"/></g>'; };
   return chestRuneSvg({ id: 'cb', b1: '#24120a', b2: '#110803', l1: '#3d1d0a', l2: '#24120a', a1: '#f97316', a2: '#fbbf24', c: '249,115,22', d: '251,191,36', r1: 'ᛒᛖᛏ', r2: '✦ β ✦',
-    motif: '<g fill="none" stroke="rgba(251,191,36,.22)" stroke-width=".8" stroke-dasharray="2 2"><path d="M26 84h88M26 116h88M44 76v42M96 76v42"/></g><g fill="none" stroke="rgba(251,191,36,.45)" stroke-width="1"><path d="M23 80v-5h5M117 80v-5h-5M23 114v5h5M117 114v5h-5"/></g>' });
+    motif: '<g fill="none" stroke="rgba(251,191,36,.22)" stroke-width=".8" stroke-dasharray="2 2"><path d="M26 84h88M26 116h88M44 76v42M96 76v42"/></g>'
+      + '<g fill="none" stroke="rgba(251,191,36,.45)" stroke-width="1"><path d="M20 82h8v-8M120 82h-8v-8M20 114h8v8M120 114h-8v8"/></g>'
+      + gear(34, 46, 'l') + gear(106, 46, 'r') + '<path d="M40.5 46h4M95.5 46h4" stroke="rgba(251,191,36,.35)" stroke-width="1" stroke-dasharray="1.5 1.5"/>' });
 }
 function chestSkinSvg(h, glyph) {
   const B = (l, a) => 'hsl(' + h + ' ' + a + '% ' + l + '%)';

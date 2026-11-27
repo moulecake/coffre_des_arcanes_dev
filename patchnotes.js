@@ -7,7 +7,7 @@
 // ============================================================
 const PATCHNOTES = [
   {
-    v: '2.a3.29', name: 'L’Académie des Arcanes', date: '2026-11-24',
+    v: '2.a3.30', name: 'L’Académie des Arcanes', date: '2026-11-24',
     gift: 'Cadeau de mise à jour : 3 clés offertes !',
     sections: [
       { t: '🎁 Nouveautés', items: [
@@ -33,7 +33,8 @@ const PATCHNOTES = [
         '**Barre d’effets** : plus de clignotement, seul le compte à rebours bouge.',
         '**Académie des Arcanes** : l’Amphithéâtre change de nom et de blason.',
         '**Verrou** : un appui long verrouille aussi un emplacement dans « Équiper des sorts » ; équiper un deck remplace tout, même les emplacements verrouillés.',
-        '**Mobile** : les bulles d’examens ne débordent plus quand le texte du téléphone est agrandi ; ascenseurs aux couleurs du jeu ; mentions légales en bas du Clicker.'
+        '**Mobile** : les bulles d’examens ne débordent plus quand le texte du téléphone est agrandi ; ascenseurs aux couleurs du jeu ; mentions légales en bas du Clicker.',
+        '**Clés** : quand tu en as beaucoup, elles se rangent sur plusieurs lignes au lieu de déborder.'
       ] }
     ]
   },

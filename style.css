@@ -872,3 +872,11 @@ html[data-spc] .chest-glow{background:radial-gradient(circle,rgba(225,29,72,.35)
 /* v2.a3.29 : coffres « Trait Runique » — runes qui respirent doucement (remplace les animations des anciens coffres Bêta/Artefact) */
 #chest-svg .cr-rune{animation:crRune 3.2s ease-in-out infinite}#chest-svg .cr-rune2{animation:crRune 3.2s ease-in-out 1.6s infinite}@keyframes crRune{50%{opacity:.45}}
 @media (prefers-reduced-motion:reduce){#chest-svg .cr-rune,#chest-svg .cr-rune2{animation:none}}
+
+/* v2.a3.30 : rouages au trait du coffre Bêta-testeur ; rangée de clés adaptative */
+#chest-svg .cb-gear{animation:cbGear 10s linear infinite}#chest-svg .cb-gear.r{animation-direction:reverse}@keyframes cbGear{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){#chest-svg .cb-gear{animation:none}}
+.key-icon{width:var(--kz,32px);height:var(--kz,32px)}.key-icon svg{width:min(16px,calc(var(--kz,32px) - 12px));height:auto}
+.keys-panel.many{flex-direction:column;align-items:stretch;gap:12px}
+.keys-panel.many .keys-icons{flex-wrap:wrap;justify-content:center;gap:8px}
+.keys-panel.many .keys-info{text-align:center}.keys-panel.many .frag-info{justify-content:center}
