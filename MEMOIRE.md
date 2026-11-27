@@ -287,6 +287,12 @@ Fait : lien (bouton ⚡ GRIMOIRE) et cache SW. Reste : équilibrage global, popo
 - **§17** : `Fx.activ(id, f)` (enc1, con1 : 10 min, 5 min en spé) ; `S.sp.act[id]` = fin de l'activation (horodatage absolu, persiste hors ligne) ; tant qu'elle n'est pas écoulée, le sort est exclu de `rebuild()` (effet inactif) ; retiré puis remis = repart de zéro ; toast « est maintenant actif » ; compte à rebours sur l'emplacement (`Hud` : badge `10′`, emplacement grisé) et dans l'infobulle. La Taxe s'applique en plus.
 - Tests : effects.test.js passe à 168 vérifications (délais, tranches, activation, cohérence avec `Fx.away`). Vérifié en navigateur : enc1 inactif puis actif, tra4 retardé (ratio 0,933 sur 3 h = 1 h sans le ×1,25).
 
+### ✅ LIVE 2.3.0 publié le 2026-11-27 (officiel `moulecake/coffre_des_arcanes`, main `d852cc7..63bf3d0`)
+- Poussé par Claude depuis un clone séparé `../coffre_des_arcanes-live-push` (23 fichiers : app Coffre + Clicker, nav.js, channel.js, icônes -v2.3, manifest = manifest_LIVE.json) ; version 2.3.0 (CURRENT_VERSION, CACHE_NAME, patchnote) uniquement dans cette copie. Inchangés : data.js, workflow + send-push.js, clicker.html, favicon.ico ; anciennes icônes laissées sur l'officiel.
+- Avant : sauvegarde Firebase complète (`../SAUVEGARDES-FIREBASE/backup-players-2026-11-27.json`) + `check-migration.js` sans perte (16 joueurs, 800 copies, 778 uniques). Règles Firestore publiées par l'utilisateur.
+- Vérifié en ligne : sw.js et script.js en 2.3.0, manifest et icônes v2.3 servis (200), canal Live détecté (pas de thème PTU), aucune erreur console.
+- À surveiller : remises à zéro de saison chez les joueurs à leur 1re ouverture, icônes Android, `TEMP_RARITY_FIX` à garder plusieurs semaines. Prochaine version PTU : continuer la série alpha (ex. 2.a4.x) — elle reste « plus récente » que 2.3.0 pour cmpVer.
+
 ### v2.a3.34 — Préparation du passage sur le LIVE (2026-11-27)
 - **Icônes renommées `-v2.3`** (android-chrome 192/512, apple-touch-icon, favicon 16/32 ; `git mv`) et références mises à jour (manifest, index.html, clicker/index.html, sw.js) : Android verra une nouvelle adresse et mettra l'icône à jour ; iPhone : conseil de réinstallation dans le patchnote. Les vieux `icon-32/192/512.png` (inutilisés) sont laissés.
 - **Manifests** (révisé ensuite, voir plus bas) : `manifest.json` = LIVE (« Coffre des Arcanes », theme #1a1a2e, champ `_commentaire`) ; `manifest_PTU.json` = PTU (« PTU Coffre des Arcanes », theme orange), local, ignoré par git. ⚠ Le site de test utilise donc le manifest Live tant qu'on ne renomme pas localement.
