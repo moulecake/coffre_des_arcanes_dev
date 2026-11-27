@@ -32,7 +32,7 @@ _Résolu 2026-11-16 : préfixe = `/coffre_des_arcanes/` ; manifest avec icônes 
 - Raretés STRICTEMENT majuscules : `C PC R TR L A`. Taux : C40 / PC25 / R20 / TR8 / L5 / A2.
 - Info clé manquante → pause et question (une seule, courte).
 - Lire ce fichier au début, le mettre à jour à la fin de chaque étape.
-- **Refusé et à refuser** : fabriquer un code de profil/triche (`AV1-…`) avec des objets. Proposer l'outil MJ à la place.
+- **Refusé et à refuser** : fabriquer un code de profil/triche (`AV1-…`) avec des objets. (L'outil MJ n'existe plus depuis v2.a3.33.)
 
 ## 3. Coffre — fonctionnement
 - Constantes (`script.js`) : `CURRENT_VERSION="2.a2.3"`, `MAX_KEYS=3` (dépassable via fragments), `REGEN_MS=4h`, `FRAGS_PER_KEY=5`, `LSKEY='arcane-vault'`.
@@ -42,7 +42,7 @@ _Résolu 2026-11-16 : préfixe = `/coffre_des_arcanes/` ; manifest avec icônes 
 - Profil : pseudo persistant. Export/import `AV1-` + Base64 (`btoa(unescape(encodeURIComponent(json)))`), anti-rollback via `lastTradeNonce`. Inspection par code (lecture seule) séparée du bouton d'écrasement.
 - Troc asynchrone `AV-TRD-…` en 2 étapes : donneur perd A → receveur choisit B et reçoit un code `B-XXXX` → donneur valide et reçoit B. Annuler = perte des deux (voulu). Sélecteur de troc : `c>=1`, `refreshTradeSelect()` appelé dans `openSidebar`.
 - Sidebar : accordéon « 🔮 Pactes & Grimoires » avec verrouillage anti-softlock ; `.locked` ne doit pas bloquer le re-clic sur l'en-tête ; le cadenas ne doit **jamais** ouvrir le MJ (garde `sidebar.contains(e.target)`) ; sidebar `overflow-y:auto` avec scrollbar discrète.
-- MJ : code **8416** (5 clics rapides sur logo / bouton inventaire) → reset clés, forcer prochain drop L, `mjAddItem` (utiliser `parseInt(raw.trim())`, comparer à `display.length`).
+- ~~MJ : code **8416**~~ SUPPRIMÉ en v2.a3.33 — (5 clics rapides sur logo / bouton inventaire) → reset clés, forcer prochain drop L, `mjAddItem` (utiliser `parseInt(raw.trim())`, comparer à `display.length`).
 - Audio Web Audio procédural (`playClickSound`, `playRevealSound`) + `navigator.vibrate`.
 - Footer légal micro + modale unique (mentions, confidentialité, accessibilité).
 
@@ -88,7 +88,7 @@ _Résolu 2026-11-16 : préfixe = `/coffre_des_arcanes/` ; manifest avec icônes 
 - Inventaire compact : en mémoire clés longues inchangées ; à l'écriture (localStorage + Firestore) id court = paramètre `vf=` du lien (`packInventory` / `unpackInventory` / `serializeState` / `mergeCloudState`). Anciennes clés longues relues = migration auto. id absent/doublon dans data.js → clé longue conservée ; data.js non chargé → aucune conversion. Écriture Firestore par `mergeFields:['state',…]` (REMPLACE `state`, sinon les vieilles clés restent). Le classement décompacte avant de compter. Test : −77 % sur 464 objets synthétiques. Console : `inventoryIdStats()` pour voir combien d'objets sont compactés. (Un script Node lisant data.js a été refusé par le mode auto : respecter, ne pas contourner.)
 - Clicker déplacé dans `clicker/` ; `manifest.json` : `id` = ancien start_url (identité PWA inchangée) + `start_url` = `/coffre_des_arcanes/` ; SW met aussi en cache `BASE` et `clicker/` ; `index.html` masqué dans la barre d'adresse (`history.replaceState`). Pas de redirection de l'ancien `clicker.html` (décision utilisateur) : un testeur avec l'ancienne version en cache peut avoir 1 rechargement à faire.
 - Pseudo : échappé dans le badge de l'inventaire (`escapeLeaderboardHtml`).
-- À FAIRE PLUS TARD : panel MJ → compteur de coffres ouverts depuis le début (ajouter `state.chestsOpened` ; ne compte pas l'historique). Idée soumise, non faite : document public léger `leaderboard/{uid}` (pseudo, uniques, total) pour que le classement ne télécharge plus les `players/*` complets ; règles Firestore à fournir ; debounce des écritures cloud écarté pour l'instant (risque : le cloud écrase le local plus récent au rechargement → il faudrait un horodatage `rev`).
+- (Obsolète : panel MJ supprimé en v2.a3.33) À FAIRE PLUS TARD : panel MJ → compteur de coffres ouverts depuis le début (ajouter `state.chestsOpened` ; ne compte pas l'historique). Idée soumise, non faite : document public léger `leaderboard/{uid}` (pseudo, uniques, total) pour que le classement ne télécharge plus les `players/*` complets ; règles Firestore à fournir ; debounce des écritures cloud écarté pour l'instant (risque : le cloud écrase le local plus récent au rechargement → il faudrait un horodatage `rev`).
 ### v2.a2.17 — classement léger, compteur, correctif raretés (2026-11-17)
 - `data.js` corrigé par l'utilisateur : les « peu commun » étaient |C, ils sont maintenant |PC. Correctif temporaire dans `unpackInventory` : toute clé longue non canonique dont le `vf=` existe dans data.js est ramenée sur la ligne actuelle, quantités ADDITIONNÉES (jamais perdues), l'ancienne clé disparaît à l'enregistrement suivant. Test Node : 6 cas (C seul, C+PC, C+id, id+PC identique, objet disparu…). Console : `[Correctif raretés] n objet(s)…`.
 - `state.chestsOpened` : +1 à chaque ouverture (pas pour les ajouts MJ), enregistré dans `players/{uid}.state` et recopié dans `leaderboard/{uid}.chests`. Affichage dans le panel MJ : plus tard.
