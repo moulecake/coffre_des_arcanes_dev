@@ -1,6 +1,6 @@
 # Directives — Le Coffre des Arcanes (ex-Arcane Vault)
 
-Version actuelle : **v2.a3.34** (série alpha « a3 » : 2.a3.0, 2.a3.1 … 2.a3.34…, prépare la v3 Aventures ; `cmpVer` lit « aN » comme 1000+N, donc 2.2.0 < 2.a3.0). Lis `MEMOIRE.md` avant toute action ; mets-le à jour en fin d'étape. Réponds en français, ultra concis.
+Version actuelle : **v2.a3.35** (série alpha « a3 » : 2.a3.0, 2.a3.1 … 2.a3.35…, prépare la v3 Aventures ; `cmpVer` lit « aN » comme 1000+N, donc 2.2.0 < 2.a3.0). Lis `MEMOIRE.md` avant toute action ; mets-le à jour en fin d'étape. Réponds en français, ultra concis.
 
 ## Posture
 UI/UX Engineer & Frontend expert / Web Designer vibe 2026 : sombre, bento, glassmorphism, micro-interactions fluides, typé JDR.
@@ -22,7 +22,7 @@ Tout nouveau visuel (icône, bouton, jauge, SVG, animation) doit égaler AU MINI
 - Raretés en MAJUSCULES : `C PC R TR L A` ; taux C40 PC25 R20 TR8 L5 A2.
 - Chemins RELATIFS partout (plus de préfixe de dépôt écrit en dur depuis v2.a2.17) : le même code tourne sur `/coffre_des_arcanes/` (officiel) et `/coffre_des_arcanes_dev/` (test). `sw.js` déduit sa base de `self.registration.scope`. Incrémenter `CACHE_NAME` à chaque modif de fichiers cachés.
 - Deux dépôts, UN SEUL Firebase : `coffre_des_arcanes_dev` (branche `dev`, test) et `coffre_des_arcanes` (officiel, joueurs). Rien n'est poussé sans accord explicite de l'utilisateur. La tâche programmée de notifications ne doit tourner que sur l'officiel (déjà protégé dans le workflow et le script).
-- Icônes VERSIONNÉES (`*-v2.3.png`) : à chaque nouvelle icône, renommer les fichiers (nouveau suffixe) et mettre à jour `manifest.json`, `index.html`, `clicker/index.html`, `sw.js` — sinon Android garde l'ancienne. `manifest.json` = LIVE (poussé) ; `manifest_PTU.json` = PTU, local, jamais poussé (.gitignore).
+- Icônes VERSIONNÉES (`*-v2.3.png`) : à chaque nouvelle icône, renommer les fichiers (nouveau suffixe) et mettre à jour `manifest.json`, `index.html`, `clicker/index.html`, `sw.js` — sinon Android garde l'ancienne. `manifest.json` = PTU (dépôt de test) ; `manifest_LIVE.json` = Live, copié sous le nom `manifest.json` dans le dépôt officiel au push Live.
 - Saison du Clicker : `CK_SEASON` (clicker/core.js) — l'augmenter remet tout le Clicker à zéro chez chaque joueur au 1er lancement (sauf `fr`). PTU épargnée (`SEASON_ON_PTU`).
 - Fragments : 5 = 1 clé ; pont clicker→coffre idempotent (`earned − clickerClaimed`).
 - Ne jamais fabriquer de code de profil/triche dans l'appli. L'ancien outil MJ (8416) est SUPPRIMÉ (v2.a3.33) ; les données de test se modifient à la main, sur un compte PTU autorisé par l'utilisateur (ex. Eliéta).

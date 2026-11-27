@@ -1,14 +1,14 @@
 {
-  "_commentaire": "MANIFEST LIVE (officiel) — celui-ci est poussé. Icônes versionnées -v2.3 pour forcer leur mise à jour sur Android (changer le suffixe à la prochaine icône).",
-  "name": "Coffre des Arcanes",
-  "short_name": "Coffre des Arcanes",
+  "_commentaire": "MANIFEST PTU (site de test) — c'est celui que sert le dépôt de test. Le Live utilise manifest_LIVE.json (renommé manifest.json dans le dépôt officiel).",
+  "name": "PTU Coffre des Arcanes",
+  "short_name": "PTU Coffre des Arcanes",
   "description": "Application d'opening basé sur les jeux de rôle sur table - Simulation de tirages d'objets magiques",
   "id": "./index.html",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "theme_color": "#1a1a2e",
+  "theme_color": "#2a1204",
   "background_color": "#16213e",
   "icons": [
     {
