@@ -9,7 +9,7 @@
 // ============================================================
 // Adresse propre : on masque « index.html » dans la barre d'adresse (affichage seulement).
 if (/index\.html$/.test(location.pathname)) history.replaceState(null, "", location.pathname.replace(/index\.html$/, "") + location.search + location.hash);
-const CURRENT_VERSION = "2.a3.28";
+const CURRENT_VERSION = "2.a3.29";
 document.querySelectorAll('[id="app-version"]').forEach(e => { e.textContent = CURRENT_VERSION; });   // 2 pieds de page (accueil + app)
 
 // DROP RATES — C:40 | PC:25 | R:20 | TR:8 | L:5 | A:2
@@ -825,22 +825,10 @@ const SPECIAL_A_RATE = .30;
 const specialPending = () => Math.max(0, (state.spGot || 0) - (state.spUsed || 0));
 const canOpen = () => state.keys > 0 || specialPending() > 0;
 const rollSpecial = () => Math.random() < SPECIAL_A_RATE ? { rarity: 'A', frags: 0 } : { rarity: 'L', frags: 1 + Math.floor(Math.random() * 5) };
+// Coffre de l'Artefact (Trait Runique, cramoisi + or) : motif = losange de reliquaire au trait autour de la serrure, runes cramoisies
 function chestArtefactSvg() {
-  return '<defs><linearGradient id="sa1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4c0519"/><stop offset=".6" stop-color="#2e1065"/><stop offset="1" stop-color="#14051f"/></linearGradient>'
-    + '<linearGradient id="sa2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9f1239"/><stop offset="1" stop-color="#3b0764"/></linearGradient>'
-    + '<linearGradient id="sa3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff7d6"/><stop offset=".5" stop-color="#fbbf24"/><stop offset="1" stop-color="#92400e"/></linearGradient>'
-    + '<radialGradient id="sa4" cx=".38" cy=".32" r=".75"><stop offset="0" stop-color="#fff"/><stop offset=".3" stop-color="#fda4af"/><stop offset=".7" stop-color="#e11d48"/><stop offset="1" stop-color="#4c0519"/></radialGradient>'
-    + '<radialGradient id="sa5" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#f43f5e" stop-opacity=".55"/><stop offset="1" stop-color="#a855f7" stop-opacity="0"/></radialGradient></defs>'
-    + '<circle class="sa-aura" cx="70" cy="74" r="62" fill="url(#sa5)"/><ellipse cx="70" cy="126" rx="48" ry="6" fill="rgba(0,0,0,.5)"/>'
-    + '<rect x="20" y="72" width="100" height="50" rx="8" fill="url(#sa1)" stroke="url(#sa3)" stroke-width="1.8"/>'
-    + '<path d="M20 76V54Q20 28 70 28Q120 28 120 54V76Z" fill="url(#sa2)" stroke="url(#sa3)" stroke-width="1.8" stroke-linejoin="round"/>'
-    + '<path d="M26 54Q30 36 70 34" fill="none" stroke="rgba(255,228,230,.4)" stroke-width="2" stroke-linecap="round"/>'
-    + '<path d="M20 52l14-6M120 52l-14-6M20 100l14 6M120 100l-14 6" stroke="url(#sa3)" stroke-width="2.4" stroke-linecap="round"/>'
-    + '<rect x="20" y="67" width="100" height="9" fill="url(#sa3)"/><rect x="20" y="67" width="100" height="1.6" fill="rgba(255,255,255,.55)"/>'
-    + '<path d="M70 36l4 7 8 1-6 5 2 8-8-4-8 4 2-8-6-5 8-1z" fill="url(#sa3)" stroke="#92400e" stroke-width=".6" stroke-linejoin="round"/>'
-    + '<path class="sa-gem" d="M70 70l11 9-11 15-11-15z" fill="url(#sa4)" stroke="#fff7d6" stroke-width="1"/><path d="M59 79h22M70 70l-4 9 4 15 4-15z" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width=".7"/>'
-    + '<g fill="#fde68a"><circle cx="28" cy="88" r="2"/><circle cx="112" cy="88" r="2"/><circle cx="28" cy="114" r="2"/><circle cx="112" cy="114" r="2"/></g>'
-    + '<g class="sa-rune" font-family="serif" font-size="9" fill="#fda4af" text-anchor="middle"><text x="44" y="104">ᛟ</text><text x="96" y="104">ᛉ</text><text x="70" y="116">ᚨ ᚱ ᛏ</text></g>';
+  return chestRuneSvg({ id: 'ca', b1: '#260a1c', b2: '#110513', l1: '#3f0d2a', l2: '#260a1c', a1: '#e11d48', a2: '#fbbf24', c: '225,29,72', d: '251,191,36', r1: 'ᚨᚱᛏ', r2: '✦ ᛟ ✦',
+    motif: '<path d="M70 50l22 19-22 19-22-19z" fill="none" stroke="rgba(251,191,36,.3)" stroke-width="1"/><path d="M70 55l16 14-16 14-16-14z" fill="none" stroke="rgba(225,29,72,.25)" stroke-width=".8"/>' });
 }
 // Applique (ou retire) l'apparence du coffre de l'Artefact ; appelée chaque seconde par updateTimer (garde par signature : coût nul)
 let _spcSig = '';
@@ -1574,28 +1562,33 @@ const ownedEvents = () => (state.events || []).filter(k => EVENT_ITEMS[k]);
 function grantEvents() { if (CHANNEL.ptu && (state.events || []).indexOf('beta') < 0) { state.events = (state.events || []).concat('beta'); saveState(); } }   // PTU : tout bêta-testeur reçoit le coffre « Bêta-testeur »
 const schoolDot = k => SCHOOL_BADGE[k] ? '<svg class="lb-sc" viewBox="0 0 24 24" style="--h:' + SCHOOL_BADGE[k][1] + '" aria-label="' + SCHOOL_BADGE[k][0] + '"><title>' + SCHOOL_BADGE[k][0] + '</title><circle cx="12" cy="12" r="11" /><path d="' + SCHOOL_BADGE[k][2] + '"/></svg>' : '';
 // Coffre d'école (rang 6) : SVG sur mesure par école (corps teinté, sangles et clous d'or, médaillon au glyphe, gemme qui pulse)
-// Coffre « Bêta-testeur » : malle de prototype d'alchimiste — bronze sombre, plan quadrillé orange (le « blueprint » d'un coffre en essai), engrenages de laiton,
-// cœur de braise au sceau β qui pulse et étincelles qui montent. Palette : orange légendaire.
+// ============================================================
+// DA « TRAIT RUNIQUE » (référence de TOUS les coffres, v2.a3.29) : la géométrie EXACTE du coffre d'origine (#chest-svg : base 100×50 rx 8, couvercle 100×44,
+// arche, bandeau, serrure + trou de serrure en dégradé, 4 clous, 2 lignes de runes). Aplats sombres, traits FINS (1–1,5 px) translucides, remplissages
+// très légers (.08–.3), une seule touche de dégradé (serrure), runes en texte. INTERDIT : reflets brillants, volumes « bulle », dorures épaisses,
+// formes rondes gonflées. Le halo vient du CSS (drop-shadow), pas du dessin. Un thème = une palette + 1 motif discret au trait.
+// ============================================================
+function chestRuneSvg(o) {   // o = { id, b1, b2, l1, l2, a1, a2, c (rgb du trait), d (rgb secondaire), r1 (runes base), r2 (runes couvercle), motif }
+  const C = a => 'rgba(' + o.c + ',' + a + ')', D = a => 'rgba(' + o.d + ',' + a + ')';
+  return '<defs><linearGradient id="' + o.id + '1" x1="0" y1="0" x2="1" y2="1"><stop stop-color="' + o.b1 + '"/><stop offset="1" stop-color="' + o.b2 + '"/></linearGradient>'
+    + '<linearGradient id="' + o.id + '2" x1="0" y1="0" x2="0" y2="1"><stop stop-color="' + o.l1 + '"/><stop offset="1" stop-color="' + o.l2 + '"/></linearGradient>'
+    + '<linearGradient id="' + o.id + '3" x1="0" y1="0" x2="1" y2="0"><stop stop-color="' + o.a1 + '"/><stop offset="1" stop-color="' + o.a2 + '"/></linearGradient></defs>'
+    + '<rect x="20" y="72" width="100" height="50" rx="8" fill="url(#' + o.id + '1)" stroke="' + C(.4) + '" stroke-width="1.5"/>'
+    + '<rect x="20" y="32" width="100" height="44" rx="8" fill="url(#' + o.id + '2)" stroke="' + C(.4) + '" stroke-width="1.5"/>'
+    + '<path d="M20 60 Q70 20 120 60" fill="' + C(.08) + '" stroke="' + C(.3) + '" stroke-width="1"/>'
+    + (o.motif || '')
+    + '<rect x="20" y="68" width="100" height="8" fill="' + C(.15) + '" stroke="' + C(.3) + '" stroke-width="1"/>'
+    + '<rect x="58" y="60" width="24" height="18" rx="4" fill="' + C(.2) + '" stroke="' + C(.6) + '" stroke-width="1.5"/>'
+    + '<circle cx="70" cy="67" r="5" fill="none" stroke="url(#' + o.id + '3)" stroke-width="2"/><rect x="68" y="69" width="4" height="5" rx="1" fill="url(#' + o.id + '3)"/>'
+    + '<circle cx="34" cy="96" r="4" fill="' + C(.3) + '" stroke="' + C(.5) + '" stroke-width="1"/><circle cx="106" cy="96" r="4" fill="' + C(.3) + '" stroke="' + C(.5) + '" stroke-width="1"/>'
+    + '<circle cx="34" cy="46" r="3" fill="' + D(.3) + '" stroke="' + D(.5) + '" stroke-width="1"/><circle cx="106" cy="46" r="3" fill="' + D(.3) + '" stroke="' + D(.5) + '" stroke-width="1"/>'
+    + '<text class="cr-rune" x="70" y="110" text-anchor="middle" fill="' + C(.45) + '" font-size="12" font-family="serif">' + o.r1 + '</text>'
+    + '<text class="cr-rune2" x="70" y="52" text-anchor="middle" fill="' + D(.4) + '" font-size="10" font-family="serif">' + o.r2 + '</text>';
+}
+// Coffre « Bêta-testeur » (Trait Runique, orange légendaire) : motif = plan d'essai (lignes de cote en pointillés, repères d'angle) — un coffre « en prototype »
 function chestBetaSvg() {
-  return '<defs><linearGradient id="sb1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3b2312"/><stop offset="1" stop-color="#160b04"/></linearGradient>'
-    + '<linearGradient id="sb2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5a3519"/><stop offset="1" stop-color="#25140a"/></linearGradient>'
-    + '<linearGradient id="sb3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd7a1"/><stop offset=".5" stop-color="#f59e0b"/><stop offset="1" stop-color="#9a4a0b"/></linearGradient>'
-    + '<radialGradient id="sb4" cx=".5" cy=".45" r=".6"><stop offset="0" stop-color="#fff7e6"/><stop offset=".35" stop-color="#fb923c"/><stop offset="1" stop-color="#7c2d12"/></radialGradient>'
-    + '<pattern id="sb5" width="8" height="8" patternUnits="userSpaceOnUse"><path d="M8 0H0V8" fill="none" stroke="#fb923c" stroke-opacity=".22" stroke-width=".6"/></pattern>'
-    + '<clipPath id="sb6"><rect x="20" y="72" width="100" height="50" rx="8"/><path d="M20 76V54Q20 28 70 28Q120 28 120 54V76Z"/></clipPath></defs>'
-    + '<ellipse cx="70" cy="126" rx="48" ry="6" fill="rgba(0,0,0,.5)"/>'
-    + '<rect x="20" y="72" width="100" height="50" rx="8" fill="url(#sb1)" stroke="url(#sb3)" stroke-width="1.4"/>'
-    + '<path d="M20 76V54Q20 28 70 28Q120 28 120 54V76Z" fill="url(#sb2)" stroke="url(#sb3)" stroke-width="1.4" stroke-linejoin="round"/>'
-    + '<g clip-path="url(#sb6)"><rect x="20" y="28" width="100" height="94" fill="url(#sb5)"/><path d="M28 112h30M28 104h18M82 112h30M94 104h18" stroke="#fdba74" stroke-opacity=".45" stroke-width=".8" stroke-dasharray="2 2"/></g>'
-    + '<path d="M26 54Q30 36 70 34" fill="none" stroke="rgba(255,237,213,.35)" stroke-width="2" stroke-linecap="round"/>'
-    + '<rect x="20" y="67" width="100" height="9" fill="url(#sb3)" opacity=".9"/><rect x="20" y="67" width="100" height="1.6" fill="rgba(255,247,230,.5)"/>'
-    + '<g class="sb-gear" style="transform-origin:34px 50px"><circle cx="34" cy="50" r="7" fill="#2a170a" stroke="url(#sb3)" stroke-width="1.4"/><path d="M34 41v3M34 56v3M25 50h3M40 50h3M27.6 43.6l2.1 2.1M38.3 54.3l2.1 2.1M27.6 56.4l2.1-2.1M38.3 45.7l2.1-2.1" stroke="url(#sb3)" stroke-width="2" stroke-linecap="round"/><circle cx="34" cy="50" r="2.2" fill="#fbbf24"/></g>'
-    + '<g class="sb-gear r" style="transform-origin:106px 50px"><circle cx="106" cy="50" r="7" fill="#2a170a" stroke="url(#sb3)" stroke-width="1.4"/><path d="M106 41v3M106 56v3M97 50h3M112 50h3M99.6 43.6l2.1 2.1M110.3 54.3l2.1 2.1M99.6 56.4l2.1-2.1M110.3 45.7l2.1-2.1" stroke="url(#sb3)" stroke-width="2" stroke-linecap="round"/><circle cx="106" cy="50" r="2.2" fill="#fbbf24"/></g>'
-    + '<circle cx="70" cy="80" r="13" fill="#1c0e05" stroke="url(#sb3)" stroke-width="1.8"/><circle class="sb-core" cx="70" cy="80" r="9.5" fill="url(#sb4)"/>'
-    + '<path d="M67.2 87V73.6c0-2.4 1.6-3.8 3.6-3.8 2.1 0 3.5 1.3 3.5 3.2 0 1.5-.9 2.5-2.2 2.9 1.8.3 3 1.6 3 3.5 0 2.3-1.7 3.8-4 3.8-1.6 0-2.9-.6-3.9-1.6" fill="none" stroke="#3b1406" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>'
-    + '<g fill="#fff1b0" stroke="#7c2d12" stroke-width=".5"><circle cx="26" cy="80" r="1.8"/><circle cx="114" cy="80" r="1.8"/><circle cx="26" cy="116" r="1.8"/><circle cx="114" cy="116" r="1.8"/></g>'
-    + '<g class="sb-spk"><circle cx="58" cy="64" r="1.2" fill="#fde68a"/><circle cx="82" cy="62" r="1" fill="#fb923c"/><circle cx="70" cy="60" r=".9" fill="#fff7e6"/></g>'
-    + '<text x="70" y="118" text-anchor="middle" font-family="Cinzel,serif" font-size="6.5" letter-spacing="1.5" fill="#fdba74" fill-opacity=".8">PROTOTYPE</text>';
+  return chestRuneSvg({ id: 'cb', b1: '#24120a', b2: '#110803', l1: '#3d1d0a', l2: '#24120a', a1: '#f97316', a2: '#fbbf24', c: '249,115,22', d: '251,191,36', r1: 'ᛒᛖᛏ', r2: '✦ β ✦',
+    motif: '<g fill="none" stroke="rgba(251,191,36,.22)" stroke-width=".8" stroke-dasharray="2 2"><path d="M26 84h88M26 116h88M44 76v42M96 76v42"/></g><g fill="none" stroke="rgba(251,191,36,.45)" stroke-width="1"><path d="M23 80v-5h5M117 80v-5h-5M23 114v5h5M117 114v5h-5"/></g>' });
 }
 function chestSkinSvg(h, glyph) {
   const B = (l, a) => 'hsl(' + h + ' ' + a + '% ' + l + '%)';

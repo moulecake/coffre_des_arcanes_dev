@@ -180,7 +180,9 @@ window.Academy = (() => {
       (done ? "<div class='ac-sealedtxt'>Spécialisation scellée. Tes cours de " + sc[1] + " coûtent 25 % de moins et durent 25 % de moins, et ses sorts sont renforcés.</div>" :
         "<div class='ac-warn'>" + ic.lock + "<span><b>Choix définitif.</b> Ton école ne pourra plus être changée.</span></div><button class='ac-hold' id='acSeal' style='--h:" + sc[2] + "'><span>MAINTENIR POUR SCELLER</span></button>");
     box.style.setProperty("--h", sc ? sc[2] : 260);
-    box.innerHTML = "<div class='ac-cards'>" + cards + "</div><div class='ac-sdet'>" + det + "</div>";
+    box.innerHTML = "<div class='ac-cards'>" + cards + "</div><div class='ac-sdet'>" + det + "</div>" +
+      (m2 ? "" : "<div class='ac-rstz'><span>Envie de changer d'école ? Seul un nouveau départ le permet.</span><button class='ac-rstb' id='acRstGo'><svg viewBox='0 0 24 24' aria-hidden='true'><path d='M4 12a8 8 0 1 0 2.4-5.7M4 4v4.5h4.5'/></svg><span>Recommencer à zéro</span></button></div>");   // v2.a3.29 : déplacé ici (avant : lien en bas de l'Académie)
+    const rg = $("acRstGo"); if (rg) rg.onclick = openRst;
     box.querySelectorAll(".ac-sc").forEach(b => b.onclick = () => { selK = b.dataset.k; speR(); });
     const sl = $("acSeal"); if (sl) hold(sl, 1200, () => { if (m2) { if (Spells.chooseSchool2(selK)) { const kk = selK; selK = null; $("acSpe").hidden = true; toast("Seconde école scellée : " + SCH.find(x => x[0] === kk)[1] + " (50 %)"); buzz2([60, 40, 90]); tone(523, 1046, .8, .07, "sine"); refresh(); celebrate(); } } else if (Spells.chooseSchool(selK)) { const kk = selK; selK = null; $("acSpe").hidden = true; reveal(kk); } }, true);
   };
@@ -327,7 +329,7 @@ window.Academy = (() => {
   const init = () => {
     $("acExC").onclick = closeExam; $("acEx").onclick = e => { if (e.target.id === "acEx") closeExam(); };
     $("acSpeC").onclick = closeSpe; $("acSpe").onclick = e => { if (e.target.id === "acSpe") closeSpe(); };
-    if ($("acRst") && !$("acRstH").dataset.b) { $("acRstH").dataset.b = 1; $("acRstC").onclick = closeRst; $("acRst").onclick = e => { if (e.target.id === "acRst") closeRst(); }; $("acRstGo").onclick = openRst; hold($("acRstH"), 3000, () => { $("acRstH").disabled = true; toast("Remise à zéro…"); window.resetAllProgress(); }); }
+    if ($("acRst") && !$("acRstH").dataset.b) { $("acRstH").dataset.b = 1; $("acRstC").onclick = closeRst; $("acRst").onclick = e => { if (e.target.id === "acRst") closeRst(); }; hold($("acRstH"), 3000, () => { $("acRstH").disabled = true; toast("Remise à zéro…"); window.resetAllProgress(); }); }
     $("acInfoOk").onclick = () => { $("acInfo").hidden = true; }; $("acInfo").onclick = e => { if (e.target.id === "acInfo") $("acInfo").hidden = true; };
     if (typeof Nav !== "undefined" && !navDone) {
       navDone = 1; Nav.add("acInfo", { open: () => !$("acInfo").hidden, close: () => { $("acInfo").hidden = true; } });

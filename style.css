@@ -868,3 +868,7 @@ html[data-spc] .chest-glow{background:radial-gradient(circle,rgba(225,29,72,.35)
 
 /* v2.a3.27 : ascenseurs fins aux couleurs de l'application (plus d'ascenseur Windows de base) */
 *{scrollbar-width:thin;scrollbar-color:rgba(168,85,247,.3) transparent}*::-webkit-scrollbar{width:4px;height:4px}*::-webkit-scrollbar-track{background:transparent}*::-webkit-scrollbar-thumb{background:rgba(168,85,247,.3);border-radius:99px}*::-webkit-scrollbar-thumb:hover{background:rgba(168,85,247,.55)}
+
+/* v2.a3.29 : coffres « Trait Runique » — runes qui respirent doucement (remplace les animations des anciens coffres Bêta/Artefact) */
+#chest-svg .cr-rune{animation:crRune 3.2s ease-in-out infinite}#chest-svg .cr-rune2{animation:crRune 3.2s ease-in-out 1.6s infinite}@keyframes crRune{50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){#chest-svg .cr-rune,#chest-svg .cr-rune2{animation:none}}
