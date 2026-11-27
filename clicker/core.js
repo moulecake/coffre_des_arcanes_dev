@@ -197,7 +197,7 @@ async function cloudSave(force) {
 // CONSERVÉS : fragments gagnés (S.fr : le pont vers le Coffre reste idempotent), statistiques, verrou de triche, compte. S.rz+1 et S.spV+1 : la remise à zéro gagne contre le cloud.
 async function resetAllProgress() {
   Stats.flush(); const keep = { fr: S.fr, lock: S.lock || 0, uid: S.uid, introSeen: S.introSeen, rz: (S.rz || 0) + 1, spV: (S.spV || Prog.SPV) + 1 }, st = Stats.pick(S);
-  Object.keys(S).forEach(k => delete S[k]); Object.assign(S, { eth: 0, sg: 0, b: {}, seen: Date.now() }, keep);
+  Object.keys(S).forEach(k => delete S[k]); Object.assign(S, { eth: 0, sg: 0, b: {}, seen: Date.now(), g: { n: 0, t: "norm", need: 0, got: 0 } }, keep);   // g : le tick tourne encore jusqu'au rechargement
   Stats.mergeFrom(S, st); Stats.add("rz", 1); Prog.migrate(S); S.sp = Prog.emptySp(); S.pend = []; S.pdone = [];
   save(); try { await cloudSave(true); } catch (e) {}
   location.reload();

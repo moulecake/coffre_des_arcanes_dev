@@ -1,6 +1,6 @@
 # Directives — Le Coffre des Arcanes (ex-Arcane Vault)
 
-Version actuelle : **v2.a3.32** (série alpha « a3 » : 2.a3.0, 2.a3.1 … 2.a3.32…, prépare la v3 Aventures ; `cmpVer` lit « aN » comme 1000+N, donc 2.2.0 < 2.a3.0). Lis `MEMOIRE.md` avant toute action ; mets-le à jour en fin d'étape. Réponds en français, ultra concis.
+Version actuelle : **v2.a3.33** (série alpha « a3 » : 2.a3.0, 2.a3.1 … 2.a3.33…, prépare la v3 Aventures ; `cmpVer` lit « aN » comme 1000+N, donc 2.2.0 < 2.a3.0). Lis `MEMOIRE.md` avant toute action ; mets-le à jour en fin d'étape. Réponds en français, ultra concis.
 
 ## Posture
 UI/UX Engineer & Frontend expert / Web Designer vibe 2026 : sombre, bento, glassmorphism, micro-interactions fluides, typé JDR.
@@ -23,7 +23,7 @@ Tout nouveau visuel (icône, bouton, jauge, SVG, animation) doit égaler AU MINI
 - Chemins RELATIFS partout (plus de préfixe de dépôt écrit en dur depuis v2.a2.17) : le même code tourne sur `/coffre_des_arcanes/` (officiel) et `/coffre_des_arcanes_dev/` (test). `sw.js` déduit sa base de `self.registration.scope`. Incrémenter `CACHE_NAME` à chaque modif de fichiers cachés.
 - Deux dépôts, UN SEUL Firebase : `coffre_des_arcanes_dev` (branche `dev`, test) et `coffre_des_arcanes` (officiel, joueurs). Rien n'est poussé sans accord explicite de l'utilisateur. La tâche programmée de notifications ne doit tourner que sur l'officiel (déjà protégé dans le workflow et le script).
 - Fragments : 5 = 1 clé ; pont clicker→coffre idempotent (`earned − clickerClaimed`).
-- Ne jamais fabriquer de code de profil/triche ; passer par l'outil MJ (8416).
+- Ne jamais fabriquer de code de profil/triche dans l'appli. L'ancien outil MJ (8416) est SUPPRIMÉ (v2.a3.33) ; les données de test se modifient à la main, sur un compte PTU autorisé par l'utilisateur (ex. Eliéta).
 
 ## Routine de version (à chaque incrémentation)
 Changer ENSEMBLE, avec la même valeur : `CACHE_NAME` (`sw.js`, suffixe `vX.Y.Z`) · `CURRENT_VERSION` (`script.js`, affiché dans le footer) · « Version actuelle » ci-dessus et dans `MEMOIRE.md` · AJOUTER l'entrée du patchnote en tête de `patchnotes.js` (affichée une fois à chaque joueur). Format de version : `2.a3.Z` en cours (ou `2.Y.Z` ; le « 2 » ne change jamais, voir plus bas). Changer `CURRENT_VERSION` offre 3 clés (`MAX_KEYS`) une seule fois à chaque joueur, même s'il saute plusieurs versions (`applyVersionUpdate`). **Aucun reset d'inventaire, jamais** (comptes Google/Firebase réels).

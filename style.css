@@ -236,18 +236,6 @@ header{display:flex;align-items:center;justify-content:space-between;width:100%;
 #overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:199;display:none;}
 #overlay.show{display:block;}
 
-/* MJ PANEL */
-#mj-panel{
-  position:fixed;bottom:20px;left:20px;z-index:300;
-  background:rgba(6,8,16,.95);border:1px solid rgba(249,115,22,.3);border-radius:var(--radius);
-  padding:16px;width:220px;backdrop-filter:blur(30px);display:none;
-}
-#mj-panel.show{display:block;}
-.mj-title{font-family:'Cinzel',serif;font-size:11px;color:var(--c-l);letter-spacing:2px;margin-bottom:12px;}
-.mj-btn{width:100%;padding:9px;border-radius:8px;border:1px solid rgba(249,115,22,.3);background:rgba(249,115,22,.08);
-  color:var(--c-l);font-size:12px;cursor:pointer;margin-bottom:6px;transition:var(--t);font-family:'Inter',sans-serif;}
-.mj-btn:hover{background:rgba(249,115,22,.15);}
-.mj-toggle{display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--text-dim);padding:4px 0;}
 .toggle-switch{position:relative;width:36px;height:20px;}
 .toggle-switch input{opacity:0;width:0;height:0;}
 .toggle-slider{position:absolute;inset:0;background:rgba(255,255,255,.1);border-radius:99px;cursor:pointer;transition:var(--t);}
@@ -296,19 +284,6 @@ header{display:flex;align-items:center;justify-content:space-between;width:100%;
 }
 
 /* MODAL */
-#modal{position:fixed;inset:0;z-index:400;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.8);backdrop-filter:blur(8px);}
-#modal.show{display:flex;}
-.modal-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:28px;width:300px;}
-.modal-title{font-family:'Cinzel',serif;font-size:14px;margin-bottom:16px;color:var(--c-l);}
-.modal-input{width:100%;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:10px;
-  padding:10px 14px;color:var(--text);font-size:16px;letter-spacing:4px;text-align:center;outline:none;font-family:'Inter',sans-serif;}
-.modal-input:focus{border-color:rgba(249,115,22,.5);}
-.modal-btns{display:flex;gap:8px;margin-top:14px;}
-.modal-btn{flex:1;padding:10px;border-radius:10px;border:1px solid var(--border);background:rgba(255,255,255,.04);
-  color:var(--text);font-size:13px;cursor:pointer;transition:var(--t);font-family:'Inter',sans-serif;}
-.modal-btn.confirm{background:rgba(249,115,22,.15);border-color:rgba(249,115,22,.3);color:var(--c-l);}
-.modal-btn:hover{background:rgba(255,255,255,.08);}
-.modal-btn.confirm:hover{background:rgba(249,115,22,.25);}
 
 /* TOAST */
 #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(80px);
@@ -520,13 +495,6 @@ header{display:flex;align-items:center;justify-content:space-between;width:100%;
 }
 .player-badge strong { color: var(--text); font-family: 'Cinzel', serif; font-size: 13px; }
 
-/* Bouton fermeture MJ */
-.mj-btn-close {
-  background: rgba(255,255,255,.04) !important;
-  border-color: rgba(255,255,255,.1) !important;
-  color: var(--text-dim) !important; margin-top: 4px;
-}
-.mj-btn-close:hover { background: rgba(255,255,255,.1) !important; }
 
 /* ============================================================
    ÉTAPE C — Sidebar & profil joueur

@@ -128,7 +128,7 @@
 
 <div id="app">
   <header style="display: flex; flex-direction: column; align-items: center; gap: 14px; width: 100%; text-align: center;">
-    <div class="logo" id="logo-click" style="font-size: 20px;">✦ Coffre des arcanes</div>
+    <div class="logo" style="font-size: 20px;">✦ Coffre des arcanes</div>
     <div class="header-nav-buttons" style="display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; width: 100%;">
       <button id="leaderboard-btn" class="leaderboard-btn" onclick="openLeaderboardModal()" title="Top Mages">🏆</button>
       <button class="inv-btn" onclick="openSidebar()">
@@ -340,35 +340,8 @@
 </div>
 
 
-<!-- Modal MJ -->
-<div id="modal">
-  <div class="modal-box">
-    <div class="modal-title">⚿ CODE MAÎTRE</div>
-    <input class="modal-input" id="mj-input" type="password" maxlength="4" placeholder="····" oninput="checkMJCode()">
-    <div class="modal-btns">
-      <button class="modal-btn" onclick="closeModal()">Annuler</button>
-    </div>
-  </div>
-</div>
 
-<!-- MJ Panel -->
 
-<div id="mj-panel">
-  <div class="mj-title">⚙ MODE MAÎTRE DU JEU</div>
-  <button class="mj-btn" onclick="mjResetKeys()">🔑 Recharger les 3 Clés</button>
-   <button class="mj-btn" onclick="mjRenamePseudo()">✎ Modifier le Pseudo</button>
-   <button class="mj-btn" onclick="mjAddItem()">⚙ Ajouter un Objet (Debug)</button>
-   <button class="mj-btn mj-btn-close" onclick="closeMJPanel()">✕ Fermer le Mode MJ</button>
-  <div class="mj-toggle">
-    <span>Forcer Artefact</span>
-    <label class="toggle-switch">
-      <input type="checkbox" id="force-legendary" onchange="updateForceLegendary()">
-      <span class="toggle-slider"></span>
-    </label>
-  </div>
-</div>
-
-<div id="secret-zone" id="secret-zone"></div>
 <div id="toast"></div>
 
 

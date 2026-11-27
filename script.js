@@ -9,7 +9,7 @@
 // ============================================================
 // Adresse propre : on masque « index.html » dans la barre d'adresse (affichage seulement).
 if (/index\.html$/.test(location.pathname)) history.replaceState(null, "", location.pathname.replace(/index\.html$/, "") + location.search + location.hash);
-const CURRENT_VERSION = "2.a3.32";
+const CURRENT_VERSION = "2.a3.33";
 document.querySelectorAll('[id="app-version"]').forEach(e => { e.textContent = CURRENT_VERSION; });   // 2 pieds de page (accueil + app)
 
 // DROP RATES — C:40 | PC:25 | R:20 | TR:8 | L:5 | A:2
@@ -142,8 +142,6 @@ let state = {
   inventory: {},
   chestsOpened: 0,       // compteur de coffres ouverts (depuis v2.a2.10) — enregistré dans le Firestore avec le reste de `state`
   fragments: 0,
-  forceLegendary: false,
-  mjActive: false,
  pseudo: ''           // ← AJOUT
 };
 
@@ -213,8 +211,8 @@ const copyInv = inv => Object.assign({}, inv);
 const serializeStateOf = st => Object.assign({}, st, { inventory: packInventory(st.inventory) });
 const serializeState = () => serializeStateOf(state);
 const unpackState = cs => Object.assign({}, cs, { inventory: unpackInventory(cs.inventory) });
-const snapLocal = () => Object.assign({}, state, { inventory: copyInv(state.inventory), mjAdded: (state.mjAdded || []).slice() });
-const freshState = () => ({ version: CURRENT_VERSION, keys: MAX_KEYS, lastRegen: Date.now(), inventory: {}, chestsOpened: 0, fragments: 0, forceLegendary: false, mjActive: false, pseudo: '' });
+const snapLocal = () => Object.assign({}, state, { inventory: copyInv(state.inventory) });
+const freshState = () => ({ version: CURRENT_VERSION, keys: MAX_KEYS, lastRegen: Date.now(), inventory: {}, chestsOpened: 0, fragments: 0, pseudo: '' });
 const snapBase = st => ({ uid: st.uid || '', rev: st.rev || 0, inv: copyInv(st.inventory), keys: st.keys || 0, fragments: st.fragments || 0, clickerClaimed: st.clickerClaimed || 0, chestsOpened: st.chestsOpened || 0, spGot: st.spGot || 0, spUsed: st.spUsed || 0 });
 function loadBase() { try { const b = JSON.parse(localStorage.getItem(BASE_KEY) || 'null'); if (b) b.inv = unpackInventory(b.inv); return b; } catch (e) { return null; } }
 function storeBase(b) { _base = b; try { localStorage.setItem(BASE_KEY, JSON.stringify(Object.assign({}, b, { inv: packInventory(b.inv) }))); } catch (e) {} }
@@ -255,9 +253,7 @@ function mergeStates(base, L, C) {
   M.pseudo = C.pseudo || L.pseudo || '';
   if (L.perso && (!C.perso || (L.perso.ts || 0) > (C.perso.ts || 0))) M.perso = L.perso;
   { const ev = [...new Set([].concat(C.events || [], L.events || []))]; if (ev.length) M.events = ev; }   // objets d'évènement (skins) : union, jamais retirés (même après une remise à zéro du clicker)   // personnalisation : le dernier réglage (horodaté) l'emporte
-  const seen = new Set(), adds = []; [].concat(C.mjAdded || [], L.mjAdded || []).forEach(a => { const id = (a && a.name) + '@' + (a && a.ts); if (!seen.has(id)) { seen.add(id); adds.push(a); } });
-  if (adds.length) M.mjAdded = adds;
-  M.forceLegendary = !!L.forceLegendary; M.mjActive = !!L.mjActive;
+  delete M.forceLegendary; delete M.mjActive;                              // v2.a3.33 : ancien mode MJ supprimé (champs retirés des sauvegardes au fil des synchros ; mjAdded = simple historique conservé tel quel)
   return M;
 }
 
@@ -814,13 +810,8 @@ function openChest(){
       document.getElementById('chest-wrap').style.display='none';
       btn.style.display='none';
 
-      let bonusFr = 0, rarity = state.forceLegendary ? 'A' : rollRarity();
+      let bonusFr = 0, rarity = rollRarity();
       if(special){ const r = rollSpecial(); rarity = r.rarity; bonusFr = r.frags; }
-      else if(state.forceLegendary){
-        state.forceLegendary=false;
-        document.getElementById('force-legendary').checked=false;
-        saveState();
-      }
       const lootStr=rollLoot(rarity);
       const [name,link,type,actualRarity] = lootStr.split('|');
       // Use actualRarity (handles fallback cascade correctly)
@@ -1039,90 +1030,12 @@ function renderInventory(){
 
 function setTab(t){ activeTab=t; renderInventory(); }
 
-// ============================================================
-// MJ / SECRET
-// ============================================================
-function openMJModal(){
-  document.getElementById('modal').classList.add('show');
-  document.getElementById('mj-input').value='';
-  document.getElementById('mj-input').focus();
-}
-let logoClicks=0, logoTimer=null;
-document.getElementById('logo-click').addEventListener('click',()=>{
-  logoClicks++;
-  clearTimeout(logoTimer);
-  logoTimer=setTimeout(()=>logoClicks=0,1500);
-  if(logoClicks>=5){ logoClicks=0; openMJModal(); }
-});
-let invBtnClicks=0, invBtnTimer=null;
+// v2.a3.33 : l'ancien mode Maître du Jeu (code secret, panneau, forcer Artefact, ajout d'objet) est SUPPRIMÉ partout (passoire à triche).
 document.querySelector('.inv-btn').addEventListener('click', function(e){
-  // Ignorer les clics venant de l'intérieur de la sidebar
-  if(document.getElementById('sidebar').contains(e.target)) return;
-  invBtnClicks++;
-  clearTimeout(invBtnTimer);
-  invBtnTimer=setTimeout(()=>invBtnClicks=0,1500);
-  if(invBtnClicks>=5){ invBtnClicks=0; openMJModal(); return; }
+  if(document.getElementById('sidebar').contains(e.target)) return;   // ignorer les clics venant de l'intérieur de la sidebar
   openSidebar();
 },{capture:true});
-document.getElementById('secret-zone').addEventListener('click',openMJModal);
 
-function checkMJCode(){
-  const v=document.getElementById('mj-input').value;
-  if(v.length===4){
-    if(v==='8416'){
-      closeModal(); state.mjActive=true;
-      document.getElementById('mj-panel').classList.add('show');
-      document.getElementById('force-legendary').checked=state.forceLegendary;
-      showToast('⚙ Mode Maître du Jeu activé');
-    } else {
-      document.getElementById('mj-input').value='';
-      document.getElementById('mj-input').style.borderColor='rgba(239,68,68,.5)';
-      setTimeout(()=>document.getElementById('mj-input').style.borderColor='',800);
-    }
-  }
-}
-function closeMJPanel(){
-  document.getElementById('mj-panel').classList.remove('show');
-  state.mjActive=false;
-  showToast('Mode MJ désactivé');
-}
-function mjRenamePseudo(){
-  const np = prompt('Nouveau pseudo (2–15 caractères) :', state.pseudo||'');
-  if(np === null) return;
-  const trimmed = np.trim();
-  if(trimmed.length < 2 || trimmed.length > 15){
-    showToast('❌ Pseudo invalide (2–15 caractères)'); return;
-  }
-  state.pseudo = trimmed; saveState();
-  renderInventory();
-  showToast('✎ Pseudo mis à jour : ' + trimmed);
-}
-
-function mjAddItem(){
-  if(!loots || !loots.length){ showToast('❌ data.js non chargé'); return; }
-  const query = prompt('Nom de l\'objet à ajouter (recherche partielle) :');
-  if(!query) return;
-  const matches = loots.filter(l => l.split('|')[0].toLowerCase().includes(query.toLowerCase()));
-  if(!matches.length){ showToast('❌ Aucun objet trouvé pour : ' + query); return; }
-  const display = matches.slice(0, 8);
-  let msg = display.map((l,i) => (i+1) + '. ' + l.split('|')[0]).join('\n');
-  if(matches.length > 8) msg += '\n… (' + (matches.length-8) + ' autres, affinez la recherche)';
-  const raw = prompt('Résultats :\n' + msg + '\n\nNuméro à ajouter (1-' + display.length + ') :');
-  if(raw === null) return;
-  const idx = parseInt(raw);
-  if(isNaN(idx) || idx < 1 || idx > display.length){ showToast('❌ Choix invalide (1-' + display.length + ')'); return; }
-  const lootStr = display[idx-1];
-  const name = lootStr.split('|')[0];
-  state.inventory[lootStr] = (state.inventory[lootStr]||0) + 1;
-  if(!state.mjAdded) state.mjAdded = [];
-  state.mjAdded.push({ name, ts: Date.now() });
-  saveState(); renderInventory();
-  showToast('⚙ MJ : "' + name + '" ajouté');
-}
-
-function closeModal(){ document.getElementById('modal').classList.remove('show'); }
-function mjResetKeys(){ state.keys=MAX_KEYS; state.lastRegen=Date.now(); saveState(); updateTimer(); document.getElementById('open-btn').disabled=false; showToast('🔑 Clés rechargées !'); }
-function updateForceLegendary(){ state.forceLegendary=document.getElementById('force-legendary').checked; saveState(); showToast(state.forceLegendary?'☆ Prochain drop : ARTEFACT forcé':'Drop aléatoire rétabli'); }
 
 // ============================================================
 // TOAST
@@ -1135,7 +1048,6 @@ function showToast(msg, ms){
   toastTimer=setTimeout(()=>t.classList.remove('show'),ms||2800);
 }
 
-document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeModal(); });
 
 
 
@@ -2117,6 +2029,4 @@ if (typeof Nav !== 'undefined') {
   Nav.add('profile-action', { open: () => Nav.shown('profile-action-modal'), close: closeProfileActionModal });
   Nav.add('install', { open: () => Nav.shown('install-modal'), close: closeInstallModal });
   Nav.add('push', { open: () => Nav.shown('push-modal'), close: pushPromptLater });
-  Nav.add('mj-code', { open: () => Nav.hasClass('modal', 'show'), close: closeModal });
-  Nav.add('mj-panel', { open: () => Nav.hasClass('mj-panel', 'show'), close: closeMJPanel });
 }

@@ -2,7 +2,7 @@
 // le Cache Storage est PARTAGÉ par toute l'origine, chaque version ne doit donc jamais supprimer le cache de l'autre.
 const IS_PTU = !(self.location.hostname === 'moulecake.github.io' && /^[/]coffre_des_arcanes[/]/.test(self.location.pathname));
 const CACHE_PREFIX = IS_PTU ? 'ptu-arcane-vault-cache-' : 'arcane-vault-cache-';
-const CACHE_NAME = CACHE_PREFIX + 'v2.a3.32';
+const CACHE_NAME = CACHE_PREFIX + 'v2.a3.33';
 // Chemin de base DÉDUIT de l'emplacement du Service Worker (scope) : aucun préfixe de dépôt écrit en dur
 // → fonctionne à l'identique sur /coffre_des_arcanes/ (officiel) et /coffre_des_arcanes_dev/ (test) sans rien changer.
 const BASE = self.registration.scope;                     // ex. https://moulecake.github.io/coffre_des_arcanes/
@@ -100,7 +100,8 @@ self.addEventListener('push', event => {
 
 self.addEventListener('notificationclick', event => {
   event.notification.close();
-  const url = (event.notification.data && event.notification.data.url) || BASE;
+  let url = (event.notification.data && event.notification.data.url) || BASE;
+  try { const u = new URL(url, BASE); url = u.origin === self.location.origin && u.href.startsWith(BASE) ? u.href : BASE; } catch (e) { url = BASE; }   // v2.a3.33 : n'ouvre QUE des pages du Coffre
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
       for (const c of list) { if ('focus' in c) { return c.focus(); } }
