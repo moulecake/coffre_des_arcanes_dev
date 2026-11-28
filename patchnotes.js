@@ -7,6 +7,13 @@
 // ============================================================
 const PATCHNOTES = [
   {
+    v: '2.a3.36', name: 'Le PTU fait peau neuve', date: '2026-11-28',
+    gift: 'Cadeau de mise à jour : 3 clés offertes !',
+    sections: [
+      { t: 'Version de test', items: ['**Nouvelle saison de test** : la base du PTU a été remise à zéro pendant sa fermeture. Tout le monde repart du début, ta progression sur le jeu officiel n’est pas concernée.'] }
+    ]
+  },
+  {
     v: '2.a3.35', name: 'L’Académie des Arcanes', date: '2026-11-27',
     gift: 'Cadeau de mise à jour : 3 clés offertes !',
     sections: [

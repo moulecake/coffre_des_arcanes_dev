@@ -46,6 +46,18 @@
   }
 
   window.CHANNEL = { name: live ? 'live' : 'ptu', live: live, ptu: ptu, lsk: lsk, col: col, clearLocal: clearLocal, wrapFirestore: wrapFirestore, checkWrite: checkWrite };
+  // ÉPOQUE DU PTU (v2.a3.36) : l'augmenter efface, au 1er passage de chaque testeur, ses données PTU LOCALES (clés « ptu-* » seulement, jamais le live).
+  // Sert quand la base PTU a été vidée : sans ça, l'ancienne sauvegarde locale du testeur serait renvoyée dans la nouvelle base à la réouverture.
+  var PTU_EPOCH = 2;
+  if (ptu) { try { if (localStorage.getItem('ptu-epoch') !== String(PTU_EPOCH)) { clearLocal(); localStorage.setItem('ptu-epoch', String(PTU_EPOCH)); } } catch (e) {} }
+  // PTU FERMÉ (v2.a3.36) : en ligne, toute page du PTU (Coffre, Clicker) est redirigée vers ferme.html. En local (localhost) le jeu reste utilisable pour développer.
+  // À LA RÉOUVERTURE : passer PTU_FERME à false (voir MEMOIRE.md « PTU fermé »). Sans effet sur le live (la condition exige le canal PTU).
+  var PTU_FERME = true;
+  var local = ['localhost', '127.0.0.1', '[::1]'].indexOf(h) >= 0;
+  if (ptu && PTU_FERME && !local && !/\/ferme\.html$/.test(p)) {
+    try { var me = document.currentScript && document.currentScript.src; location.replace(new URL('ferme.html', me || location.href).href); } catch (e) {}
+  }
+
   if (ptu) {
     document.documentElement.classList.add('ptu');                                    // thème orange « Légendaire » + badge (style.css)
     var m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute('content', '#2a1204');

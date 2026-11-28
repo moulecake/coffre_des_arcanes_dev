@@ -1,7 +1,18 @@
 # MEMOIRE — Le Coffre des Arcanes (ex-Arcane Vault) + Clicker
 
 > Handoff pour le Claude qui continue le dev. À lire en premier, à mettre à jour à la fin de chaque étape.
-> Dernière mise à jour : 2026-11-28. **Version : v2.a3.35** (code à jour = dossier de travail, pas le zip de handoff). Langue de travail : français. Utilisateur : MJ de JDR D&D, non-dev, colle les blocs à la main.
+> Dernière mise à jour : 2026-11-28. **Version : v2.a3.36** (code à jour = dossier de travail, pas le zip de handoff). Langue de travail : français. Utilisateur : MJ de JDR D&D, non-dev, colle les blocs à la main.
+
+## 🔒 PTU FERMÉ depuis le 2026-11-28 (v2.a3.36) — À FAIRE À LA RÉOUVERTURE
+- **État** : en ligne, `channel.js` redirige toute page PTU (Coffre et Clicker) vers `ferme.html`. C'est une page sans base de données : pas de clé, pas de coffre, un message et un lien Discord. En local (localhost), le jeu reste utilisable pour développer. Le Live n'est jamais touché (condition `ptu`).
+- **Base PTU** : vidée le 2026-11-28 (`ptu_players`, `ptu_leaderboard`, `ptu_promo_codes`), après une sauvegarde complète `../SAUVEGARDES-FIREBASE/backup-players-2026-11-28.json`. `push` est partagée avec le Live : jamais touchée.
+- **Données locales des testeurs** : `PTU_EPOCH = 2` (channel.js) efface une seule fois les clés `ptu-*` de chaque appareil, pour que l'ancienne sauvegarde ne revienne pas dans la base neuve. Pour une future remise à zéro du PTU : vider la base ET augmenter `PTU_EPOCH`.
+- **Réouverture**, dans l'ordre :
+  1. `PTU_FERME = false` dans channel.js. `ferme.html` peut rester, elle n'est plus jamais affichée.
+  2. Incrémenter la version (routine habituelle) et réécrire le patchnote de réouverture (l'entrée 2.a3.36 annonce déjà la nouvelle saison de test).
+  3. Vérifier que `manifest.json` = PTU (« PTU Coffre des Arcanes ») dans le dépôt de test. `manifest_LIVE.json` ne sert qu'au push Live ; c'est déjà en place depuis v2.a3.35.
+  4. Recréer si besoin les codes de test (TEST, TEST2) et redonner le skin Bêta aux testeurs côté PTU (`grantEvents()`).
+  5. Pousser sur `dev` avec l'accord de l'utilisateur.
 
 ## ⏰ RAPPELS (à traiter par Claude dès qu'on est à la date)
 - **À TESTER EN MOBILE (375 px, navigateur MCP) À LA FIN DU LOT 5** (consigne utilisateur 2026-11-26) : grille et fiche de l'Amphithéâtre, tuiles d'examens, fenêtre d'examen + bulle de triche + mini-jeu, diplôme/plume, Mes decks (cartes, éditeur, palette, filtres), sélecteur de sorts + filtres, barre d'effets et badges d'emplacements, bilan hors ligne, Taxe, bulle des nombres complets, écran de spécialité (1 et 2).
