@@ -1,7 +1,7 @@
 # MEMOIRE — Le Coffre des Arcanes (ex-Arcane Vault) + Clicker
 
 > Handoff pour le Claude qui continue le dev. À lire en premier, à mettre à jour à la fin de chaque étape.
-> Dernière mise à jour : 2026-11-24. **Version : v2.a3.35** (code à jour = dossier de travail, pas le zip de handoff). Langue de travail : français. Utilisateur : MJ de JDR D&D, non-dev, colle les blocs à la main.
+> Dernière mise à jour : 2026-11-28. **Version : v2.a3.35** (code à jour = dossier de travail, pas le zip de handoff). Langue de travail : français. Utilisateur : MJ de JDR D&D, non-dev, colle les blocs à la main.
 
 ## ⏰ RAPPELS (à traiter par Claude dès qu'on est à la date)
 - **À TESTER EN MOBILE (375 px, navigateur MCP) À LA FIN DU LOT 5** (consigne utilisateur 2026-11-26) : grille et fiche de l'Amphithéâtre, tuiles d'examens, fenêtre d'examen + bulle de triche + mini-jeu, diplôme/plume, Mes decks (cartes, éditeur, palette, filtres), sélecteur de sorts + filtres, barre d'effets et badges d'emplacements, bilan hors ligne, Taxe, bulle des nombres complets, écran de spécialité (1 et 2).
@@ -286,6 +286,29 @@ Fait : lien (bouton ⚡ GRIMOIRE) et cache SW. Reste : équilibrage global, popo
 - **§16** : `Fx.loadDelay(agoMs)` (★ 0–3 min → 60 min · 3–5 → 20 · 5–10 → 8 · 10–15 → 3 · ≥15 → 0), `Fx.awaySlices(total, loads, slice)` (somme par tranches : un sort est exclu tant que le temps écoulé < son délai ; plafonné par l'absence, pas de dette), `Fx.awayRaw` (tranche sans plafond). `S.sp.chg[id]` = horodatage du dernier équipement ; `Spells.loadsAt(depart)` ne retient que les sorts `OFFL` équipés avec un `chg` (les sorts équipés AVANT cette version n'ont pas de délai). `core.js away()` calcule PAR TRANCHES avec `Spells.modFor(exclus)` + `Passives.calcWith(MM)` (calc0 est paramétrable) ; le bilan liste « Sorts en cours de chargement : X (−N min) ». Toast à l'équipement d'un sort hors ligne : « Chargement des sorts hors ligne : 60 min si tu pars maintenant ». **Changement de comportement** : le hors ligne n'inclut plus les effets TEMPORAIRES encore actifs (onglet endormi < 60 s) — négligeable.
 - **§17** : `Fx.activ(id, f)` (enc1, con1 : 10 min, 5 min en spé) ; `S.sp.act[id]` = fin de l'activation (horodatage absolu, persiste hors ligne) ; tant qu'elle n'est pas écoulée, le sort est exclu de `rebuild()` (effet inactif) ; retiré puis remis = repart de zéro ; toast « est maintenant actif » ; compte à rebours sur l'emplacement (`Hud` : badge `10′`, emplacement grisé) et dans l'infobulle. La Taxe s'applique en plus.
 - Tests : effects.test.js passe à 168 vérifications (délais, tranches, activation, cohérence avec `Fx.away`). Vérifié en navigateur : enc1 inactif puis actif, tra4 retardé (ratio 0,933 sur 3 h = 1 h sans le ×1,25).
+
+### 2026-11-28 — Après le Live : mesure du passif de clés + 2 PROJETS FUTURS (aucun code du jeu modifié)
+- **Mesure (lecture seule du compte principal Live de l'utilisateur + simulation `scripts/simulations/passif-cles.js`)**
+  - Les paliers de bâtiments s'arrêtent à 100 (`T=[10,25,50,100]`, passives.js) et le coût monte de ×1,15 par achat. L'Éther/s plafonne donc vers ~0,4 mL/s.
+  - Avec `FR_CURVE` (core.js:53), ça donne un passif brut d'environ 0,85-0,9 clé/j au maximum : ~1 clé/j avec tra1 (×1,15 micro-fragments), ~1,4 en spécialité Transmutation (tra4 ×1,35).
+  - Les paliers 5, 12, 22 et 25 clés/j de la courbe sont inatteignables aujourd'hui.
+  - Plafond atteint en ~1 semaine (joueur assidu) à ~2 semaines (joueur tranquille). Les fragments d'effort sont en plus (9/jour ≈ 1,8 clé).
+  - Exemple réel : rang 2 après ~1 h de jeu, anc 100, pyl 84, bou 57, Divination → « Passif ≈ 0,9 clé/j ».
+  - Règle d'école pour farmer les fragments : Transmutation > Divination > Abjuration ≈ Conjuration ≈ Évocation > Enchantement ≈ Nécromancie > Illusion.
+- **PROJET A — Progression par mises à jour (dans l'appli)**
+  - Objectif : aider un peu la progression sans la casser (jamais 22 clés/j en une semaine). L'utilisateur n'a « que » 464 objets, il faut rationner les clés.
+  - À chaque nouvelle série de sorts (rang 6, puis 7, 8, 9…), rouvrir le plafond du passif. Moyens : prolonger les paliers des bâtiments (×2 à 200, 400, 800…), ajouter des multiplicateurs liés au rang, ou ajuster `FR_CURVE`.
+  - Viser environ +0,5 à 1 clé/j par mise à jour, avec un nouveau plafond atteint lui aussi en 1 à 2 semaines.
+  - TOUJOURS simuler avant (adapter `passif-cles.js`). Accord de l'utilisateur avant de toucher la courbe du Live.
+- **PROJET B — Tableau de bord des statistiques, EXTERNE à l'appli (projet annexe)**
+  - Besoin : voir et analyser toutes les stats du jeu (Live + PTU) sans passer par l'appli. Contrainte : aucun abonnement autre que Claude Code (Firebase gratuit).
+  - Schéma validé par l'utilisateur :
+    1. Un script Node LOCAL en lecture seule (compte de service), dérivé de `scripts/backup-players.js`, produit en un seul passage la sauvegarde ET un fichier de stats agrégées : joueurs actifs, clés et fragments/jour, écoles, rangs, examens, temps de jeu, objets par rareté, coffres et doublons… Il lit `players/{uid}.state` (Coffre, dont `st {c,d,ms}`) et `players/{uid}.clicker.json` (stats Clicker `st/rec/ms/sd/snap`).
+    2. Un HISTORIQUE daté ajouté à chaque passage, sur le PC hors dépôt (comme `../SAUVEGARDES-FIREBASE/`), pour avoir des tendances. Firestore ne contient que l'état actuel.
+    3. L'affichage : un Artifact « Dashboard » privé sur claude.ai (graphiques, filtres Live/PTU, par joueur ou global), consultable sur téléphone et mis à jour par Claude sur la même adresse. Rafraîchi à la demande (« mets à jour les stats ») ou par une tâche programmée de l'app desktop (PC allumé). Pas de tâche cloud : la clé de compte de service ne doit pas quitter le PC.
+    4. En option : réparer le connecteur Firebase de Claude Code (échec de connexion le 2026-11-28) pour des questions ponctuelles en direct.
+  - Écartés : écritures de stats côté jeu (falsifiables, règles à ouvrir), BigQuery/Looker (lourd, potentiellement payant).
+  - Sert aussi à vérifier le Projet A sur de vrais joueurs (plafond atteint en 1 à 2 semaines ?).
 
 ### ✅ LIVE 2.3.0 publié le 2026-11-27 (officiel `moulecake/coffre_des_arcanes`, main `d852cc7..63bf3d0`)
 - Poussé par Claude depuis un clone séparé `../coffre_des_arcanes-live-push` (23 fichiers : app Coffre + Clicker, nav.js, channel.js, icônes -v2.3, manifest = manifest_LIVE.json) ; version 2.3.0 (CURRENT_VERSION, CACHE_NAME, patchnote) uniquement dans cette copie. Inchangés : data.js, workflow + send-push.js, clicker.html, favicon.ico ; anciennes icônes laissées sur l'officiel.

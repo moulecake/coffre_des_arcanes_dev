@@ -7,3 +7,9 @@ sauvegarde-joueurs-*.json
 node_modules/
 scripts/node_modules/
 
+
+# Documents et outils de travail LOCAUX (jamais publiés : conception, maquettes, simulations d'équilibrage, config MCP)
+CONCEPTION_SORTS.md
+maquettes/
+scripts/simulations/
+.mcp.json
